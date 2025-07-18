@@ -1,5 +1,5 @@
 import './tailwind.css';
-import './globals.css';
+// import './globals.css';
 import { ApplicationLayout } from '../components/application-layout';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

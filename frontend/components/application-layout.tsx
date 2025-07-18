@@ -40,15 +40,56 @@ import {
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
+  SunIcon,
+  MoonIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react';
+
+function useTheme() {
+  const [theme, setTheme] = useState('light');
+
+  useEffect(() => {
+    // On mount, check localStorage
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
+    if (stored === 'dark') {
+      setTheme('dark');
+      document.documentElement.classList.add('dark');
+    } else {
+      setTheme('light');
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    if (theme === 'light') {
+      setTheme('dark');
+      localStorage.setItem('theme', 'dark');
+      document.documentElement.classList.add('dark');
+    } else {
+      setTheme('light');
+      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
+  return { theme, toggleTheme };
+}
 
 function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
+  const { theme, toggleTheme } = useTheme();
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
       <DropdownItem href="#">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
+      </DropdownItem>
+      <DropdownDivider />
+      <DropdownItem href="#" onClick={toggleTheme}>
+        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        <DropdownLabel>
+          {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        </DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
       <DropdownItem href="#">
@@ -65,7 +106,7 @@ function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' })
         <DropdownLabel>Sign out</DropdownLabel>
       </DropdownItem>
     </DropdownMenu>
-  )
+  );
 }
 
 export function ApplicationLayout({
