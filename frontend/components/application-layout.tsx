@@ -40,6 +40,7 @@ import {
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
+  UsersIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -148,6 +149,10 @@ export function ApplicationLayout({
               <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
                 <TicketIcon />
                 <SidebarLabel>Orders</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
+                <UsersIcon />
+                <SidebarLabel>Clients</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/settings" current={pathname.startsWith('/settings')}>
                 <Cog6ToothIcon />
