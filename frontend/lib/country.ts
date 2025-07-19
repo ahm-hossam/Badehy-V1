@@ -143,7 +143,7 @@ export const detectUserCountry = async (): Promise<CountryInfo> => {
   console.log('Starting country detection...');
   
   // For testing - uncomment the line below to force Egypt detection
-  return getTestCountry();
+  // return getTestCountry();
   
   // Try multiple IP geolocation services
   const geolocationServices = [
@@ -178,7 +178,7 @@ export const detectUserCountry = async (): Promise<CountryInfo> => {
         }
         
         if (countryCode && typeof countryCode === 'string') {
-          const detectedCountry = getCountryByCode(countryCode);
+          const detectedCountry = getCountryByCode(countryCode as string);
           if (detectedCountry) {
             console.log('Country detected via IP geolocation:', detectedCountry);
             return detectedCountry;
