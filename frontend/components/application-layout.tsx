@@ -40,56 +40,23 @@ import {
   SparklesIcon,
   Square2StackIcon,
   TicketIcon,
-  SunIcon,
-  MoonIcon,
 } from '@heroicons/react/20/solid'
-import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { getStoredUser, removeUser } from '../lib/auth'
 
-function useTheme() {
-  const [theme, setTheme] = useState('light');
-
-  useEffect(() => {
-    // On mount, check localStorage
-    const stored = typeof window !== 'undefined' ? localStorage.getItem('theme') : null;
-    if (stored === 'dark') {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      setTheme('light');
-      document.documentElement.classList.remove('dark');
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    if (theme === 'light') {
-      setTheme('dark');
-      localStorage.setItem('theme', 'dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      setTheme('light');
-      localStorage.setItem('theme', 'light');
-      document.documentElement.classList.remove('dark');
-    }
-  };
-
-  return { theme, toggleTheme };
-}
-
-function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' }) {
-  const { theme, toggleTheme } = useTheme();
+function AccountDropdownMenu({ 
+  anchor, 
+  onSignOut 
+}: { 
+  anchor: 'top start' | 'bottom end'
+  onSignOut: () => void
+}) {
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
       <DropdownItem href="#">
         <UserCircleIcon />
         <DropdownLabel>My account</DropdownLabel>
-      </DropdownItem>
-      <DropdownDivider />
-      <DropdownItem href="#" onClick={toggleTheme}>
-        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-        <DropdownLabel>
-          {theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        </DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
       <DropdownItem href="#">
@@ -101,12 +68,12 @@ function AccountDropdownMenu({ anchor }: { anchor: 'top start' | 'bottom end' })
         <DropdownLabel>Share feedback</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem href="/login">
+      <DropdownItem onClick={onSignOut}>
         <ArrowRightStartOnRectangleIcon />
         <DropdownLabel>Sign out</DropdownLabel>
       </DropdownItem>
     </DropdownMenu>
-  );
+  )
 }
 
 export function ApplicationLayout({
@@ -117,6 +84,18 @@ export function ApplicationLayout({
   children: React.ReactNode
 }) {
   let pathname = usePathname()
+  const router = useRouter()
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    const storedUser = getStoredUser()
+    setUser(storedUser)
+  }, [])
+
+  const handleSignOut = () => {
+    removeUser()
+    router.push('/auth/register')
+  }
 
   return (
     <SidebarLayout
@@ -128,7 +107,7 @@ export function ApplicationLayout({
               <DropdownButton as={NavbarItem}>
                 <Avatar src="/users/erica.jpg" square />
               </DropdownButton>
-              <AccountDropdownMenu anchor="bottom end" />
+              <AccountDropdownMenu anchor="bottom end" onSignOut={handleSignOut} />
             </Dropdown>
           </NavbarSection>
         </Navbar>
@@ -214,15 +193,17 @@ export function ApplicationLayout({
                 <span className="flex min-w-0 items-center gap-3">
                   <Avatar src="/users/erica.jpg" className="size-10" square alt="" />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm/5 font-medium text-zinc-950 dark:text-white">Erica</span>
-                    <span className="block truncate text-xs/5 font-normal text-zinc-500 dark:text-zinc-400">
-                      erica@example.com
+                    <span className="block truncate text-sm/5 font-medium text-zinc-950">
+                      {user?.fullName || 'User'}
+                    </span>
+                    <span className="block truncate text-xs/5 font-normal text-zinc-500">
+                      {user?.email || 'user@example.com'}
                     </span>
                   </span>
                 </span>
                 <ChevronUpIcon />
               </DropdownButton>
-              <AccountDropdownMenu anchor="top start" />
+              <AccountDropdownMenu anchor="top start" onSignOut={handleSignOut} />
             </Dropdown>
           </SidebarFooter>
         </Sidebar>

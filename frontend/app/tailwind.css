@@ -1,13 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
 @import 'tailwindcss';
-
-
-@theme {
-  --font-sans: Inter, sans-serif;
-  --font-sans--font-feature-settings: 'cv11';
-}
 
 @theme {
   --font-sans: Inter, sans-serif;

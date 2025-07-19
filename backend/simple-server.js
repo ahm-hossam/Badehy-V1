@@ -1,12 +1,23 @@
-import express from 'express';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
+const express = require('express');
+const cors = require('cors');
 
-const router = express.Router();
-const prisma = new PrismaClient();
+const app = express();
+const PORT = 3001;
 
-// Simple test endpoint to see what's being received
-router.post('/test', (req, res) => {
+app.use(cors());
+app.use(express.json());
+
+// Add logging middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`, req.body);
+  next();
+});
+
+app.get('/', (req, res) => {
+  res.send('Simple server is running!');
+});
+
+app.post('/register/test', (req, res) => {
   console.log('=== TEST ENDPOINT ===');
   console.log('Headers:', req.headers);
   console.log('Body:', req.body);
@@ -20,7 +31,7 @@ router.post('/test', (req, res) => {
   });
 });
 
-router.post('/', async (req, res) => {
+app.post('/register', (req, res) => {
   console.log('=== REGISTRATION ENDPOINT ===');
   console.log('Headers:', req.headers);
   console.log('Body:', req.body);
@@ -102,51 +113,13 @@ router.post('/', async (req, res) => {
 
   console.log('Password match validation passed');
 
-  try {
-    // Check if email already exists
-    const existingEmail = await prisma.registered.findUnique({ where: { email } });
-    if (existingEmail) {
-      console.log('Email already exists:', email);
-      return res.status(400).json({ error: 'Email already registered.' });
-    }
-
-    console.log('Email uniqueness check passed');
-
-    // Check if phone number already exists (with country code)
-    const existingPhone = await prisma.registered.findFirst({ 
-      where: { 
-        phoneNumber,
-        countryCode 
-      } 
-    });
-    if (existingPhone) {
-      console.log('Phone already exists:', { phoneNumber, countryCode });
-      return res.status(400).json({ error: 'Phone number already registered.' });
-    }
-
-    console.log('Phone uniqueness check passed');
-
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // Create new user
-    const newUser = await prisma.registered.create({
-      data: {
-        fullName: fullName.trim(),
-        email: email.trim(),
-        phoneNumber: phoneNumber.trim(),
-        countryCode: countryCode.trim(),
-        countryName: countryName.trim(),
-        passwordHash,
-      },
-    });
-
-    console.log('User created successfully:', { id: newUser.id, email: newUser.email });
-    return res.status(201).json({ message: 'Registration successful! Please login.' });
-  } catch (error) {
-    console.error('Registration error:', error);
-    return res.status(500).json({ error: 'Internal server error. Please try again.' });
-  }
+  // For now, just return success without database
+  console.log('All validations passed - would create user in database');
+  return res.status(201).json({ message: 'Registration successful! Please login.' });
 });
 
-export default router; 
+app.listen(PORT, () => {
+  console.log(`Simple server is running on port ${PORT}`);
+}).on('error', (err) => {
+  console.error('Server failed to start:', err);
+}); 
