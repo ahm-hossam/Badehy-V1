@@ -322,13 +322,22 @@ export default function CreateClientPage() {
       return;
     }
     // Prepare installments data
-    const installmentsData = showInstallments ? installments : undefined;
+    const installmentsData = showInstallments ? installments.filter(inst => 
+      inst.paidDate && inst.amount && parseFloat(inst.amount) > 0
+    ) : undefined;
+    
+    // Check for incomplete installments
+    if (showInstallments && installments.some(inst => !inst.paidDate || !inst.amount || parseFloat(inst.amount) <= 0)) {
+      setError("Please fill in all required fields for installments (Paid Date and Amount).");
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          trainerId: 1, // TODO: Replace with real trainerId from auth
+          trainerId: 4, // TODO: Replace with real trainerId from auth
           client,
           subscription,
           installments: installmentsData,

@@ -24,7 +24,7 @@ router.post('/', async (req: Request, res: Response) => {
           phone: client.phone,
           email: client.email,
           gender: client.gender,
-          age: client.age,
+          age: client.age ? parseInt(client.age) : null,
           source: client.source,
           notes: client.notes,
         },
@@ -56,16 +56,16 @@ router.post('/', async (req: Request, res: Response) => {
           clientId: createdClient.id,
           packageId,
           startDate: new Date(subscription.startDate),
-          durationValue: subscription.durationValue,
+          durationValue: parseInt(subscription.durationValue),
           durationUnit: subscription.durationUnit,
           endDate: new Date(subscription.endDate),
           paymentStatus: subscription.paymentStatus,
           paymentMethod: subscription.paymentMethod,
-          priceBeforeDisc: subscription.priceBeforeDisc,
+          priceBeforeDisc: subscription.priceBeforeDisc ? parseFloat(subscription.priceBeforeDisc) : null,
           discountApplied: subscription.discountApplied,
           discountType: subscription.discountType,
-          discountValue: subscription.discountValue,
-          priceAfterDisc: subscription.priceAfterDisc,
+          discountValue: subscription.discountValue ? parseFloat(subscription.discountValue) : null,
+          priceAfterDisc: subscription.priceAfterDisc ? parseFloat(subscription.priceAfterDisc) : null,
         },
       })
 
@@ -73,14 +73,19 @@ router.post('/', async (req: Request, res: Response) => {
       const createdInstallments = [];
       if (installments && Array.isArray(installments)) {
         for (const inst of installments) {
+          // Skip installment if required fields are missing
+          if (!inst.paidDate || !inst.amount) {
+            continue;
+          }
+          
           const createdInstallment = await tx.installment.create({
             data: {
               subscriptionId: createdSubscription.id,
               paidDate: new Date(inst.paidDate),
-              amount: inst.amount,
-              remaining: inst.remaining,
+              amount: parseFloat(inst.amount),
+              remaining: parseFloat(inst.remaining),
               nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
-              status: inst.status,
+              status: 'paid', // Default status
             },
           });
           createdInstallments.push(createdInstallment);

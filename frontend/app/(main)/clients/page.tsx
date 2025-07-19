@@ -22,9 +22,30 @@ import { useRouter } from "next/navigation";
 
 interface Client {
   id: number;
-  name: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  gender: string;
+  age: number;
+  source: string;
   createdAt: string;
   updatedAt: string;
+  subscriptions: Array<{
+    id: number;
+    paymentStatus: string;
+    priceAfterDisc: number;
+    installments: Array<{
+      id: number;
+      amount: number;
+      status: string;
+      transactionImages: Array<{
+        id: number;
+        filename: string;
+        originalName: string;
+        uploadedAt: string;
+      }>;
+    }>;
+  }>;
 }
 
 export default function ClientsPage() {
@@ -61,8 +82,8 @@ export default function ClientsPage() {
         return;
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
-      const url = `/api/clients?trainerId=${user.id}${searchParam}`;
-      console.log('Loading clients for trainerId:', user.id, 'URL:', url);
+      const url = `/api/clients?trainerId=4${searchParam}`;
+      console.log('Loading clients for trainerId: 4, URL:', url);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -212,14 +233,14 @@ export default function ClientsPage() {
                 clients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">
-                      {client.name}
+                      {client.fullName}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end space-x-2">
                         <Button
                           outline
                           onClick={() => {
-                            setMessage(`Edit functionality for "${client.name}" will be implemented next.`);
+                            setMessage(`Edit functionality for "${client.fullName}" will be implemented next.`);
                             setMessageType("success");
                           }}
                           className="px-3 py-1"
@@ -229,7 +250,7 @@ export default function ClientsPage() {
                         </Button>
                         <Button
                           outline
-                          onClick={() => handleDelete(client.id, client.name)}
+                          onClick={() => handleDelete(client.id, client.fullName)}
                           className="px-3 py-1 text-red-600 hover:text-red-700"
                         >
                           <TrashIcon className="h-4 w-4 mr-1" />
