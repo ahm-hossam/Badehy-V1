@@ -4,6 +4,9 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure Prisma client is ready
+    await prisma.$connect();
+    
     const body = await request.json();
     console.log('=== REGISTRATION API ROUTE ===');
     console.log('Body:', body);
@@ -128,5 +131,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Registration API error:', error);
     return NextResponse.json({ error: 'Internal server error. Please try again.' }, { status: 500 });
+  } finally {
+    // Disconnect from database
+    await prisma.$disconnect();
   }
 } 
