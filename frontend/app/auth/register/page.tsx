@@ -343,7 +343,7 @@ export default function RegisterPage() {
           >
             {loading ? "Creating Account..." : "Create Account"}
           </Button>
-        </form>
+    </form>
 
         <div className="text-center">
           <p className="text-sm text-zinc-600">

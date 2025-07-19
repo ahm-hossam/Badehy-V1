@@ -17,6 +17,8 @@ import {
   MagnifyingGlassIcon,
   UsersIcon 
 } from "@heroicons/react/20/solid";
+import { getStoredUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 interface Client {
   id: number;
@@ -31,6 +33,7 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("error");
+  const router = useRouter();
 
   // Load clients on component mount
   useEffect(() => {
@@ -49,22 +52,26 @@ export default function ClientsPage() {
   const loadClients = async () => {
     try {
       setLoading(true);
-      const searchParam = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : "";
-      console.log('Loading clients with search:', searchTerm, 'URL:', `/api/clients${searchParam}`);
-      
-      const response = await fetch(`/api/clients${searchParam}`);
-      
+      const user = typeof window !== 'undefined' ? getStoredUser() : null;
+      if (!user) {
+        setMessage("You must be logged in to view clients.");
+        setMessageType("error");
+        setClients([]);
+        setLoading(false);
+        return;
+      }
+      const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
+      const url = `/api/clients?trainerId=${user.id}${searchParam}`;
+      console.log('Loading clients for trainerId:', user.id, 'URL:', url);
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        console.log('Clients loaded:', data);
         setClients(data);
       } else {
-        console.error('Failed to load clients:', response.status);
         setMessage("Failed to load clients.");
         setMessageType("error");
       }
     } catch (error) {
-      console.error('Error loading clients:', error);
       setMessage("Error loading clients.");
       setMessageType("error");
     } finally {
@@ -98,35 +105,8 @@ export default function ClientsPage() {
     }
   };
 
-  const handleAddClient = async () => {
-    try {
-      // Create a test client
-      const response = await fetch('/api/clients', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: `Test Client ${Date.now()}`,
-        }),
-      });
-
-      if (response.ok) {
-        const newClient = await response.json();
-        console.log('Client created:', newClient);
-        setMessage(`Client "${newClient.name}" created successfully.`);
-        setMessageType("success");
-        loadClients(); // Reload the list
-      } else {
-        const data = await response.json();
-        setMessage(data.error || "Failed to create client.");
-        setMessageType("error");
-      }
-    } catch (error) {
-      console.error('Error creating client:', error);
-      setMessage("Error creating client.");
-      setMessageType("error");
-    }
+  const handleAddClient = () => {
+    router.push("/clients/create");
   };
 
   return (

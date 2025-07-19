@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import registerRoute from './routes/register';
+import clientsRoute from './routes/clients';
+import packagesRoute from './routes/packages';
+import dropdownsRoute from './routes/dropdowns';
+import transactionImagesRoute from './routes/transaction-images';
 
 dotenv.config();
 
@@ -18,6 +22,10 @@ app.use((req, res, next) => {
 });
 
 app.use('/register', registerRoute);
+app.use('/api/clients', clientsRoute);
+app.use('/api/packages', packagesRoute);
+app.use('/api/dropdowns', dropdownsRoute);
+app.use('/api/transaction-images', transactionImagesRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');
