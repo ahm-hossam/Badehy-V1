@@ -133,7 +133,7 @@ export default function RegisterPage() {
     try {
       console.log('Form data being sent:', form);
 
-      const res = await fetch("/api/register", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

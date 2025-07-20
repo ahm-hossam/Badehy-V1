@@ -82,7 +82,7 @@ export default function ClientsPage() {
         return;
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
-      const url = `/api/clients?trainerId=6${searchParam}`;
+      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=6${searchParam}`;
       console.log('Loading clients for trainerId: 6, URL:', url);
       const response = await fetch(url);
       if (response.ok) {
@@ -106,7 +106,7 @@ export default function ClientsPage() {
     }
 
     try {
-      const response = await fetch(`/api/clients/${clientId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
         method: 'DELETE',
       });
 

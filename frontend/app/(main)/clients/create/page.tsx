@@ -81,7 +81,7 @@ export default function CreateClientPage() {
 
   // Fetch dropdown data
   useEffect(() => {
-    fetch("/api/dropdowns")
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/dropdowns`)
       .then((res) => res.json())
       .then((data) => {
         setSources(data.sources || []);
@@ -92,7 +92,7 @@ export default function CreateClientPage() {
   // Fetch packages for trainer (using trainerId=6)
   useEffect(() => {
     setPackageLoading(true);
-    fetch(`/api/packages?trainerId=6&search=${encodeURIComponent(packageSearch)}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages?trainerId=6&search=${encodeURIComponent(packageSearch)}`)
       .then((res) => res.json())
       .then((data) => setPackages(data))
       .finally(() => setPackageLoading(false));
@@ -101,7 +101,7 @@ export default function CreateClientPage() {
   // Handler for creating a new package on the fly
   const handleCreatePackage = async (name: string) => {
     setPackageLoading(true);
-    const res = await fetch("/api/packages", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ trainerId: 6, name }),
@@ -261,7 +261,7 @@ export default function CreateClientPage() {
         formData.append('images', image);
       });
 
-      const res = await fetch(`/api/transaction-images/${installmentId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/transaction-images/${installmentId}`, {
         method: 'POST',
         body: formData,
       });
@@ -335,7 +335,7 @@ export default function CreateClientPage() {
       return;
     }
     try {
-      const res = await fetch("/api/clients", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

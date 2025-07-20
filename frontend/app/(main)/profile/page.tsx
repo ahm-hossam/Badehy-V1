@@ -52,7 +52,7 @@ export default function ProfilePage() {
     try {
       setIsLoadingProfile(true);
       
-      const response = await fetch(`/api/profile/${userId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/profile/${userId}`);
       
       if (response.ok) {
         const userData = await response.json();
@@ -157,7 +157,7 @@ export default function ProfilePage() {
 
     try {
       
-      const res = await fetch("/api/profile/update", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/profile/update`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

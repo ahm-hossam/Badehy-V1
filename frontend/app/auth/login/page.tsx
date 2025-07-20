@@ -67,7 +67,7 @@ export default function LoginPage() {
     try {
       console.log('Login attempt for:', form.email);
 
-      const res = await fetch("/api/login", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
