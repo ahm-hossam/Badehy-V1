@@ -30,7 +30,11 @@ export async function POST(request: NextRequest) {
 
     // Return user data without password
     const { passwordHash: _, ...userWithoutPassword } = user;
-    return NextResponse.json(userWithoutPassword);
+    return NextResponse.json({ 
+      success: true,
+      message: 'Login successful!',
+      user: userWithoutPassword 
+    });
   } catch (error) {
     console.error('Error logging in user:', error);
     return NextResponse.json({ error: 'Failed to login' }, { status: 500 });

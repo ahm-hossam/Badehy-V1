@@ -89,10 +89,10 @@ export default function CreateClientPage() {
       });
   }, []);
 
-  // Fetch packages for trainer (simulate trainerId=1 for now)
+  // Fetch packages for trainer (using trainerId=6)
   useEffect(() => {
     setPackageLoading(true);
-    fetch(`/api/packages?trainerId=1&search=${encodeURIComponent(packageSearch)}`)
+    fetch(`/api/packages?trainerId=6&search=${encodeURIComponent(packageSearch)}`)
       .then((res) => res.json())
       .then((data) => setPackages(data))
       .finally(() => setPackageLoading(false));
@@ -104,7 +104,7 @@ export default function CreateClientPage() {
     const res = await fetch("/api/packages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trainerId: 1, name }),
+      body: JSON.stringify({ trainerId: 6, name }),
     });
     if (res.ok) {
       const pkg = await res.json();
@@ -261,7 +261,7 @@ export default function CreateClientPage() {
         formData.append('images', image);
       });
 
-      const res = await fetch(`/api/transaction-images/upload/${installmentId}`, {
+      const res = await fetch(`/api/transaction-images/${installmentId}`, {
         method: 'POST',
         body: formData,
       });
@@ -286,6 +286,8 @@ export default function CreateClientPage() {
   // Gather form data and submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    console.log("Form submitted, preventing default behavior");
     setError("");
     setSuccess("");
     setLoading(true);
@@ -337,7 +339,7 @@ export default function CreateClientPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          trainerId: 4, // TODO: Replace with real trainerId from auth
+          trainerId: 6, // Using the actual trainer ID
           client,
           subscription,
           installments: installmentsData,
@@ -357,7 +359,9 @@ export default function CreateClientPage() {
           }
         }
         
-        setTimeout(() => router.push("/clients"), 1200);
+        // Don't redirect, just show success message
+        console.log("Client created successfully, staying on page");
+        // setTimeout(() => router.push("/"), 1200);
       } else {
         const data = await res.json();
         setError(data.error || "Failed to create client.");
@@ -367,6 +371,7 @@ export default function CreateClientPage() {
     } finally {
       setLoading(false);
     }
+    return false;
   };
 
   // Filtered packages for combobox
@@ -381,7 +386,7 @@ export default function CreateClientPage() {
       <p className="mb-6 text-zinc-600">Add a new client and their subscription details.</p>
       {error && <div className="mb-4 text-red-600 font-medium">{error}</div>}
       {success && <div className="mb-4 text-green-600 font-medium">{success}</div>}
-      <form onSubmit={handleSubmit} autoComplete="off" className="space-y-10">
+      <form onSubmit={handleSubmit} autoComplete="off" className="space-y-10" action="javascript:void(0)">
         {/* Client Details */}
         <section className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold mb-4">Client Details</h2>

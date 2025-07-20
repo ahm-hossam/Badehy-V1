@@ -39,7 +39,11 @@ export async function POST(request: NextRequest) {
 
     // Return user data without password
     const { passwordHash: _, ...userWithoutPassword } = user;
-    return NextResponse.json(userWithoutPassword);
+    return NextResponse.json({ 
+      success: true,
+      message: 'Registration successful!',
+      user: userWithoutPassword 
+    });
   } catch (error) {
     console.error('Error registering user:', error);
     return NextResponse.json({ error: 'Failed to register user' }, { status: 500 });

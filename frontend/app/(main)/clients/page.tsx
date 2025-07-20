@@ -82,8 +82,8 @@ export default function ClientsPage() {
         return;
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
-      const url = `/api/clients?trainerId=4${searchParam}`;
-      console.log('Loading clients for trainerId: 4, URL:', url);
+      const url = `/api/clients?trainerId=6${searchParam}`;
+      console.log('Loading clients for trainerId: 6, URL:', url);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
