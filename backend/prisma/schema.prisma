@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
   provider = "prisma-client-js"
@@ -14,47 +9,44 @@ datasource db {
 }
 
 model Registered {
-  id           Int    @id @default(autoincrement())
-  fullName     String
-  email        String @unique
-  phoneNumber  String
-  countryCode  String
-  countryName  String
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  // Relations
-  trainerClients   TrainerClient[]
-  packages  Package[]
+  id             Int             @id @default(autoincrement())
+  fullName       String
+  email          String          @unique
+  countryCode    String
+  countryName    String
+  passwordHash   String
+  createdAt      DateTime        @default(now())
+  phoneNumber    String
+  updatedAt      DateTime        @updatedAt
+  packages       Package[]
+  trainerClients TrainerClient[]
 }
 
 model TrainerClient {
-  id         Int      @id @default(autoincrement())
-  trainerId  Int
-  trainer    Registered @relation(fields: [trainerId], references: [id])
-  fullName   String
-  phone      String
-  email      String
-  gender     String?
-  age        Int?
-  source     String?
-  notes      String?  // HTML or rich text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  // Relations
+  id            Int            @id @default(autoincrement())
+  trainerId     Int
+  fullName      String
+  phone         String
+  email         String
+  gender        String?
+  age           Int?
+  source        String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]
+  trainer       Registered     @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId])
 }
 
 model Package {
-  id         Int      @id @default(autoincrement())
-  trainerId  Int
-  trainer    Registered @relation(fields: [trainerId], references: [id])
-  name       String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  // Relations
+  id            Int            @id @default(autoincrement())
+  trainerId     Int
+  name          String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  trainer       Registered     @relation(fields: [trainerId], references: [id])
   subscriptions Subscription[]
 
   @@unique([trainerId, name])
@@ -62,58 +54,71 @@ model Package {
 }
 
 model Subscription {
-  id                Int      @id @default(autoincrement())
-  clientId          Int
-  client            TrainerClient   @relation(fields: [clientId], references: [id])
-  packageId         Int
-  package           Package  @relation(fields: [packageId], references: [id])
-  startDate         DateTime
-  durationValue     Int
-  durationUnit      String   // 'days' or 'months'
-  endDate           DateTime
-  paymentStatus     String   // 'free', 'free trial', 'paid', 'pending', 'installments'
-  paymentMethod     String?  // e.g. 'instapay', 'vodafone cash', etc.
-  priceBeforeDisc   Float?
-  discountApplied   Boolean? // true if discount applied
-  discountType      String?  // 'fixed' or 'percentage'
-  discountValue     Float?
-  priceAfterDisc    Float?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  // Relations
-  installments      Installment[]
+  id              Int           @id @default(autoincrement())
+  clientId        Int
+  packageId       Int
+  startDate       DateTime
+  durationValue   Int
+  durationUnit    String
+  endDate         DateTime
+  paymentStatus   String
+  paymentMethod   String?
+  priceBeforeDisc Float?
+  discountApplied Boolean?
+  discountType    String?
+  discountValue   Float?
+  priceAfterDisc  Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  installments    Installment[]
+  client          TrainerClient @relation(fields: [clientId], references: [id])
+  package         Package       @relation(fields: [packageId], references: [id])
+  subscriptionTransactionImages SubscriptionTransactionImage[]
 
   @@index([clientId])
   @@index([packageId])
 }
 
 model Installment {
-  id                Int      @id @default(autoincrement())
+  id                Int                @id @default(autoincrement())
   subscriptionId    Int
-  subscription      Subscription @relation(fields: [subscriptionId], references: [id])
   paidDate          DateTime
   amount            Float
   remaining         Float
   nextInstallment   DateTime?
-  status            String   // 'paid', 'pending', 'overdue'
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  // Relations
+  status            String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  subscription      Subscription       @relation(fields: [subscriptionId], references: [id])
   transactionImages TransactionImage[]
 
   @@index([subscriptionId])
 }
 
 model TransactionImage {
-  id            Int      @id @default(autoincrement())
-  installmentId Int
-  installment   Installment @relation(fields: [installmentId], references: [id])
+  id            Int         @id @default(autoincrement())
   filename      String
   originalName  String
   mimeType      String
-  size          Int      // File size in bytes
-  imageData     Bytes    // Actual image data stored as BLOB
-  uploadedAt    DateTime @default(now())
-  
+  size          Int
+  imageData     Bytes
+  uploadedAt    DateTime    @default(now())
+  installmentId Int
+  installment   Installment @relation(fields: [installmentId], references: [id])
+
   @@index([installmentId])
+}
+
+model SubscriptionTransactionImage {
+  id             Int           @id @default(autoincrement())
+  filename       String
+  originalName   String
+  mimeType       String
+  size           Int
+  imageData      Bytes
+  uploadedAt     DateTime      @default(now())
+  subscriptionId Int
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId])
 }

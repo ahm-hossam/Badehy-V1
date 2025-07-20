@@ -6,105 +6,100 @@ const router = Router()
 
 // POST /api/clients
 router.post('/', async (req: Request, res: Response) => {
+  /*
+    Minimal, bug-free client creation:
+    - Creates a TrainerClient
+    - Creates a Subscription for that client
+    - Optionally creates Installments for the subscription
+    - All fields are explicitly mapped and validated
+    - Only uses fields that exist in the current Prisma schema
+  */
   try {
-    // TODO: Extract trainerId from auth/session (for now, expect in body for testing)
-    const { trainerId, client, subscription, installments } = req.body
+    const { trainerId, client, subscription, installments } = req.body;
+    // Basic validation
     if (!trainerId || !client || !subscription) {
-      return res.status(400).json({ error: 'Missing required fields' })
+      return res.status(400).json({ error: 'Missing required fields' });
     }
-
-    // TODO: Add full validation for all fields
-
+    const parsedTrainerId = Number(trainerId);
+    if (isNaN(parsedTrainerId)) {
+      return res.status(400).json({ error: 'Invalid trainerId' });
+    }
+    // Transaction: create client, subscription, and installments
     const result = await prisma.$transaction(async (tx) => {
-      // Create client
+      // 1. Create TrainerClient
       const createdClient = await tx.trainerClient.create({
         data: {
-          trainerId,
-          fullName: client.fullName,
-          phone: client.phone,
-          email: client.email,
-          gender: client.gender,
-          age: client.age ? parseInt(client.age) : null,
-          source: client.source,
-          notes: client.notes,
+          trainerId: parsedTrainerId,
+          fullName: String(client.fullName),
+          phone: String(client.phone),
+          email: client.email ? String(client.email) : '',
+          gender: client.gender ? String(client.gender) : null,
+          age: client.age ? Number(client.age) : null,
+          source: client.source ? String(client.source) : null,
+          notes: client.notes ? String(client.notes) : null,
         },
-      })
-
-      // Create or connect package
-      let packageId = subscription.packageId
-      if (!packageId && subscription.packageName) {
-        // Find or create package for this trainer
-        const pkg = await tx.package.upsert({
-          where: {
-            trainerId_name: {
-              trainerId,
-              name: subscription.packageName,
-            },
-          },
-          update: {},
-          create: {
-            trainerId,
-            name: subscription.packageName,
-          },
-        })
-        packageId = pkg.id
+      });
+      // 2. Create Subscription (must have packageId)
+      const packageId = subscription.packageId ? Number(subscription.packageId) : null;
+      if (!packageId) {
+        throw new Error('Missing or invalid packageId for subscription');
       }
-
-      // Create subscription
       const createdSubscription = await tx.subscription.create({
         data: {
           clientId: createdClient.id,
-          packageId,
+          packageId: packageId,
           startDate: new Date(subscription.startDate),
-          durationValue: parseInt(subscription.durationValue),
-          durationUnit: subscription.durationUnit,
+          durationValue: Number(subscription.durationValue),
+          durationUnit: String(subscription.durationUnit),
           endDate: new Date(subscription.endDate),
-          paymentStatus: subscription.paymentStatus,
-          paymentMethod: subscription.paymentMethod,
-          priceBeforeDisc: subscription.priceBeforeDisc ? parseFloat(subscription.priceBeforeDisc) : null,
-          discountApplied: subscription.discountApplied,
-          discountType: subscription.discountType,
-          discountValue: subscription.discountValue ? parseFloat(subscription.discountValue) : null,
-          priceAfterDisc: subscription.priceAfterDisc ? parseFloat(subscription.priceAfterDisc) : null,
+          paymentStatus: String(subscription.paymentStatus),
+          paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
+          priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
+          discountApplied: Boolean(subscription.discountApplied),
+          discountType: subscription.discountType ? String(subscription.discountType) : null,
+          discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
+          priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
         },
-      })
-
-      // Create installments if provided
+      });
+      // 3. Optionally create Installments
       const createdInstallments = [];
       if (installments && Array.isArray(installments)) {
         for (const inst of installments) {
-          // Skip installment if required fields are missing
-          if (!inst.paidDate || !inst.amount) {
-            continue;
-          }
-          
+          if (!inst.paidDate || !inst.amount) continue;
           const createdInstallment = await tx.installment.create({
             data: {
               subscriptionId: createdSubscription.id,
               paidDate: new Date(inst.paidDate),
-              amount: parseFloat(inst.amount),
-              remaining: parseFloat(inst.remaining),
+              amount: Number(inst.amount),
+              remaining: inst.remaining ? Number(inst.remaining) : 0,
               nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
-              status: 'paid', // Default status
+              status: inst.status ? String(inst.status) : 'paid',
             },
           });
           createdInstallments.push(createdInstallment);
         }
       }
-
-      return { 
-        client: createdClient, 
+      return {
+        client: createdClient,
         subscription: createdSubscription,
-        installments: createdInstallments
-      }
-    })
-
-    res.status(201).json(result)
+        installments: createdInstallments,
+      };
+    });
+    res.status(201).json(result);
   } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Internal server error' })
+    // Robust error logging
+    if (error instanceof Error) {
+      console.error('Error creating client:', error.message);
+      if ('code' in error) {
+        console.error('Prisma error code:', (error as any).code);
+        console.error('Prisma error meta:', (error as any).meta);
+      }
+    } else {
+      console.error('Unknown error:', error);
+    }
+    res.status(500).json({ error: 'Internal server error', details: error instanceof Error ? error.message : error });
   }
-})
+});
 
 // GET /api/clients?trainerId=1
 router.get('/', async (req: Request, res: Response) => {

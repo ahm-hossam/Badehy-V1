@@ -70,6 +70,58 @@ router.post('/upload/:installmentId', upload.array('images', 10), async (req: ex
   }
 });
 
+// Upload transaction images for a subscription (for 'paid' status)
+router.post('/upload/subscription/:subscriptionId', upload.array('images', 10), async (req: express.Request, res: express.Response) => {
+  try {
+    const { subscriptionId } = req.params;
+    const files = req.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No images provided' });
+    }
+
+    // Verify subscription exists
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: parseInt(subscriptionId) }
+    });
+
+    if (!subscription) {
+      return res.status(404).json({ error: 'Subscription not found' });
+    }
+
+    // Save images to database
+    const savedImages = [];
+    for (const file of files) {
+      const transactionImage = await prisma.subscriptionTransactionImage.create({
+        data: {
+          subscriptionId: parseInt(subscriptionId),
+          filename: `${Date.now()}-${file.originalname}`,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          imageData: file.buffer
+        }
+      });
+      savedImages.push({
+        id: transactionImage.id,
+        filename: transactionImage.filename,
+        originalName: transactionImage.originalName,
+        mimeType: transactionImage.mimeType,
+        size: transactionImage.size,
+        uploadedAt: transactionImage.uploadedAt
+      });
+    }
+
+    res.json({
+      message: 'Images uploaded successfully',
+      images: savedImages
+    });
+  } catch (error) {
+    console.error('Error uploading subscription images:', error);
+    res.status(500).json({ error: 'Failed to upload subscription images' });
+  }
+});
+
 // Get transaction images for an installment
 router.get('/installment/:installmentId', async (req: express.Request, res: express.Response) => {
   try {
