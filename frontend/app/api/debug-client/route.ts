@@ -57,10 +57,10 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Debug: Creating subscription...');
     const createdSubscription = await prisma.subscription.create({
       data: {
-        trainerClientId: createdClient.id,
+        client: { connect: { id: createdClient.id } },
+        package: { connect: { id: parseInt(subscription.packageId) } },
         startDate: new Date(subscription.startDate),
         endDate: new Date(subscription.endDate),
-        packageId: parseInt(subscription.packageId),
         durationValue: parseInt(subscription.durationValue),
         durationUnit: subscription.durationUnit,
         paymentStatus: subscription.paymentStatus,

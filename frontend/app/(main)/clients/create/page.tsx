@@ -13,6 +13,7 @@ import { Combobox, ComboboxOption } from '@/components/combobox';
 import { TrashIcon, PencilIcon, PlusIcon, CheckIcon, XMarkIcon } from '@heroicons/react/20/solid';
 import { Dialog } from '@/components/dialog';
 import { getStoredUser } from '@/lib/auth';
+import { Alert } from '@/components/alert';
 
 
 function addDuration(start: string, value: number, unit: string): string {
@@ -47,7 +48,7 @@ export default function CreateClientPage() {
   const [paymentStatus, setPaymentStatus] = useState("");
   const [discount, setDiscount] = useState("");
   const [durationValue, setDurationValue] = useState("");
-  const [durationUnit, setDurationUnit] = useState("days");
+  const [durationUnit, setDurationUnit] = useState("months");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -64,6 +65,8 @@ export default function CreateClientPage() {
   const [priceBeforeDisc, setPriceBeforeDisc] = useState('');
   const [installmentImages, setInstallmentImages] = useState<{ [key: number]: File[] }>({});
   const [uploadingInstallmentImages, setUploadingInstallmentImages] = useState<{ [key: number]: boolean }>({});
+  const [showToast, setShowToast] = useState(false);
+  const [paidTransactionImages, setPaidTransactionImages] = useState<File[]>([]);
 
   // Installments UI
   const showInstallments = paymentStatus === "installments";
@@ -77,6 +80,8 @@ export default function CreateClientPage() {
   const [success, setSuccess] = useState("");
 
   const comboboxRef = useRef<any>(null);
+  // Combobox bug fix: force re-render on open, reset input on close
+  const [comboboxKey, setComboboxKey] = useState(0);
 
 
   // Fetch dropdown data
@@ -89,10 +94,12 @@ export default function CreateClientPage() {
       });
   }, []);
 
-  // Fetch packages for trainer (using trainerId=6)
+  // Fetch packages for trainer (account owner)
   useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
     setPackageLoading(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages?trainerId=6&search=${encodeURIComponent(packageSearch)}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages?trainerId=${user.id}&search=${encodeURIComponent(packageSearch)}`)
       .then((res) => res.json())
       .then((data) => setPackages(data))
       .finally(() => setPackageLoading(false));
@@ -100,11 +107,13 @@ export default function CreateClientPage() {
 
   // Handler for creating a new package on the fly
   const handleCreatePackage = async (name: string) => {
+    const user = getStoredUser();
+    if (!user) return;
     setPackageLoading(true);
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trainerId: 6, name }),
+      body: JSON.stringify({ trainerId: user.id, name }),
     });
     if (res.ok) {
       const pkg = await res.json();
@@ -335,11 +344,12 @@ export default function CreateClientPage() {
       return;
     }
     try {
+      const user = getStoredUser();
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          trainerId: 6, // Using the actual trainer ID
+          trainerId: user?.id, // Use the logged-in user's ID
           client,
           subscription,
           installments: installmentsData,
@@ -347,21 +357,21 @@ export default function CreateClientPage() {
       });
       if (res.ok) {
         const result = await res.json();
-        setSuccess("Client created successfully!");
-        
-        // Upload images for each installment that has images
-        if (result.installments && result.installments.length > 0) {
-          for (let i = 0; i < result.installments.length; i++) {
-            const imagesForInstallment = installmentImages[i];
-            if (imagesForInstallment && imagesForInstallment.length > 0) {
-              await uploadInstallmentImages(result.installments[i].id, i);
-            }
-          }
+        // Upload transaction images for paid subscriptions
+        if (paymentStatus === "paid" && paidTransactionImages.length > 0) {
+          const formData = new FormData();
+          paidTransactionImages.forEach(img => formData.append('images', img));
+          await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/transaction-images/upload/subscription/${result.subscription.id}`, {
+            method: 'POST',
+            body: formData,
+          });
         }
-        
-        // Don't redirect, just show success message
-        console.log("Client created successfully, staying on page");
-        // setTimeout(() => router.push("/"), 1200);
+        setShowToast(true);
+        setTimeout(() => {
+          setShowToast(false);
+          router.push("/clients");
+        }, 1500);
+        return;
       } else {
         const data = await res.json();
         setError(data.error || "Failed to create client.");
@@ -384,8 +394,16 @@ export default function CreateClientPage() {
     <div className="max-w-3xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Create Client</h1>
       <p className="mb-6 text-zinc-600">Add a new client and their subscription details.</p>
-      {error && <div className="mb-4 text-red-600 font-medium">{error}</div>}
-      {success && <div className="mb-4 text-green-600 font-medium">{success}</div>}
+      {showToast && (
+        <Alert open={showToast} onClose={() => setShowToast(false)}>
+          Client created successfully!
+        </Alert>
+      )}
+      {!!error && (
+        <Alert open={!!error} onClose={() => setError("")}>
+          {error}
+        </Alert>
+      )}
       <form onSubmit={handleSubmit} autoComplete="off" className="space-y-10" action="javascript:void(0)">
         {/* Client Details */}
         <section className="bg-white rounded-lg shadow p-6">
@@ -447,33 +465,28 @@ export default function CreateClientPage() {
             <div>
               <label className="block text-sm font-medium mb-1">Package Name</label>
               <div className="flex items-stretch gap-0 w-full max-w-md">
-                <div className="flex-1 relative">
-                  <Combobox
-                    options={packages}
-                    value={packages.find(pkg => pkg.id.toString() === selectedPackage) || null}
-                    displayValue={pkg => pkg ? pkg.name : ''}
-                    onChange={pkg => {
-                      if (pkg && pkg.id) {
-                        setSelectedPackage(pkg.id.toString());
-                        setPackageInput(pkg.name);
-                      }
+                <div className="flex-1 relative mr-2">
+                  <Select
+                    name="package"
+                    value={selectedPackage}
+                    onChange={e => {
+                      setSelectedPackage(e.target.value);
+                      const pkg = packages.find(pkg => pkg.id.toString() === e.target.value);
+                      setPackageInput(pkg ? pkg.name : '');
                     }}
-                    placeholder="Search or select package"
-                    className="rounded-r-none border-r-0"
-                    anchor="bottom"
+                    required
+                    className="rounded-r-none"
                   >
-                    {(pkg) => (
-                      <ComboboxOption key={pkg.id} value={pkg}>
-                        {pkg.name}
-                      </ComboboxOption>
-                    )}
-                  </Combobox>
-                  {/* Move the arrow inside the input by absolute positioning if needed */}
+                    <option value="">Select a package</option>
+                    {packages.map(pkg => (
+                      <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                    ))}
+                  </Select>
                 </div>
                 <Button
                   outline
                   type="button"
-                  className="rounded-l-none border-l-0 flex items-center gap-1 border-zinc-300 text-zinc-700"
+                  className="rounded-l-none border-l border-zinc-300 flex items-center gap-1 text-zinc-700"
                   onClick={() => setShowPackageModal(true)}
                 >
                   <PlusIcon className="h-5 w-5 mr-1" /> Add
@@ -540,6 +553,32 @@ export default function CreateClientPage() {
               </Dialog>
               {packageLoading && <div className="text-xs text-blue-500 mt-1">Creating package...</div>}
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Payment Status</label>
+              <Select name="paymentStatus" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
+                <option value="">Select payment status</option>
+                <option value="free">Free</option>
+                <option value="free trial">Free Trial</option>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+                <option value="installments">Installments</option>
+              </Select>
+            </div>
+            {paymentStatus === "paid" && (
+              <div className="mt-2">
+                <label className="block text-sm font-medium mb-1">Transaction Images (optional)</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png"
+                  onChange={e => setPaidTransactionImages(Array.from(e.target.files || []))}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {paidTransactionImages.length > 0 && (
+                  <div className="mt-1 text-xs text-zinc-600">{paidTransactionImages.length} file(s) selected</div>
+                )}
+              </div>
+            )}
             {/* Duration input group */}
             <div>
               <label className="block text-sm font-medium mb-1">Duration</label>
@@ -561,17 +600,6 @@ export default function CreateClientPage() {
             <div>
               <label className="block text-sm font-medium mb-1">Subscription End Date</label>
               <Input name="endDate" type="date" disabled value={endDate} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Payment Status</label>
-              <Select name="paymentStatus" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
-                <option value="">Select payment status</option>
-                <option value="free">Free</option>
-                <option value="free trial">Free Trial</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="installments">Installments</option>
-              </Select>
             </div>
             {showPaymentMethod && (
               <div>

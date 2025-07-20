@@ -82,8 +82,8 @@ export default function ClientsPage() {
         return;
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
-      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=6${searchParam}`;
-      console.log('Loading clients for trainerId: 6, URL:', url);
+      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}`;
+      console.log('Loading clients for trainerId:', user.id, 'URL:', url);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
