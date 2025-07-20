@@ -508,7 +508,7 @@ export default function CreateClientPage() {
                             setPackageLoading(false);
                             return;
                           }
-                          const res = await fetch('/api/packages', {
+                          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ trainerId: user.id, name: newPackageName }),
