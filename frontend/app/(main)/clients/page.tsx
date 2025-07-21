@@ -19,6 +19,8 @@ import {
 } from "@heroicons/react/20/solid";
 import { getStoredUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from 'next/navigation';
+import { Dialog } from '@/components/dialog';
 
 interface Client {
   id: number;
@@ -55,6 +57,12 @@ export default function ClientsPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("error");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showCreatedToast, setShowCreatedToast] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{id: number, name: string} | null>(null);
+  const [showDeletedToast, setShowDeletedToast] = useState(false);
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Load clients on component mount
   useEffect(() => {
@@ -69,6 +77,14 @@ export default function ClientsPage() {
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (searchParams.get('created') === '1') {
+      setShowCreatedToast(true);
+      const timer = setTimeout(() => setShowCreatedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
 
   const loadClients = async () => {
     try {
@@ -101,28 +117,34 @@ export default function ClientsPage() {
   };
 
   const handleDelete = async (clientId: number, clientName: string) => {
-    if (!confirm(`Are you sure you want to delete "${clientName}"?`)) {
-      return;
-    }
-
+    console.log('Delete clicked:', clientId, clientName); // Debug log
+    setConfirmDelete({id: clientId, name: clientName});
+  };
+  const confirmDeleteClient = async () => {
+    if (!confirmDelete) return;
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${confirmDelete.id}`, {
         method: 'DELETE',
       });
-
       if (response.ok) {
-        setMessage(`Client "${clientName}" deleted successfully.`);
-        setMessageType("success");
-        loadClients(); // Reload the list
+        setConfirmDelete(null); // Close dialog first
+        await loadClients(); // Wait for client list to reload
+        setTimeout(() => {
+          setShowDeletedToast(true);
+          setTimeout(() => setShowDeletedToast(false), 2000);
+        }, 100); // Delay to ensure UI is stable before showing toast
       } else {
         const data = await response.json();
-        setMessage(data.error || "Failed to delete client.");
-        setMessageType("error");
+        setErrorMessage(data.error || "Failed to delete client.");
+        setShowErrorToast(true);
+        setTimeout(() => setShowErrorToast(false), 2000);
       }
     } catch (error) {
-      console.error('Error deleting client:', error);
-      setMessage("Error deleting client.");
-      setMessageType("error");
+      setErrorMessage("Error deleting client.");
+      setShowErrorToast(true);
+      setTimeout(() => setShowErrorToast(false), 2000);
+    } finally {
+      setConfirmDelete(null);
     }
   };
 
@@ -140,35 +162,6 @@ export default function ClientsPage() {
             Manage your client relationships and information
           </p>
         </div>
-
-        {/* Message */}
-        {message && (
-          <div className={`mb-6 p-4 rounded-lg border ${
-            messageType === "success" 
-              ? "bg-green-50 border-green-200 text-green-800" 
-              : "bg-red-50 border-red-200 text-red-800"
-          }`}>
-            <div className="flex">
-              <div className="flex-shrink-0">
-                {messageType === "success" ? (
-                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                )}
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium">
-                  {messageType === "success" ? "Success" : "Error"}
-                </p>
-                <p className="text-sm mt-1">{message}</p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Search and Add Button */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -265,6 +258,42 @@ export default function ClientsPage() {
           </Table>
         </div>
       </div>
+      {confirmDelete && (
+        <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+          <div className="p-6 z-[9999]">
+            <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
+            <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button color="red" type="button" onClick={confirmDeleteClient}>Delete</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+      {showCreatedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Client created successfully!
+          </div>
+        </div>
+      )}
+      {showDeletedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Client deleted successfully!
+          </div>
+        </div>
+      )}
+      {showErrorToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            {errorMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

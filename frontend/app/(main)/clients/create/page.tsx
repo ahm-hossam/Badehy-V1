@@ -366,11 +366,7 @@ export default function CreateClientPage() {
             body: formData,
           });
         }
-        setShowToast(true);
-        setTimeout(() => {
-          setShowToast(false);
-          router.push("/clients");
-        }, 1500);
+        router.push("/clients?created=1");
         return;
       } else {
         const data = await res.json();

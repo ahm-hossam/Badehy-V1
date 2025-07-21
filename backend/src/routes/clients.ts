@@ -143,4 +143,44 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/clients/:id
+router.delete('/:id', async (req: Request, res: Response) => {
+  const clientId = Number(req.params.id);
+  if (isNaN(clientId)) {
+    return res.status(400).json({ error: 'Invalid client ID' });
+  }
+  try {
+    // Check if client exists
+    const client = await prisma.trainerClient.findUnique({ where: { id: clientId } });
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    // Delete related data (subscriptions, installments, images)
+    await prisma.$transaction(async (tx) => {
+      // Find all subscriptions for this client
+      const subscriptions = await tx.subscription.findMany({ where: { clientId } });
+      for (const sub of subscriptions) {
+        // Delete subscription transaction images
+        await tx.subscriptionTransactionImage.deleteMany({ where: { subscriptionId: sub.id } });
+        // Find all installments for this subscription
+        const installments = await tx.installment.findMany({ where: { subscriptionId: sub.id } });
+        for (const inst of installments) {
+          // Delete transaction images for installment
+          await tx.transactionImage.deleteMany({ where: { installmentId: inst.id } });
+        }
+        // Delete installments
+        await tx.installment.deleteMany({ where: { subscriptionId: sub.id } });
+      }
+      // Delete subscriptions
+      await tx.subscription.deleteMany({ where: { clientId } });
+      // Finally, delete the client
+      await tx.trainerClient.delete({ where: { id: clientId } });
+    });
+    res.json({ message: 'Client deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting client:', error);
+    res.status(500).json({ error: 'Failed to delete client' });
+  }
+});
+
 export default router 
