@@ -63,6 +63,7 @@ export default function ClientsPage() {
   const [showDeletedToast, setShowDeletedToast] = useState(false);
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showUpdatedToast, setShowUpdatedToast] = useState(false);
 
   // Load clients on component mount
   useEffect(() => {
@@ -82,6 +83,14 @@ export default function ClientsPage() {
     if (searchParams.get('created') === '1') {
       setShowCreatedToast(true);
       const timer = setTimeout(() => setShowCreatedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get('updated') === '1') {
+      setShowUpdatedToast(true);
+      const timer = setTimeout(() => setShowUpdatedToast(false), 2000);
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
@@ -232,10 +241,7 @@ export default function ClientsPage() {
                       <div className="flex items-center justify-end space-x-2">
                         <Button
                           outline
-                          onClick={() => {
-                            setMessage(`Edit functionality for "${client.fullName}" will be implemented next.`);
-                            setMessageType("success");
-                          }}
+                          onClick={() => router.push(`/clients/edit/${client.id}`)}
                           className="px-3 py-1"
                         >
                           <PencilIcon className="h-4 w-4 mr-1" />
@@ -291,6 +297,14 @@ export default function ClientsPage() {
           <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
             <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             {errorMessage}
+          </div>
+        </div>
+      )}
+      {showUpdatedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Client updated successfully!
           </div>
         </div>
       )}

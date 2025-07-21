@@ -143,6 +143,159 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/clients/:id
+router.get('/:id', async (req: Request, res: Response) => {
+  const clientId = Number(req.params.id);
+  if (isNaN(clientId)) {
+    return res.status(400).json({ error: 'Invalid client ID' });
+  }
+  try {
+    const client = await prisma.trainerClient.findUnique({
+      where: { id: clientId },
+      include: {
+        subscriptions: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            package: true,
+            installments: {
+              include: {
+                transactionImages: true,
+              },
+              orderBy: { paidDate: 'desc' },
+            },
+            subscriptionTransactionImages: true,
+          },
+        },
+      },
+    });
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    res.json(client);
+  } catch (error) {
+    console.error('Error fetching client:', error);
+    res.status(500).json({ error: 'Failed to fetch client' });
+  }
+});
+
+// PUT /api/clients/:id
+router.put('/:id', async (req: Request, res: Response) => {
+  const clientId = Number(req.params.id);
+  if (isNaN(clientId)) {
+    return res.status(400).json({ error: 'Invalid client ID' });
+  }
+  const { client, subscription, installments, deleteInstallmentIds, deleteTransactionImageIds, deleteSubscriptionImageIds } = req.body;
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Update client details
+      const updatedClient = await tx.trainerClient.update({
+        where: { id: clientId },
+        data: {
+          fullName: client.fullName,
+          phone: client.phone,
+          email: client.email,
+          gender: client.gender,
+          age: client.age ? Number(client.age) : null,
+          source: client.source,
+          notes: client.notes,
+        },
+      });
+      // 2. Update subscription (assume only one active subscription)
+      let updatedSubscription = null;
+      if (subscription && subscription.id) {
+        updatedSubscription = await tx.subscription.update({
+          where: { id: subscription.id },
+          data: {
+            packageId: Number(subscription.packageId),
+            startDate: new Date(subscription.startDate),
+            durationValue: Number(subscription.durationValue),
+            durationUnit: subscription.durationUnit,
+            endDate: new Date(subscription.endDate),
+            paymentStatus: subscription.paymentStatus,
+            paymentMethod: subscription.paymentMethod,
+            priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
+            discountApplied: Boolean(subscription.discountApplied),
+            discountType: subscription.discountType,
+            discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
+            priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+          },
+        });
+      }
+      // 3. Delete removed installments
+      if (Array.isArray(deleteInstallmentIds) && deleteInstallmentIds.length > 0) {
+        for (const instId of deleteInstallmentIds) {
+          // Delete transaction images for this installment
+          await tx.transactionImage.deleteMany({ where: { installmentId: instId } });
+          await tx.installment.delete({ where: { id: instId } });
+        }
+      }
+      // 4. Upsert installments
+      const updatedInstallments = [];
+      if (Array.isArray(installments)) {
+        for (const inst of installments) {
+          if (inst.id) {
+            // Update existing installment
+            const updatedInst = await tx.installment.update({
+              where: { id: inst.id },
+              data: {
+                paidDate: new Date(inst.paidDate),
+                amount: Number(inst.amount),
+                remaining: inst.remaining ? Number(inst.remaining) : 0,
+                nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
+                status: inst.status ? String(inst.status) : 'paid',
+              },
+            });
+            updatedInstallments.push(updatedInst);
+          } else {
+            // Create new installment
+            const newInst = await tx.installment.create({
+              data: {
+                subscriptionId: subscription.id,
+                paidDate: new Date(inst.paidDate),
+                amount: Number(inst.amount),
+                remaining: inst.remaining ? Number(inst.remaining) : 0,
+                nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
+                status: inst.status ? String(inst.status) : 'paid',
+              },
+            });
+            updatedInstallments.push(newInst);
+          }
+        }
+      }
+      // 5. Delete removed transaction images (installments)
+      if (Array.isArray(deleteTransactionImageIds) && deleteTransactionImageIds.length > 0) {
+        await tx.transactionImage.deleteMany({ where: { id: { in: deleteTransactionImageIds } } });
+      }
+      // 6. Delete removed subscription transaction images
+      if (Array.isArray(deleteSubscriptionImageIds) && deleteSubscriptionImageIds.length > 0) {
+        await tx.subscriptionTransactionImage.deleteMany({ where: { id: { in: deleteSubscriptionImageIds } } });
+      }
+      // Return updated client with relations
+      const result = await tx.trainerClient.findUnique({
+        where: { id: clientId },
+        include: {
+          subscriptions: {
+            orderBy: { createdAt: 'desc' },
+            include: {
+              package: true,
+              installments: {
+                include: { transactionImages: true },
+                orderBy: { paidDate: 'desc' },
+              },
+              subscriptionTransactionImages: true,
+            },
+          },
+        },
+      });
+      return result;
+    });
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating client:', error);
+    res.status(500).json({ error: 'Failed to update client' });
+  }
+});
+
 // DELETE /api/clients/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   const clientId = Number(req.params.id);

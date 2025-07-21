@@ -861,7 +861,7 @@ export default function CreateClientPage() {
 
         {/* Save/Cancel Buttons */}
         <div className="flex justify-end gap-4 mt-10">
-          <Button outline type="button" onClick={() => router.push("/")}>Cancel</Button>
+          <Button outline type="button" onClick={() => router.push("/clients")}>Cancel</Button>
           <Button type="submit" disabled={loading}>{loading ? "Saving..." : "Save Client"}</Button>
         </div>
       </form>
