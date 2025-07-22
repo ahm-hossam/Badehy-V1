@@ -103,13 +103,21 @@ router.post('/', async (req: Request, res: Response) => {
 
 // GET /api/clients?trainerId=1
 router.get('/', async (req: Request, res: Response) => {
-  const { trainerId } = req.query;
+  const { trainerId, search } = req.query;
   if (!trainerId) {
     return res.status(400).json({ error: 'Missing trainerId' });
   }
   try {
+    const where: any = { trainerId: Number(trainerId) };
+    if (search && typeof search === 'string' && search.trim() !== '') {
+      where.OR = [
+        { fullName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ];
+    }
     const clients = await prisma.trainerClient.findMany({
-      where: { trainerId: Number(trainerId) },
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         subscriptions: {
@@ -333,6 +341,36 @@ router.delete('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error deleting client:', error);
     res.status(500).json({ error: 'Failed to delete client' });
+  }
+});
+
+// GET /api/profile/:id
+router.get('/profile/:id', async (req: Request, res: Response) => {
+  const userId = Number(req.params.id);
+  if (isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+  try {
+    const user = await prisma.registered.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        countryCode: true,
+        countryName: true,
+        phoneNumber: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
 
