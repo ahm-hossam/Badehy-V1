@@ -160,7 +160,7 @@ export default function ProfilePage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user?.id,
+          id: user?.id, // changed from userId to id
           fullName: form.fullName,
           email: form.email,
           phoneNumber: form.phoneNumber,
