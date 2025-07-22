@@ -68,6 +68,7 @@ export default function CreateClientPage() {
   const [uploadingInstallmentImages, setUploadingInstallmentImages] = useState<{ [key: number]: boolean }>({});
   const [showToast, setShowToast] = useState(false);
   const [paidTransactionImages, setPaidTransactionImages] = useState<File[]>([]);
+  const [level, setLevel] = useState("");
 
   // Installments UI
   const showInstallments = paymentStatus === "installments";
@@ -357,7 +358,7 @@ export default function CreateClientPage() {
       gender: (e.target as any).gender?.value || "",
       age: (e.target as any).age?.value || "",
       source: (e.target as any).source?.value || "",
-      notes,
+      level,
       goals,
       labels: labels.map((l: any) => l.value), // send label IDs
     };
@@ -517,6 +518,18 @@ export default function CreateClientPage() {
                 {sources.map((src) => (
                   <option key={src} value={src}>{src}</option>
                 ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Level</label>
+              <Select name="level" value={level} onChange={e => setLevel(e.target.value)}>
+                <option value="">Select level</option>
+                <option value="Beginner 1">Beginner 1</option>
+                <option value="Beginner 2">Beginner 2</option>
+                <option value="Intermediate 1">Intermediate 1</option>
+                <option value="Intermediate 2">Intermediate 2</option>
+                <option value="Advanced">Advanced</option>
+                <option value="Elite">Elite</option>
               </Select>
             </div>
             <div className="col-span-2">
