@@ -401,8 +401,16 @@ export default function CreateClientPage() {
         body: JSON.stringify({
           trainerId: user?.id, // Use the logged-in user's ID
           client,
-          subscription,
+          subscription: {
+            ...subscription,
+            priceBeforeDisc: priceBeforeDisc ? Number(priceBeforeDisc) : null,
+            discountApplied: showDiscountFields ? discount === "yes" : null,
+            discountType: showDiscountFields ? discountType : null,
+            discountValue: showDiscountFields ? (discountValue ? Number(discountValue) : null) : null,
+            priceAfterDisc: showDiscountFields ? (packagePriceAfter ? Number(packagePriceAfter) : null) : null,
+          },
           installments: installmentsData,
+          notes: notesList.map(n => ({ content: n.content })),
         }),
       });
       if (res.ok) {
@@ -415,6 +423,20 @@ export default function CreateClientPage() {
             method: 'POST',
             body: formData,
           });
+        }
+        // Upload images for each installment
+        if (result.installments && Array.isArray(result.installments)) {
+          for (let i = 0; i < result.installments.length; i++) {
+            const inst = result.installments[i];
+            if (installmentImages[i] && installmentImages[i].length > 0) {
+              const formData = new FormData();
+              installmentImages[i].forEach(img => formData.append('images', img));
+              await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/transaction-images/upload/${inst.id}`, {
+                method: 'POST',
+                body: formData,
+              });
+            }
+          }
         }
         router.push("/clients?created=1");
         return;

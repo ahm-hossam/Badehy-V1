@@ -32,13 +32,13 @@ model TrainerClient {
   gender        String?
   age           Int?
   source        String?
-  notes         String?
   goals         String[] // New field for client goals
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]
   trainer       Registered     @relation(fields: [trainerId], references: [id])
   labels        Label[]        @relation("ClientLabels")
+  notes         Note[]
 
   @@index([trainerId])
 }
@@ -135,4 +135,15 @@ model Label {
 
   @@unique([trainerId, name])
   @@index([trainerId])
+}
+
+model Note {
+  id        Int           @id @default(autoincrement())
+  clientId  Int
+  content   String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  client    TrainerClient @relation(fields: [clientId], references: [id])
+  
+  @@index([clientId])
 }
