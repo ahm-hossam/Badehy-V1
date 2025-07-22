@@ -37,6 +37,7 @@ router.post('/', async (req: Request, res: Response) => {
           age: client.age ? Number(client.age) : null,
           source: client.source ? String(client.source) : null,
           notes: client.notes ? String(client.notes) : null,
+          goals: Array.isArray(client.goals) ? client.goals : [],
         },
       });
       // 2. Create Subscription (must have packageId)
@@ -206,6 +207,7 @@ router.put('/:id', async (req: Request, res: Response) => {
           age: client.age ? Number(client.age) : null,
           source: client.source,
           notes: client.notes,
+          goals: Array.isArray(client.goals) ? client.goals : [],
         },
       });
       // 2. Update subscription (assume only one active subscription)

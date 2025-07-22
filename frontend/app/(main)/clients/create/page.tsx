@@ -14,6 +14,7 @@ import { TrashIcon, PencilIcon, PlusIcon, CheckIcon, XMarkIcon } from '@heroicon
 import { Dialog } from '@/components/dialog';
 import { getStoredUser } from '@/lib/auth';
 import { Alert } from '@/components/alert';
+import CreatableSelect from 'react-select/creatable';
 
 
 function addDuration(start: string, value: number, unit: string): string {
@@ -82,6 +83,20 @@ export default function CreateClientPage() {
   const comboboxRef = useRef<any>(null);
   // Combobox bug fix: force re-render on open, reset input on close
   const [comboboxKey, setComboboxKey] = useState(0);
+
+  const GOALS_OPTIONS = [
+    { value: 'Fat Loss', label: 'Fat Loss' },
+    { value: 'Muscle Gain', label: 'Muscle Gain' },
+    { value: 'Body Recomposition', label: 'Body Recomposition' },
+    { value: 'Lifestyle / General Fitness', label: 'Lifestyle / General Fitness' },
+    { value: 'Postpartum Recovery', label: 'Postpartum Recovery' },
+    { value: 'Injury Rehab / Mobility', label: 'Injury Rehab / Mobility' },
+    { value: 'Strength & Performance', label: 'Strength & Performance' },
+    { value: 'Event Prep (Wedding, Photo Shoot, etc.)', label: 'Event Prep (Wedding, Photo Shoot, etc.)' },
+    { value: 'Medical Needs (Thyroid, PCOS, etc.)', label: 'Medical Needs (Thyroid, PCOS, etc.)' },
+    { value: 'Other', label: 'Other' },
+  ];
+  const [goals, setGoals] = useState<string[]>([]);
 
 
   // Fetch dropdown data
@@ -310,6 +325,7 @@ export default function CreateClientPage() {
       age: (e.target as any).age?.value || "",
       source: (e.target as any).source?.value || "",
       notes,
+      goals,
     };
     const subscription = {
       startDate,
@@ -446,6 +462,39 @@ export default function CreateClientPage() {
                   <option key={src} value={src}>{src}</option>
                 ))}
               </Select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">Goals</label>
+              <CreatableSelect
+                isMulti
+                options={GOALS_OPTIONS}
+                value={goals.map((g: string) => ({ value: g, label: g }))}
+                onChange={(selected: any) => setGoals(selected.map((opt: any) => opt.value))}
+                placeholder="Select or type goals..."
+                classNamePrefix="react-select"
+                className="w-full"
+                styles={{
+                  control: (base: any, state: any) => ({
+                    ...base,
+                    borderRadius: '0.5rem',
+                    minHeight: 44,
+                    height: 44,
+                    fontSize: '1rem',
+                    background: 'transparent',
+                    border: state.isFocused ? '1.5px solid #2563eb' : '1.5px solid rgba(9,9,11,0.1)', // blue-500 or zinc-950/10
+                    boxShadow: 'none',
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                  }),
+                  valueContainer: (base: any) => ({ ...base, padding: '0 14px' }), // px-3.5
+                  input: (base: any) => ({ ...base, margin: 0, padding: 0 }),
+                  multiValue: (base: any) => ({ ...base, background: '#f3f4f6', borderRadius: 6, fontSize: '1rem' }),
+                  placeholder: (base: any) => ({ ...base, fontSize: '1rem', color: '#6b7280' }), // zinc-500
+                  dropdownIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  clearIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  menu: (base: any) => ({ ...base, fontSize: '1rem' }),
+                }}
+              />
             </div>
           </div>
         </section>

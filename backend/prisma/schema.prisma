@@ -32,6 +32,7 @@ model TrainerClient {
   age           Int?
   source        String?
   notes         String?
+  goals         String[] // New field for client goals
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]

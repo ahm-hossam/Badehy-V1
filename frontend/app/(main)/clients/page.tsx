@@ -199,6 +199,7 @@ export default function ClientsPage() {
           <Table>
             <TableHead>
               <TableRow>
+                <TableHeader>ID</TableHeader>
                 <TableHeader>Client Name</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
@@ -234,6 +235,7 @@ export default function ClientsPage() {
               ) : (
                 clients.map((client) => (
                   <TableRow key={client.id}>
+                    <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
                     <TableCell className="font-medium">
                       {client.fullName}
                     </TableCell>

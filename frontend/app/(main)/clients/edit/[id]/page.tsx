@@ -11,11 +11,28 @@ import { getStoredUser } from "@/lib/auth";
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { Alert } from '@/components/alert';
+import CreatableSelect from 'react-select/creatable';
 
 export default function EditClientPage() {
+  // All hooks and top-level variables must be here, before any return or conditional
   const params = useParams();
   const router = useRouter();
   const clientId = params?.id as string;
+
+  const GOALS_OPTIONS = [
+    { value: 'Fat Loss', label: 'Fat Loss' },
+    { value: 'Muscle Gain', label: 'Muscle Gain' },
+    { value: 'Body Recomposition', label: 'Body Recomposition' },
+    { value: 'Lifestyle / General Fitness', label: 'Lifestyle / General Fitness' },
+    { value: 'Postpartum Recovery', label: 'Postpartum Recovery' },
+    { value: 'Injury Rehab / Mobility', label: 'Injury Rehab / Mobility' },
+    { value: 'Strength & Performance', label: 'Strength & Performance' },
+    { value: 'Event Prep (Wedding, Photo Shoot, etc.)', label: 'Event Prep (Wedding, Photo Shoot, etc.)' },
+    { value: 'Medical Needs (Thyroid, PCOS, etc.)', label: 'Medical Needs (Thyroid, PCOS, etc.)' },
+    { value: 'Other', label: 'Other' },
+  ];
+  const [goals, setGoals] = useState<string[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [clientData, setClientData] = useState<any>(null);
@@ -188,6 +205,7 @@ export default function EditClientPage() {
       setPriceAfterDisc(sub.priceAfterDisc ? String(sub.priceAfterDisc) : '');
     }
     // TODO: Pre-fill installments, images, etc.
+    setGoals(clientData.goals || []); // Pre-fill goals
   }, [clientData]);
 
   // TODO: Implement form submit handler
@@ -196,12 +214,15 @@ export default function EditClientPage() {
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
   if (!clientData) return null;
 
+  // Remove any duplicate GOALS_OPTIONS or useState below any return or conditional
+
   // Complete submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Update Client form submitted'); // Debug log
     // Gather updated data
     const client = { fullName, phone, email, gender, age, source, notes };
+    const updatedClient = { ...client, goals }; // Include goals in the payload
     const subscription = {
       id: clientData.subscriptions?.[0]?.id,
       packageId: selectedPackage,
@@ -231,7 +252,7 @@ export default function EditClientPage() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        client,
+        client: updatedClient,
         subscription,
         installments: installmentsData,
         deleteInstallmentIds,
@@ -282,6 +303,10 @@ export default function EditClientPage() {
           <h2 className="text-lg font-semibold mb-4">Client Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
+              <label className="block text-sm font-medium mb-1">ID</label>
+              <Input name="id" value={clientData.id || ''} disabled />
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1">Full Name</label>
               <Input name="fullName" value={fullName} onChange={e => setFullName(e.target.value)} required />
             </div>
@@ -320,6 +345,39 @@ export default function EditClientPage() {
                 <option value="">Select source</option>
                 {/* TODO: Map sources */}
               </Select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">Goals</label>
+              <CreatableSelect
+                isMulti
+                options={GOALS_OPTIONS}
+                value={goals.map((g: string) => ({ value: g, label: g }))}
+                onChange={(selected: any) => setGoals(selected.map((opt: any) => opt.value))}
+                placeholder="Select or type goals..."
+                classNamePrefix="react-select"
+                className="w-full"
+                styles={{
+                  control: (base: any, state: any) => ({
+                    ...base,
+                    borderRadius: '0.5rem',
+                    minHeight: 44,
+                    height: 44,
+                    fontSize: '1rem',
+                    background: 'transparent',
+                    border: state.isFocused ? '1.5px solid #2563eb' : '1.5px solid rgba(9,9,11,0.1)',
+                    boxShadow: 'none',
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                  }),
+                  valueContainer: (base: any) => ({ ...base, padding: '0 14px' }),
+                  input: (base: any) => ({ ...base, margin: 0, padding: 0 }),
+                  multiValue: (base: any) => ({ ...base, background: '#f3f4f6', borderRadius: 6, fontSize: '1rem' }),
+                  placeholder: (base: any) => ({ ...base, fontSize: '1rem', color: '#6b7280' }),
+                  dropdownIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  clearIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  menu: (base: any) => ({ ...base, fontSize: '1rem' }),
+                }}
+              />
             </div>
           </div>
         </section>

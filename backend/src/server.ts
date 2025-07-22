@@ -7,6 +7,8 @@ import packagesRoute from './routes/packages';
 import dropdownsRoute from './routes/dropdowns';
 import transactionImagesRoute from './routes/transaction-images';
 
+console.log('DATABASE_URL:', process.env.DATABASE_URL);
+
 dotenv.config();
 
 const app = express();
