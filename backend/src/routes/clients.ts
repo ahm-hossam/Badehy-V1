@@ -36,7 +36,7 @@ router.post('/', async (req: Request, res: Response) => {
           gender: client.gender ? String(client.gender) : null,
           age: client.age ? Number(client.age) : null,
           source: client.source ? String(client.source) : null,
-          notes: client.notes ? String(client.notes) : null,
+          notesRelation: { create: (client.notes?.map((note: any) => ({ content: note.content })) ) },
           goals: Array.isArray(client.goals) ? client.goals : [],
         },
       });
@@ -206,7 +206,10 @@ router.put('/:id', async (req: Request, res: Response) => {
           gender: client.gender,
           age: client.age ? Number(client.age) : null,
           source: client.source,
-          notes: client.notes,
+          notesRelation: {
+            set: client.notes?.map((note: any) => ({ id: note.id, content: note.content })),
+            create: client.notes?.filter((note: any) => !note.id).map((note: any) => ({ content: note.content })),
+          },
           goals: Array.isArray(client.goals) ? client.goals : [],
         },
       });
