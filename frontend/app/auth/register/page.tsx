@@ -133,7 +133,7 @@ export default function RegisterPage() {
     try {
       console.log('Form data being sent:', form);
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/register`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/express-register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -146,18 +146,14 @@ export default function RegisterPage() {
       
       if (res.ok) {
         setMessageType("success");
-        setMessage("Registration successful! Redirecting to dashboard...");
-        
-        // Store user data and auto-login
+        setMessage("Registration successful! Redirecting to login page...");
+        // Store user data and auto-login if present
         if (data.user) {
           storeUser(data.user);
-          console.log('User stored, redirecting to home page');
-          
-          // Redirect to home page after a short delay
-          setTimeout(() => {
-            router.push('/');
-          }, 1500);
+          console.log('User stored in localStorage:', localStorage.getItem('auth_user'));
         }
+        // Redirect to login page after registration
+        window.location.href = '/auth/login';
       } else {
         setMessageType("error");
         setMessage(data.error || "Registration failed.");

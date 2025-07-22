@@ -98,6 +98,39 @@ export default function CreateClientPage() {
   ];
   const [goals, setGoals] = useState<string[]>([]);
 
+  // Add state for labels
+  const [labels, setLabels] = useState<any[]>([]);
+  const [labelOptions, setLabelOptions] = useState<any[]>([]);
+  const [labelsLoading, setLabelsLoading] = useState(false);
+
+  // Fetch labels for trainer
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
+    setLabelsLoading(true);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setLabelOptions(data.map((l: any) => ({ value: l.id, label: l.name }))))
+      .finally(() => setLabelsLoading(false));
+  }, []);
+
+  // Handle label creation
+  const handleCreateLabel = async (inputValue: string) => {
+    const user = getStoredUser();
+    if (!user) return;
+    setLabelsLoading(true);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trainerId: user.id, name: inputValue })
+    });
+    if (res.ok) {
+      const newLabel = await res.json();
+      setLabelOptions((prev: any) => [...prev, { value: newLabel.id, label: newLabel.name }]);
+      setLabels((prev: any) => [...prev, { value: newLabel.id, label: newLabel.name }]);
+    }
+    setLabelsLoading(false);
+  };
 
   // Fetch dropdown data
   useEffect(() => {
@@ -326,6 +359,7 @@ export default function CreateClientPage() {
       source: (e.target as any).source?.value || "",
       notes,
       goals,
+      labels: labels.map((l: any) => l.value), // send label IDs
     };
     const subscription = {
       startDate,
@@ -490,6 +524,42 @@ export default function CreateClientPage() {
                   input: (base: any) => ({ ...base, margin: 0, padding: 0 }),
                   multiValue: (base: any) => ({ ...base, background: '#f3f4f6', borderRadius: 6, fontSize: '1rem' }),
                   placeholder: (base: any) => ({ ...base, fontSize: '1rem', color: '#6b7280' }), // zinc-500
+                  dropdownIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  clearIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  menu: (base: any) => ({ ...base, fontSize: '1rem' }),
+                }}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">Label(s)</label>
+              <CreatableSelect
+                isMulti
+                isClearable
+                options={labelOptions}
+                value={labels}
+                isLoading={labelsLoading}
+                onChange={(selected: any) => setLabels(selected || [])}
+                onCreateOption={handleCreateLabel}
+                placeholder="Select or type labels..."
+                classNamePrefix="react-select"
+                className="w-full"
+                styles={{
+                  control: (base: any, state: any) => ({
+                    ...base,
+                    borderRadius: '0.5rem',
+                    minHeight: 44,
+                    height: 44,
+                    fontSize: '1rem',
+                    background: 'transparent',
+                    border: state.isFocused ? '1.5px solid #2563eb' : '1.5px solid rgba(9,9,11,0.1)',
+                    boxShadow: 'none',
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                  }),
+                  valueContainer: (base: any) => ({ ...base, padding: '0 14px' }),
+                  input: (base: any) => ({ ...base, margin: 0, padding: 0 }),
+                  multiValue: (base: any) => ({ ...base, background: '#f3f4f6', borderRadius: 6, fontSize: '1rem' }),
+                  placeholder: (base: any) => ({ ...base, fontSize: '1rem', color: '#6b7280' }),
                   dropdownIndicator: (base: any) => ({ ...base, padding: 8 }),
                   clearIndicator: (base: any) => ({ ...base, padding: 8 }),
                   menu: (base: any) => ({ ...base, fontSize: '1rem' }),

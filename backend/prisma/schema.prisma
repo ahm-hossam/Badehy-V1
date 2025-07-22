@@ -20,6 +20,7 @@ model Registered {
   updatedAt      DateTime        @updatedAt
   packages       Package[]
   trainerClients TrainerClient[]
+  labels         Label[]
 }
 
 model TrainerClient {
@@ -37,6 +38,7 @@ model TrainerClient {
   updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]
   trainer       Registered     @relation(fields: [trainerId], references: [id])
+  labels        Label[]        @relation("ClientLabels")
 
   @@index([trainerId])
 }
@@ -122,4 +124,15 @@ model SubscriptionTransactionImage {
   subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
 
   @@index([subscriptionId])
+}
+
+model Label {
+  id         Int            @id @default(autoincrement())
+  name       String
+  trainerId  Int
+  trainer    Registered     @relation(fields: [trainerId], references: [id])
+  clients    TrainerClient[] @relation("ClientLabels")
+
+  @@unique([trainerId, name])
+  @@index([trainerId])
 }

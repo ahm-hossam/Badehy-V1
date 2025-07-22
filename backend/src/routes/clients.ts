@@ -36,8 +36,8 @@ router.post('/', async (req: Request, res: Response) => {
           gender: client.gender ? String(client.gender) : null,
           age: client.age ? Number(client.age) : null,
           source: client.source ? String(client.source) : null,
-          notesRelation: { create: (client.notes?.map((note: any) => ({ content: note.content })) ) },
           goals: Array.isArray(client.goals) ? client.goals : [],
+          labels: client.labels && Array.isArray(client.labels) ? { connect: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
       // 2. Create Subscription (must have packageId)
@@ -206,11 +206,8 @@ router.put('/:id', async (req: Request, res: Response) => {
           gender: client.gender,
           age: client.age ? Number(client.age) : null,
           source: client.source,
-          notesRelation: {
-            set: client.notes?.map((note: any) => ({ id: note.id, content: note.content })),
-            create: client.notes?.filter((note: any) => !note.id).map((note: any) => ({ content: note.content })),
-          },
           goals: Array.isArray(client.goals) ? client.goals : [],
+          labels: client.labels && Array.isArray(client.labels) ? { set: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
       // 2. Update subscription (assume only one active subscription)
