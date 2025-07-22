@@ -15,7 +15,7 @@ router.post('/', async (req: Request, res: Response) => {
     - Only uses fields that exist in the current Prisma schema
   */
   try {
-    const { trainerId, client, subscription, installments } = req.body;
+    const { trainerId, client, subscription, installments, notes } = req.body;
     // Basic validation
     if (!trainerId || !client || !subscription) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -40,6 +40,17 @@ router.post('/', async (req: Request, res: Response) => {
           labels: client.labels && Array.isArray(client.labels) ? { connect: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
+      // 1b. Create notes if provided
+      if (Array.isArray(notes) && notes.length > 0) {
+        for (const note of notes) {
+          await tx.note.create({
+            data: {
+              clientId: createdClient.id,
+              content: String(note.content),
+            },
+          });
+        }
+      }
       // 2. Create Subscription (must have packageId)
       const packageId = subscription.packageId ? Number(subscription.packageId) : null;
       if (!packageId) {
