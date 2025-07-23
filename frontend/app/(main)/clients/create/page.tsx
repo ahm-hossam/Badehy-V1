@@ -69,6 +69,11 @@ export default function CreateClientPage() {
   const [showToast, setShowToast] = useState(false);
   const [paidTransactionImages, setPaidTransactionImages] = useState<File[]>([]);
   const [level, setLevel] = useState("");
+  const [registrationDate, setRegistrationDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10);
+  });
+  const [injuriesHealthNotes, setInjuriesHealthNotes] = useState<string[]>([]);
 
   // Installments UI
   const showInstallments = paymentStatus === "installments";
@@ -359,6 +364,8 @@ export default function CreateClientPage() {
       age: (e.target as any).age?.value || "",
       source: (e.target as any).source?.value || "",
       level,
+      registrationDate,
+      injuriesHealthNotes,
       goals,
       labels: labels.map((l: any) => l.value), // send label IDs
     };
@@ -459,6 +466,34 @@ export default function CreateClientPage() {
     : packages;
   const showCreateOption = packageInput && !filteredPackages.some(pkg => pkg.name.toLowerCase() === packageInput.toLowerCase());
 
+  const INJURIES_HEALTH_OPTIONS: { value: string; label: string }[] = [
+    { value: 'Shoulder Impingement', label: 'Shoulder Impingement' },
+    { value: 'Rotator Cuff Injury', label: 'Rotator Cuff Injury' },
+    { value: 'Tennis Elbow (Lateral Epicondylitis)', label: 'Tennis Elbow (Lateral Epicondylitis)' },
+    { value: 'Golfer’s Elbow (Medial Epicondylitis)', label: 'Golfer’s Elbow (Medial Epicondylitis)' },
+    { value: 'Wrist Pain or Carpal Tunnel', label: 'Wrist Pain or Carpal Tunnel' },
+    { value: 'Cervical (Neck) Pain', label: 'Cervical (Neck) Pain' },
+    { value: 'Knee Pain (Patellofemoral Syndrome)', label: 'Knee Pain (Patellofemoral Syndrome)' },
+    { value: 'ACL or Meniscus Injuries', label: 'ACL or Meniscus Injuries' },
+    { value: 'IT Band Syndrome', label: 'IT Band Syndrome' },
+    { value: 'Shin Splints', label: 'Shin Splints' },
+    { value: 'Plantar Fasciitis', label: 'Plantar Fasciitis' },
+    { value: 'Achilles Tendinitis', label: 'Achilles Tendinitis' },
+    { value: 'Ankle Instability', label: 'Ankle Instability' },
+    { value: 'Lower Back Pain (LBP)', label: 'Lower Back Pain (LBP)' },
+    { value: 'Herniated Disc', label: 'Herniated Disc' },
+    { value: 'Sciatica', label: 'Sciatica' },
+    { value: 'Scoliosis', label: 'Scoliosis' },
+    { value: 'Thoracic Spine Stiffness', label: 'Thoracic Spine Stiffness' },
+    { value: 'Asthma', label: 'Asthma' },
+    { value: 'Hypertension (High Blood Pressure)', label: 'Hypertension (High Blood Pressure)' },
+    { value: 'Diabetes (Type 2)', label: 'Diabetes (Type 2)' },
+    { value: 'Obesity', label: 'Obesity' },
+    { value: 'Arthritis', label: 'Arthritis' },
+    { value: 'Postpartum Recovery', label: 'Postpartum Recovery' },
+    { value: 'Osteoporosis', label: 'Osteoporosis' },
+  ];
+
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Create Client</h1>
@@ -520,7 +555,7 @@ export default function CreateClientPage() {
                 ))}
               </Select>
             </div>
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <label className="block text-sm font-medium mb-1">Level</label>
               <Select name="level" value={level} onChange={e => setLevel(e.target.value)}>
                 <option value="">Select level</option>
@@ -531,6 +566,15 @@ export default function CreateClientPage() {
                 <option value="Advanced">Advanced</option>
                 <option value="Elite">Elite</option>
               </Select>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <label className="block text-sm font-medium mb-1">Registration Date</label>
+              <Input
+                name="registrationDate"
+                type="date"
+                value={registrationDate}
+                onChange={e => setRegistrationDate(e.target.value)}
+              />
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium mb-1">Goals</label>
@@ -559,6 +603,45 @@ export default function CreateClientPage() {
                   input: (base: any) => ({ ...base, margin: 0, padding: 0 }),
                   multiValue: (base: any) => ({ ...base, background: '#f3f4f6', borderRadius: 6, fontSize: '1rem' }),
                   placeholder: (base: any) => ({ ...base, fontSize: '1rem', color: '#6b7280' }), // zinc-500
+                  dropdownIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  clearIndicator: (base: any) => ({ ...base, padding: 8 }),
+                  menu: (base: any) => ({ ...base, fontSize: '1rem' }),
+                }}
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">Injuries / Health Notes</label>
+              <CreatableSelect
+                isMulti
+                isClearable
+                options={INJURIES_HEALTH_OPTIONS}
+                value={injuriesHealthNotes.map(val => INJURIES_HEALTH_OPTIONS.find(opt => opt.value === val) || { value: val, label: val })}
+                onChange={(selected: any) => setInjuriesHealthNotes(selected ? selected.map((opt: any) => opt.value) : [])}
+                placeholder="Select injuries/health notes..."
+                classNamePrefix="react-select"
+                className="w-full"
+                isDisabled={false}
+                isOptionDisabled={() => false}
+                // No creation: disable input creation
+                formatCreateLabel={() => null}
+                onCreateOption={() => {}}
+                styles={{
+                  control: (base: any, state: any) => ({
+                    ...base,
+                    borderRadius: '0.5rem',
+                    minHeight: 44,
+                    height: 44,
+                    fontSize: '1rem',
+                    background: 'transparent',
+                    border: state.isFocused ? '1.5px solid #2563eb' : '1.5px solid rgba(9,9,11,0.1)',
+                    boxShadow: 'none',
+                    paddingLeft: 0,
+                    paddingRight: 0,
+                  }),
+                  valueContainer: (base: any) => ({ ...base, padding: '0 14px' }),
+                  input: (base: any) => ({ ...base, margin: 0, padding: 0 }),
+                  multiValue: (base: any) => ({ ...base, background: '#f3f4f6', borderRadius: 6, fontSize: '1rem' }),
+                  placeholder: (base: any) => ({ ...base, fontSize: '1rem', color: '#6b7280' }),
                   dropdownIndicator: (base: any) => ({ ...base, padding: 8 }),
                   clearIndicator: (base: any) => ({ ...base, padding: 8 }),
                   menu: (base: any) => ({ ...base, fontSize: '1rem' }),

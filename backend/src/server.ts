@@ -10,6 +10,7 @@ import transactionImagesRoute from './routes/transaction-images';
 import labelsRoute from './routes/labels';
 import loginRoute from './routes/login';
 import profileRoute from './routes/profile';
+import checkinsRoute from './routes/checkins';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -37,6 +38,7 @@ app.use('/api/transaction-images', transactionImagesRoute);
 app.use('/api/labels', labelsRoute);
 app.use('/api/login', loginRoute);
 app.use('/api/profile', profileRoute);
+app.use('/api/checkins', checkinsRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');

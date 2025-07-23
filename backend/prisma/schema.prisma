@@ -21,6 +21,7 @@ model Registered {
   packages       Package[]
   trainerClients TrainerClient[]
   labels         Label[]
+  checkIns       CheckIn[]
 }
 
 model TrainerClient {
@@ -33,6 +34,8 @@ model TrainerClient {
   age           Int?
   source        String?
   level         String?
+  registrationDate DateTime?
+  injuriesHealthNotes String[]
   goals         String[] // New field for client goals
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -147,4 +150,14 @@ model Note {
   client    TrainerClient @relation(fields: [clientId], references: [id])
   
   @@index([clientId])
+}
+
+model CheckIn {
+  id        Int        @id @default(autoincrement())
+  trainerId Int
+  name      String
+  createdAt DateTime   @default(now())
+  trainer   Registered @relation(fields: [trainerId], references: [id])
+
+  @@index([trainerId])
 }

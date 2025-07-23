@@ -146,6 +146,10 @@ export function ApplicationLayout({
                 <UsersIcon />
                 <SidebarLabel>Clients</SidebarLabel>
               </SidebarItem>
+              <SidebarItem href="/check-ins" current={pathname.startsWith('/check-ins')}>
+                <Square2StackIcon />
+                <SidebarLabel>Check-ins</SidebarLabel>
+              </SidebarItem>
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
