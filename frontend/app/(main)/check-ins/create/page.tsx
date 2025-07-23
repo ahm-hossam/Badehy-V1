@@ -5,10 +5,12 @@ import { Select } from "@/components/select";
 import { Switch } from "@/components/switch";
 import { ChevronDownIcon, ChevronUpIcon, TrashIcon, XMarkIcon } from '@heroicons/react/20/solid';
 import { Input } from '@/components/input';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { DndContext as DndKitContext, closestCenter as dndClosestCenter, PointerSensor as DndPointerSensor, useSensor as useDndSensor, useSensors as useDndSensors } from '@dnd-kit/core';
+import { arrayMove as dndArrayMove, SortableContext as DndSortableContext, useSortable as useDndSortable, verticalListSortingStrategy as dndVerticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { Bars3Icon } from '@heroicons/react/20/solid';
+import { useRef } from 'react';
+import { ClipboardIcon, CheckIcon } from '@heroicons/react/20/solid';
 
 const STATIC_QUESTIONS = [
   "Full Name",
@@ -51,7 +53,46 @@ const ANSWER_TYPES = [
   { value: "file", label: "File Upload" },
 ];
 
+function OptionDragHandle() {
+  return <Bars3Icon className="w-4 h-4 text-zinc-400 cursor-grab" />;
+}
+
+type SortableOptionProps = {
+  id: string;
+  value: string;
+  onChange: (val: string) => void;
+  onRemove: () => void;
+};
+
+function SortableOption({ id, value, onChange, onRemove }: SortableOptionProps) {
+  const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useDndSortable({ id });
+  const style = {
+    transform: DndCSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.7 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 bg-white`} {...attributes}>
+      <span {...listeners}><OptionDragHandle /></span>
+      <Input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1"
+        placeholder="Option"
+      />
+      <Button plain onClick={onRemove}>
+        <TrashIcon className="w-5 h-5" />
+      </Button>
+    </div>
+  );
+}
+
 function AnswerOptions({ options, setOptions }: { options: string[]; setOptions: (opts: string[]) => void }) {
+  const sensors = useDndSensors(useDndSensor(DndPointerSensor));
+  const [activeId, setActiveId] = useState<string | null>(null);
+
   const handleOptionChange = (idx: number, value: string) => {
     const newOptions = [...options];
     newOptions[idx] = value;
@@ -59,29 +100,61 @@ function AnswerOptions({ options, setOptions }: { options: string[]; setOptions:
   };
   const handleAdd = () => setOptions([...options, '']);
   const handleRemove = (idx: number) => setOptions(options.filter((_, i) => i !== idx));
+
   return (
     <div>
       <label className="block text-sm font-medium mb-1">Answer Options</label>
-      <div className="space-y-2">
-        {options.map((opt, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <Input
-              type="text"
-              value={opt}
-              onChange={e => handleOptionChange(idx, e.target.value)}
-              className="flex-1"
-              placeholder={`Option ${idx + 1}`}
-            />
-            <Button plain onClick={() => handleRemove(idx)}>
-              <TrashIcon className="w-5 h-5" />
-            </Button>
+      <DndKitContext
+        sensors={sensors}
+        collisionDetection={dndClosestCenter}
+        onDragStart={({ active }) => setActiveId(active.id as string)}
+        onDragEnd={({ active, over }) => {
+          setActiveId(null);
+          if (over && active.id !== over.id) {
+            const oldIndex = options.findIndex((_, i) => `option-${i}` === active.id);
+            const newIndex = options.findIndex((_, i) => `option-${i}` === over.id);
+            setOptions(dndArrayMove(options, oldIndex, newIndex));
+          }
+        }}
+        onDragCancel={() => setActiveId(null)}
+      >
+        <DndSortableContext items={options.map((_, i) => `option-${i}`)} strategy={dndVerticalListSortingStrategy}>
+          <div className="space-y-2">
+            {options.map((opt, idx) => {
+              const id = `option-${idx}`;
+              return (
+                <SortableOption
+                  key={id}
+                  id={id}
+                  value={opt}
+                  onChange={val => handleOptionChange(idx, val)}
+                  onRemove={() => handleRemove(idx)}
+                />
+              );
+            })}
           </div>
-        ))}
-        <Button plain onClick={handleAdd} className="mt-1 text-xs">
-          Add Option
-        </Button>
-      </div>
+        </DndSortableContext>
+      </DndKitContext>
+      <Button plain onClick={handleAdd} className="mt-1 text-xs">
+        Add Option
+      </Button>
     </div>
+  );
+}
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <Button plain onClick={handleCopy} className="ml-2 flex items-center gap-1">
+      {copied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <ClipboardIcon className="w-4 h-4" />} Copy
+    </Button>
   );
 }
 
@@ -119,7 +192,9 @@ function QuestionCard({
   setAnswerOptions,
   description,
   setDescription,
-}: QuestionCardProps) {
+  usedStaticQuestions,
+  currentId,
+}: QuestionCardProps & { usedStaticQuestions: string[]; currentId: string }) {
   return (
     <div className="border rounded-lg p-4 mb-4 bg-white shadow-sm">
       <div className="flex items-center justify-between">
@@ -158,7 +233,11 @@ function QuestionCard({
                     Select a question
                   </option>
                   {STATIC_QUESTIONS.map((q) => (
-                    <option key={q} value={q}>
+                    <option
+                      key={q}
+                      value={q}
+                      disabled={usedStaticQuestions.includes(q) && q !== question}
+                    >
                       {q}
                     </option>
                   ))}
@@ -245,10 +324,10 @@ function DragHandle() {
   );
 }
 
-function SortableQuestionCard(props: QuestionCardProps & { id: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id });
+function SortableQuestionCard(props: QuestionCardProps & { id: string; usedStaticQuestions: string[]; currentId: string }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useDndSortable({ id: props.id });
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: DndCSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.7 : 1,
     zIndex: isDragging ? 10 : undefined,
@@ -265,7 +344,14 @@ function SortableQuestionCard(props: QuestionCardProps & { id: string }) {
   );
 }
 
+function handlePreview(checkinName: string, questions: QuestionData[]) {
+  // Save the form state to localStorage for the preview page to read
+  window.localStorage.setItem('checkinPreview', JSON.stringify({ checkinName, questions }));
+  window.open('/check-ins/preview', '_blank');
+}
+
 export default function CheckInCreatePage() {
+  const [checkinName, setCheckinName] = useState("");
   const [questions, setQuestions] = useState<QuestionData[]>([
     {
       id: Math.random().toString(36).slice(2),
@@ -278,8 +364,11 @@ export default function CheckInCreatePage() {
       collapsed: false,
     },
   ]);
+  // Simulate saved state and link for now
+  const [isSaved, setIsSaved] = useState(false);
+  const mockLink = "https://badehy.com/check-in/123456";
 
-  const sensors = useSensors(useSensor(PointerSensor));
+  const sensors = useDndSensors(useDndSensor(DndPointerSensor));
 
   const handleAddCard = () => {
     setQuestions((prev) => [
@@ -307,20 +396,41 @@ export default function CheckInCreatePage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-2">Create New Check-in</h1>
-      <p className="mb-6 text-zinc-600">This is a test card for the check-in form builder. You will be able to create and customize your check-in forms here.</p>
-      <DndContext
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-2xl font-bold">Create New Check-in</h1>
+        <Button outline type="button" onClick={() => handlePreview(checkinName, questions)}>
+          Preview
+        </Button>
+      </div>
+      <div className="mb-6 flex flex-col gap-2">
+        <label className="block text-sm font-medium mb-1">Check-in Name <span className="text-red-500">*</span></label>
+        <Input
+          type="text"
+          className="w-full"
+          placeholder="e.g. July 2024 Progress Check-in"
+          value={checkinName}
+          onChange={e => setCheckinName(e.target.value)}
+          required
+        />
+        {isSaved && (
+          <div className="mt-3 flex items-center">
+            <span className="text-sm text-zinc-700 truncate">{mockLink}</span>
+            <CopyButton value={mockLink} />
+          </div>
+        )}
+      </div>
+      <DndKitContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={dndClosestCenter}
         onDragEnd={({ active, over }) => {
           if (over && active.id !== over.id) {
             const oldIndex = questions.findIndex(q => q.id === active.id);
             const newIndex = questions.findIndex(q => q.id === over.id);
-            setQuestions(arrayMove(questions, oldIndex, newIndex));
+            setQuestions(dndArrayMove(questions, oldIndex, newIndex));
           }
         }}
       >
-        <SortableContext items={questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+        <DndSortableContext items={questions.map(q => q.id)} strategy={dndVerticalListSortingStrategy}>
           {questions.map((q, idx) => (
             <SortableQuestionCard
               key={q.id}
@@ -340,10 +450,12 @@ export default function CheckInCreatePage() {
               setAnswerOptions={opts => handleUpdate(q.id, { answerOptions: opts })}
               description={q.description}
               setDescription={val => handleUpdate(q.id, { description: val })}
+              usedStaticQuestions={questions.filter(qq => qq.id !== q.id && qq.question).map(qq => qq.question)}
+              currentId={q.id}
             />
           ))}
-        </SortableContext>
-      </DndContext>
+        </DndSortableContext>
+      </DndKitContext>
       <Button className="mt-4 w-full" onClick={handleAddCard}>Add Question</Button>
     </div>
   );
