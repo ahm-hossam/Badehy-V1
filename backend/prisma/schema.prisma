@@ -22,6 +22,7 @@ model Registered {
   trainerClients TrainerClient[]
   labels         Label[]
   checkIns       CheckIn[]
+  checkInForms   CheckInForm[]
 }
 
 model TrainerClient {
@@ -160,4 +161,32 @@ model CheckIn {
   trainer   Registered @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId])
+}
+
+model CheckInForm {
+  id          Int                @id @default(autoincrement())
+  trainerId   Int
+  name        String
+  published   Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  trainer     Registered         @relation(fields: [trainerId], references: [id])
+  questions   CheckInQuestion[]
+}
+
+model CheckInQuestion {
+  id            Int          @id @default(autoincrement())
+  formId        Int
+  order         Int          // for sorting
+  label         String
+  type          String       // 'short', 'long', 'single', 'multi', 'file', 'date', 'time'
+  required      Boolean
+  options       Json?        // for single/multi choice
+  conditionGroup Json?       // for conditional logic (array of conditions)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  form          CheckInForm  @relation(fields: [formId], references: [id])
+
+  @@index([formId])
+  @@index([order])
 }

@@ -12,6 +12,7 @@ import { Bars3Icon } from '@heroicons/react/20/solid';
 import { useRef } from 'react';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/20/solid';
 import { useRouter } from 'next/navigation';
+import { getStoredUser } from '@/lib/auth';
 
 const STATIC_QUESTIONS = [
   "Full Name",
@@ -450,8 +451,9 @@ export default function CheckInCreatePage() {
       conditionGroup: undefined,
     },
   ]);
-  // Simulate saved state and link for now
   const [isSaved, setIsSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const mockLink = "https://badehy.com/check-in/123456";
 
   const router = useRouter();
@@ -520,6 +522,50 @@ export default function CheckInCreatePage() {
     }
     return q;
   };
+
+  // Save & Publish handler
+  const handleSave = async () => {
+    setError(null);
+    // Basic validation
+    if (!checkinName.trim()) {
+      setError('Check-in name is required.');
+      return;
+    }
+    const user = getStoredUser();
+    if (!user || !user.id) {
+      setError('You must be logged in to save a check-in form.');
+      return;
+    }
+    const validQuestions = questions.filter(q => (q.question || q.customQuestion) && q.answerType);
+    if (validQuestions.length === 0) {
+      setError('At least one valid question is required.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/checkins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trainerId: user.id,
+          name: checkinName,
+          questions: validQuestions,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save form');
+      }
+      setIsSaved(true);
+      setError(null);
+      router.push('/check-ins');
+    } catch (err: any) {
+      setError(err.message || 'Failed to save form');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-2">
@@ -538,6 +584,7 @@ export default function CheckInCreatePage() {
           onChange={e => setCheckinName(e.target.value)}
           required
         />
+        {error && <div className="text-red-500 text-sm mt-1">{error}</div>}
         {isSaved && (
           <div className="mt-3 flex items-center">
             <span className="text-sm text-zinc-700 truncate">{mockLink}</span>
@@ -597,15 +644,17 @@ export default function CheckInCreatePage() {
           type="button"
           onClick={() => router.push('/check-ins')}
           className="px-6"
+          disabled={loading}
         >
           Cancel
         </Button>
         <Button
           type="button"
-          onClick={() => {/* TODO: implement save/publish logic */}}
+          onClick={handleSave}
           className="px-6"
+          disabled={loading}
         >
-          Save & Publish
+          {loading ? 'Saving...' : 'Save & Publish'}
         </Button>
       </div>
     </div>
