@@ -41,14 +41,16 @@ function PreviewField({ q, idx, value, onChange }: { q: any; idx: number; value:
         </div>
       )}
       {answerType === "file" && <Input type="file" className="w-full" required={required} />}
+      {answerType === "date" && <Input type="date" className="w-full" required={required} value={value || ''} onChange={e => onChange(e.target.value)} />}
+      {answerType === "time" && <Input type="time" className="w-full" required={required} value={value || ''} onChange={e => onChange(e.target.value)} />}
     </div>
   );
 }
 
-// Helper to check if a question's conditionGroup is satisfied
+// Helper to check if a question's conditionGroup is satisfied (AND logic)
 function isConditionGroupMet(q: any, idx: number, answers: any, questions: any[]) {
   if (!q.conditionGroup || !q.conditionGroup.conditions.length) return true;
-  const { logic, conditions } = q.conditionGroup;
+  const { conditions } = q.conditionGroup;
   const results = conditions.map((cond: any) => {
     const targetIdx = questions.findIndex((qq: any) => qq.id === cond.questionId);
     if (targetIdx === -1 || targetIdx >= idx) return false;
@@ -57,7 +59,7 @@ function isConditionGroupMet(q: any, idx: number, answers: any, questions: any[]
     if (cond.operator === 'includes') return Array.isArray(targetAnswer) && targetAnswer.includes(cond.value);
     return false;
   });
-  return logic === 'AND' ? results.every(Boolean) : results.some(Boolean);
+  return results.every(Boolean);
 }
 
 export default function CheckInPreviewPage() {
