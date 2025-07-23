@@ -194,7 +194,40 @@ function QuestionCard({
   setDescription,
   usedStaticQuestions,
   currentId,
-}: QuestionCardProps & { usedStaticQuestions: string[]; currentId: string }) {
+  questions,
+  conditionGroup,
+  setConditionGroup,
+  index,
+}: QuestionCardProps & { usedStaticQuestions: string[]; currentId: string; questions: QuestionData[]; conditionGroup?: ConditionGroup; setConditionGroup: (c: ConditionGroup | undefined) => void; index: number }) {
+  // Only allow conditions on previous questions with selectable answers
+  const eligibleQuestions = questions.slice(0, index).filter(q => ['yesno', 'single', 'multi'].includes(q.answerType));
+
+  // Helper to update a single condition in the group
+  const updateCondition = (condIdx: number, update: Partial<SingleCondition>) => {
+    if (!conditionGroup) return;
+    const newConds = conditionGroup.conditions.map((c, i) => i === condIdx ? { ...c, ...update } : c);
+    setConditionGroup({ ...conditionGroup, conditions: newConds });
+  };
+  // Helper to add a new condition
+  const addCondition = () => {
+    if (!conditionGroup) {
+      setConditionGroup({ logic: 'AND', conditions: [{ questionId: '', operator: 'equals', value: '' }] });
+    } else {
+      setConditionGroup({ ...conditionGroup, conditions: [...conditionGroup.conditions, { questionId: '', operator: 'equals', value: '' }] });
+    }
+  };
+  // Helper to remove a condition
+  const removeCondition = (condIdx: number) => {
+    if (!conditionGroup) return;
+    const newConds = conditionGroup.conditions.filter((_, i) => i !== condIdx);
+    if (newConds.length === 0) setConditionGroup(undefined);
+    else setConditionGroup({ ...conditionGroup, conditions: newConds });
+  };
+  // Helper to set logic
+  const setLogic = (logic: 'AND' | 'OR') => {
+    if (!conditionGroup) return;
+    setConditionGroup({ ...conditionGroup, logic });
+  };
   return (
     <div className="border rounded-lg p-4 mb-4 bg-white shadow-sm">
       <div className="flex items-center justify-between">
@@ -208,6 +241,9 @@ function QuestionCard({
           </Button>
           <span className="font-semibold text-lg">
             {question ? question : customQuestion || "Select a question"}
+            {conditionGroup && conditionGroup.conditions.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">Conditional</span>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -299,11 +335,82 @@ function QuestionCard({
           {(answerType === 'single' || answerType === 'multi') && (
             <AnswerOptions options={answerOptions} setOptions={setAnswerOptions} />
           )}
+          <div>
+            <label className="block text-sm font-medium mb-1">Show this question only if...</label>
+            {conditionGroup && conditionGroup.conditions.length > 0 && (
+              <div className="mb-2 flex items-center gap-2">
+                <span>Show if</span>
+                <Select value={conditionGroup.logic} onChange={e => setLogic(e.target.value as 'AND' | 'OR')} className="w-24">
+                  <option value="AND">ALL</option>
+                  <option value="OR">ANY</option>
+                </Select>
+                <span>of the following are true:</span>
+              </div>
+            )}
+            {conditionGroup && conditionGroup.conditions.map((cond, condIdx) => {
+              const selectedTarget = eligibleQuestions.find(q => q.id === cond.questionId);
+              return (
+                <div key={condIdx} className="flex gap-2 items-center mb-2">
+                  <Select
+                    value={cond.questionId || ''}
+                    onChange={e => updateCondition(condIdx, { questionId: e.target.value, operator: 'equals', value: '' })}
+                    className="w-56"
+                  >
+                    <option value="">-- Select question --</option>
+                    {eligibleQuestions.map(q => (
+                      <option key={q.id} value={q.id}>{q.question || q.customQuestion}</option>
+                    ))}
+                  </Select>
+                  {selectedTarget && (
+                    <>
+                      <span>is</span>
+                      {selectedTarget.answerType === 'yesno' && (
+                        <Select
+                          value={cond.value || ''}
+                          onChange={e => updateCondition(condIdx, { value: e.target.value })}
+                          className="w-32"
+                        >
+                          <option value="">Select</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </Select>
+                      )}
+                      {(selectedTarget.answerType === 'single' || selectedTarget.answerType === 'multi') && (
+                        <Select
+                          value={cond.value || ''}
+                          onChange={e => updateCondition(condIdx, { value: e.target.value })}
+                          className="w-32"
+                        >
+                          <option value="">Select</option>
+                          {selectedTarget.answerOptions.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </Select>
+                      )}
+                    </>
+                  )}
+                  <Button plain onClick={() => removeCondition(condIdx)}><XMarkIcon className="w-4 h-4 text-zinc-400" /></Button>
+                </div>
+              );
+            })}
+            <Button plain onClick={addCondition} className="text-xs mt-1">Add Condition</Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
+type SingleCondition = {
+  questionId: string;
+  operator: 'equals' | 'includes';
+  value: any;
+};
+
+type ConditionGroup = {
+  logic: 'AND' | 'OR';
+  conditions: SingleCondition[];
+};
 
 type QuestionData = {
   id: string;
@@ -314,6 +421,7 @@ type QuestionData = {
   answerOptions: string[];
   description: string;
   collapsed: boolean;
+  conditionGroup?: ConditionGroup;
 };
 
 function DragHandle() {
@@ -324,7 +432,7 @@ function DragHandle() {
   );
 }
 
-function SortableQuestionCard(props: QuestionCardProps & { id: string; usedStaticQuestions: string[]; currentId: string }) {
+function SortableQuestionCard(props: QuestionCardProps & { id: string; usedStaticQuestions: string[]; currentId: string; questions: QuestionData[]; conditionGroup?: ConditionGroup; setConditionGroup: (c: ConditionGroup | undefined) => void; index: number }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useDndSortable({ id: props.id });
   const style = {
     transform: DndCSS.Transform.toString(transform),
@@ -362,6 +470,7 @@ export default function CheckInCreatePage() {
       answerOptions: [],
       description: "",
       collapsed: false,
+      conditionGroup: undefined,
     },
   ]);
   // Simulate saved state and link for now
@@ -382,23 +491,62 @@ export default function CheckInCreatePage() {
         answerOptions: [],
         description: "",
         collapsed: false,
+        conditionGroup: undefined,
       },
     ]);
   };
 
+  // Handle deletion of referenced question
   const handleDelete = (id: string) => {
-    setQuestions((prev) => prev.length === 1 ? prev : prev.filter(q => q.id !== id));
+    setQuestions((prev) => {
+      // If any question references this one in its conditionGroup, clear it and alert
+      const affected = prev.filter(q => q.conditionGroup && q.conditionGroup.conditions.some(c => c.questionId === id));
+      if (affected.length > 0) {
+        alert('A condition referencing this question was cleared.');
+      }
+      return prev.length === 1 ? prev : prev.filter(q => q.id !== id).map(q => {
+        if (!q.conditionGroup) return q;
+        const newConds = q.conditionGroup.conditions.filter(c => c.questionId !== id);
+        if (newConds.length === 0) return { ...q, conditionGroup: undefined };
+        return { ...q, conditionGroup: { ...q.conditionGroup, conditions: newConds } };
+      });
+    });
+  };
+  // Handle reordering: if a question is moved after a question that references it, clear the condition
+  const handleReorder = (oldIndex: number, newIndex: number) => {
+    setQuestions(prev => {
+      const newArr = dndArrayMove(prev, oldIndex, newIndex);
+      // For each question, if any of its conditions reference a question that now comes after it, clear those conditions
+      return newArr.map((q, idx) => {
+        if (!q.conditionGroup) return q;
+        const newConds = q.conditionGroup.conditions.filter(c => {
+          const refIdx = newArr.findIndex(qq => qq.id === c.questionId);
+          return refIdx !== -1 && refIdx < idx;
+        });
+        if (newConds.length !== q.conditionGroup.conditions.length) {
+          alert('A condition was cleared because the referenced question now comes after this one.');
+        }
+        if (newConds.length === 0) return { ...q, conditionGroup: undefined };
+        return { ...q, conditionGroup: { ...q.conditionGroup, conditions: newConds } };
+      });
+    });
   };
 
   const handleUpdate = (id: string, update: Partial<QuestionData>) => {
     setQuestions((prev) => prev.map(q => q.id === id ? { ...q, ...update } : q));
   };
-
+  // Migrate old single-condition questions to new format
+  const migrateCondition = (q: any): QuestionData => {
+    if (q.condition && !q.conditionGroup) {
+      return { ...q, conditionGroup: { logic: 'AND', conditions: [q.condition] }, condition: undefined };
+    }
+    return q;
+  };
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">Create New Check-in</h1>
-        <Button outline type="button" onClick={() => handlePreview(checkinName, questions)}>
+        <Button outline type="button" onClick={() => handlePreview(checkinName, questions.map(migrateCondition))}>
           Preview
         </Button>
       </div>
@@ -426,7 +574,7 @@ export default function CheckInCreatePage() {
           if (over && active.id !== over.id) {
             const oldIndex = questions.findIndex(q => q.id === active.id);
             const newIndex = questions.findIndex(q => q.id === over.id);
-            setQuestions(dndArrayMove(questions, oldIndex, newIndex));
+            handleReorder(oldIndex, newIndex);
           }
         }}
       >
@@ -452,6 +600,10 @@ export default function CheckInCreatePage() {
               setDescription={val => handleUpdate(q.id, { description: val })}
               usedStaticQuestions={questions.filter(qq => qq.id !== q.id && qq.question).map(qq => qq.question)}
               currentId={q.id}
+              questions={questions}
+              conditionGroup={q.conditionGroup}
+              setConditionGroup={cond => handleUpdate(q.id, { conditionGroup: cond })}
+              index={idx}
             />
           ))}
         </DndSortableContext>
