@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/button";
 import { Input } from "@/components/input";
 import { Select } from "@/components/select";
@@ -180,6 +180,17 @@ export function CheckInFormBuilder({
           },
         ]
   );
+  // Update questions state if initialQuestions changes (e.g., after async fetch in edit mode)
+  useEffect(() => {
+    if (
+      initialQuestions &&
+      initialQuestions.length > 0 &&
+      (questions.length === 0 ||
+        questions.every((q, i) => initialQuestions[i] && q.id !== initialQuestions[i].id))
+    ) {
+      setQuestions(initialQuestions.map(q => ({ ...q, collapsed: false, showAdvanced: false })));
+    }
+  }, [initialQuestions]);
   const [formError, setFormError] = useState<string | null>(null);
   const sensors = useDndSensors(useDndSensor(DndPointerSensor));
 
@@ -340,13 +351,13 @@ export function CheckInFormBuilder({
                 )}
               </div>
               <span className="text-xs text-zinc-400">or</span>
-              <Input
+              <input
                 type="text"
-                className="flex-1 min-w-0"
+                className="flex-1 min-w-0 border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 placeholder="Custom question"
                 value={isStatic ? '' : q.customQuestion}
                 onChange={e => onUpdate(q.id, { customQuestion: e.target.value, question: '' })}
-                disabled={!!isStatic}
+                disabled={isStatic && typeof q.question === 'string' && q.question.trim() !== ''}
               />
             </div>
             {/* Answer type row */}
