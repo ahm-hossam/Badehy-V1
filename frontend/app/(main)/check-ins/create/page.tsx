@@ -305,7 +305,7 @@ function QuestionCard({
               placeholder="Custom question"
               value={customQuestion}
               onChange={(e) => setCustomQuestion(e.target.value)}
-              disabled={!!question}
+              disabled={typeof question === 'string' && question.trim() !== ''}
             />
           </div>
           {/* Answer type row */}
