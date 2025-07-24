@@ -123,9 +123,10 @@ export function CheckInFormBuilder({
   onCancel?: () => void;
 }) {
   const [checkinName, setCheckinName] = useState(initialName || "");
+  // Add a 'showAdvanced' property to each question for stable visibility
   const [questions, setQuestions] = useState<any[]>(
     initialQuestions && initialQuestions.length > 0
-      ? initialQuestions.map(q => ({ ...q, collapsed: false }))
+      ? initialQuestions.map(q => ({ ...q, collapsed: false, showAdvanced: false }))
       : [
           {
             id: Math.random().toString(36).slice(2),
@@ -136,6 +137,7 @@ export function CheckInFormBuilder({
             answerOptions: [],
             collapsed: false,
             conditionGroup: undefined,
+            showAdvanced: false,
           },
         ]
   );
@@ -155,6 +157,7 @@ export function CheckInFormBuilder({
         answerOptions: [],
         collapsed: false,
         conditionGroup: undefined,
+        showAdvanced: false,
       },
     ]);
   };
@@ -167,10 +170,10 @@ export function CheckInFormBuilder({
     setQuestions(prev => {
       const newArr = dndArrayMove(prev, oldIndex, newIndex);
       // For each question, if any of its conditions reference a question that now comes after it, clear those conditions
-      return newArr.map((q, idx) => {
+      return newArr.map((q: any, idx: number) => {
         if (!q.conditionGroup) return q;
-        const newConds = q.conditionGroup.conditions.filter(c => {
-          const refIdx = newArr.findIndex(qq => qq.id === c.questionId);
+        const newConds = q.conditionGroup.conditions.filter((c: any) => {
+          const refIdx = newArr.findIndex((qq: any) => qq.id === c.questionId);
           return refIdx !== -1 && refIdx < idx;
         });
         if (newConds.length === 0) return { ...q, conditionGroup: undefined };
@@ -181,6 +184,11 @@ export function CheckInFormBuilder({
 
   const handleUpdate = (id: string, update: any) => {
     setQuestions((prev) => prev.map(q => q.id === id ? { ...q, ...update } : q));
+  };
+
+  // Toggle showAdvanced for a question
+  const handleToggleAdvanced = (id: string) => {
+    setQuestions((prev) => prev.map(q => q.id === id ? { ...q, showAdvanced: !q.showAdvanced } : q));
   };
 
   // Save handler
@@ -207,10 +215,10 @@ export function CheckInFormBuilder({
     onUpdate,
     onDelete,
     onReorder,
-  }: any) {
-    const [showAdvanced, setShowAdvanced] = useState(false);
+  }: { q: any; idx: number; usedStaticQuestions: string[]; questions: any[]; onUpdate: (id: string, update: any) => void; onDelete: (id: string) => void; onReorder: (oldIndex: number, newIndex: number) => void; }) {
+    // Remove local showAdvanced state, use q.showAdvanced instead
     // Only allow conditions on previous questions with selectable answers
-    const eligibleQuestions = questions.slice(0, idx).filter(q => ['yesno', 'single', 'multi'].includes(q.answerType));
+    const eligibleQuestions = questions.slice(0, idx).filter((q: any) => ['yesno', 'single', 'multi'].includes(q.answerType));
     // Helper to update a single condition in the group
     const updateCondition = (condIdx: number, update: any) => {
       if (!q.conditionGroup) return;
@@ -265,7 +273,7 @@ export function CheckInFormBuilder({
                   className="w-full"
                 >
                   <option value="" disabled>Select a question</option>
-                  {STATIC_QUESTIONS.map((sq) => (
+                  {STATIC_QUESTIONS.map((sq: string) => (
                     <option
                       key={sq}
                       value={sq}
@@ -318,17 +326,17 @@ export function CheckInFormBuilder({
             <div>
               <div className="flex items-center justify-between mb-1 mt-4">
                 <span className="text-sm font-semibold">Advanced Logic</span>
-                <Button plain type="button" className="text-xs" onClick={() => setShowAdvanced(v => !v)}>
-                  {showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
+                <Button plain type="button" className="text-xs" onClick={() => handleToggleAdvanced(q.id)}>
+                  {q.showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
                 </Button>
               </div>
-              {showAdvanced && (
+              {q.showAdvanced && (
                 <div className="mt-2 bg-zinc-50 rounded-lg border border-zinc-200 p-4">
                   {q.conditionGroup && q.conditionGroup.conditions.length > 0 && (
                     <div className="mb-2 text-sm font-semibold">Show this question if:</div>
                   )}
                   {q.conditionGroup && q.conditionGroup.conditions.map((cond: any, condIdx: number) => {
-                    const selectedTarget = eligibleQuestions.find(qq => qq.id === cond.questionId);
+                    const selectedTarget = eligibleQuestions.find((qq: any) => qq.id === cond.questionId);
                     return (
                       <div key={condIdx} className="flex gap-2 items-center mb-2">
                         {condIdx > 0 && <span className="text-xs font-semibold text-zinc-500">AND</span>}
@@ -338,7 +346,7 @@ export function CheckInFormBuilder({
                           className="w-56"
                         >
                           <option value="">-- Select question --</option>
-                          {eligibleQuestions.map(qq => (
+                          {eligibleQuestions.map((qq: any) => (
                             <option key={qq.id} value={qq.id}>{qq.question || qq.customQuestion}</option>
                           ))}
                         </Select>
@@ -375,7 +383,14 @@ export function CheckInFormBuilder({
                     );
                   })}
                   <div className="flex justify-end">
-                    <Button plain onClick={addCondition} className="flex items-center gap-1 text-xs mt-1">
+                    <Button plain onClick={() => {
+                      // Add condition and keep advanced open
+                      if (!q.conditionGroup) {
+                        onUpdate(q.id, { conditionGroup: { conditions: [{ questionId: '', operator: 'equals', value: '' }] }, showAdvanced: true });
+                      } else {
+                        onUpdate(q.id, { conditionGroup: { conditions: [...q.conditionGroup.conditions, { questionId: '', operator: 'equals', value: '' }] }, showAdvanced: true });
+                      }
+                    }} className="flex items-center gap-1 text-xs mt-1">
                       <PlusIcon className="w-4 h-4" /> Add Condition
                     </Button>
                   </div>
