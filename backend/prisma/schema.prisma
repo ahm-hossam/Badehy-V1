@@ -44,6 +44,7 @@ model TrainerClient {
   trainer       Registered     @relation(fields: [trainerId], references: [id])
   labels        Label[]        @relation("ClientLabels")
   notes         Note[]
+  submissions   CheckInSubmission[]
 
   @@index([trainerId])
 }
@@ -172,6 +173,8 @@ model CheckInForm {
   updatedAt   DateTime           @updatedAt
   trainer     Registered         @relation(fields: [trainerId], references: [id])
   questions   CheckInQuestion[]
+  submissions CheckInSubmission[]
+  history     CheckInFormHistory[]
 }
 
 model CheckInQuestion {
@@ -189,4 +192,30 @@ model CheckInQuestion {
 
   @@index([formId])
   @@index([order])
+}
+
+model CheckInSubmission {
+  id         Int           @id @default(autoincrement())
+  formId     Int
+  clientId   Int
+  submittedAt DateTime     @default(now())
+  answers    Json          // stores all answers as JSON
+  form       CheckInForm   @relation(fields: [formId], references: [id])
+  client     TrainerClient @relation(fields: [clientId], references: [id])
+
+  @@index([formId])
+  @@index([clientId])
+}
+
+model CheckInFormHistory {
+  id         Int           @id @default(autoincrement())
+  formId     Int
+  version    Int
+  name       String
+  questions  Json          // snapshot of questions/logic at this version
+  createdAt  DateTime      @default(now())
+  form       CheckInForm   @relation(fields: [formId], references: [id])
+
+  @@index([formId])
+  @@unique([formId, version])
 }
