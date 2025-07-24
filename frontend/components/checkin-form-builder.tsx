@@ -7,17 +7,52 @@ import { ChevronDownIcon, ChevronUpIcon, TrashIcon, XMarkIcon, PlusIcon, Bars3Ic
 import { DndContext as DndKitContext, closestCenter as dndClosestCenter, PointerSensor as DndPointerSensor, useSensor as useDndSensor, useSensors as useDndSensors } from '@dnd-kit/core';
 import { arrayMove as dndArrayMove, SortableContext as DndSortableContext, useSortable as useDndSortable, verticalListSortingStrategy as dndVerticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS as DndCSS } from '@dnd-kit/utilities';
+import React from 'react'; // Added for React.Fragment
 
-export const STATIC_QUESTIONS = [
-  "Full Name",
-  "Email",
-  "Mobile Number",
-  "Gender Source",
-  "Source",
-  "Level",
-  "Goal",
-  "Injuries",
-  "Workout Place",
+export const STATIC_QUESTION_GROUPS = [
+  {
+    label: 'Basic Data',
+    options: [
+      'Full Name',
+      'Email',
+      'Mobile Number',
+      'Gender',
+      'Age',
+      'Source',
+    ],
+  },
+  {
+    label: 'Client Profile & Preferences',
+    options: [
+      'Goal',
+      'Level',
+      'Injuries',
+      'Workout Place',
+      'Height',
+      'Weight',
+    ],
+  },
+  {
+    label: 'Workout Preferences',
+    options: [
+      'Preferred Training Days',
+      'Preferred Training Time',
+      'Equipment Availability',
+      'Favorite Training Style',
+      'Weak Areas (Focus)',
+    ],
+  },
+  {
+    label: 'Nutrition Preferences',
+    options: [
+      'Nutrition Goal',
+      'Diet Preference',
+      'Meal Count',
+      'Food Allergies / Restrictions',
+      'Disliked Ingredients',
+      'Current Nutrition Plan Followed',
+    ],
+  },
 ];
 
 const ANSWER_TYPES = [
@@ -245,7 +280,7 @@ export function CheckInFormBuilder({
       else onUpdate(q.id, { conditionGroup: { conditions: newConds } });
     };
     // Static or custom question logic
-    const isStatic = q.question && STATIC_QUESTIONS.includes(q.question);
+    const isStatic = q.question && STATIC_QUESTION_GROUPS.some(group => group.options.includes(q.question));
     return (
       <div className="border rounded-lg p-3 mb-4 bg-white shadow-sm relative">
         <div className="flex items-center justify-between mb-2">
@@ -271,22 +306,27 @@ export function CheckInFormBuilder({
             {/* Main row: static question, or, custom question */}
             <div className="flex items-center gap-2">
               <div className="flex items-center w-56 flex-shrink-0">
-                <Select
+                <select
                   value={isStatic ? q.question : ''}
                   onChange={e => onUpdate(q.id, { question: e.target.value, customQuestion: '' })}
-                  className="w-full"
+                  className="w-full border border-zinc-300 rounded-lg px-2 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   <option value="" disabled>Select a question</option>
-                  {STATIC_QUESTIONS.map((sq: string) => (
-                    <option
-                      key={sq}
-                      value={sq}
-                      disabled={usedStaticQuestions.includes(sq) && sq !== q.question}
-                    >
-                      {sq}
-                    </option>
+                  {STATIC_QUESTION_GROUPS.map(group => (
+                    <React.Fragment key={group.label}>
+                      <option disabled>{group.label}</option>
+                      {group.options.map(opt => (
+                        <option
+                          key={opt}
+                          value={opt}
+                          disabled={usedStaticQuestions.includes(opt) && opt !== q.question}
+                        >
+                          {opt}
+                        </option>
+                      ))}
+                    </React.Fragment>
                   ))}
-                </Select>
+                </select>
                 {isStatic && (
                   <button
                     type="button"

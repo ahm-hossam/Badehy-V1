@@ -13,20 +13,52 @@ import { useRef } from 'react';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/20/solid';
 import { useRouter } from 'next/navigation';
 import { getStoredUser } from '@/lib/auth';
+import React from 'react';
 
-const STATIC_QUESTIONS = [
-  "Full Name",
-  "Email",
-  "Mobile Number",
-  "Gender",
-  "Age",
-  "Source",
-  "Height (cm)",
-  "Weight (kg)",
-  "Level",
-  "Goal",
-  "Injuries",
-  "Workout Place",
+const STATIC_QUESTION_GROUPS = [
+  {
+    label: 'Basic Data',
+    options: [
+      'Full Name',
+      'Email',
+      'Mobile Number',
+      'Gender',
+      'Age',
+      'Source',
+    ],
+  },
+  {
+    label: 'Client Profile & Preferences',
+    options: [
+      'Goal',
+      'Level',
+      'Injuries',
+      'Workout Place',
+      'Height',
+      'Weight',
+    ],
+  },
+  {
+    label: 'Workout Preferences',
+    options: [
+      'Preferred Training Days',
+      'Preferred Training Time',
+      'Equipment Availability',
+      'Favorite Training Style',
+      'Weak Areas (Focus)',
+    ],
+  },
+  {
+    label: 'Nutrition Preferences',
+    options: [
+      'Nutrition Goal',
+      'Diet Preference',
+      'Meal Count',
+      'Food Allergies / Restrictions',
+      'Disliked Ingredients',
+      'Current Nutrition Plan Followed',
+    ],
+  },
 ];
 
 const ANSWER_TYPES = [
@@ -239,14 +271,19 @@ function QuestionCard({
                 className="w-full"
               >
                 <option value="" disabled>Select a question</option>
-                {STATIC_QUESTIONS.map((q) => (
-                  <option
-                    key={q}
-                    value={q}
-                    disabled={usedStaticQuestions.includes(q) && q !== question}
-                  >
-                    {q}
-                  </option>
+                {STATIC_QUESTION_GROUPS.map(group => (
+                  <React.Fragment key={group.label}>
+                    <option disabled>{group.label}</option>
+                    {group.options.map(opt => (
+                      <option
+                        key={opt}
+                        value={opt}
+                        disabled={usedStaticQuestions.includes(opt) && opt !== question}
+                      >
+                        {opt}
+                      </option>
+                    ))}
+                  </React.Fragment>
                 ))}
               </Select>
               {question && (
