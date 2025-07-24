@@ -120,6 +120,7 @@ export default function CheckInsPage() {
                   <Button outline onClick={() => router.push(`/check-ins/${checkIn.id}/edit`)}>Edit</Button>
                   <Button outline onClick={() => { setDeleteTarget(checkIn); setShowDeleteDialog(true); }}>Delete</Button>
                   <Button outline onClick={() => handleCopy(checkIn.id)}>Copy URL</Button>
+                  <Button outline onClick={() => window.open(`/check-ins/${checkIn.id}`, '_blank')}>Review</Button>
                 </TableCell>
               </TableRow>
             ))}

@@ -143,10 +143,6 @@ export function ApplicationLayout({
                 <HomeIcon />
                 <SidebarLabel>Home</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
-                <UsersIcon />
-                <SidebarLabel>Clients</SidebarLabel>
-              </SidebarItem>
               {/* Check-ins collapsible section */}
               <Disclosure defaultOpen={pathname.startsWith('/check-ins')}>
                 {({ open }) => (
@@ -177,6 +173,10 @@ export function ApplicationLayout({
                   </div>
                 )}
               </Disclosure>
+              <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
+                <UsersIcon />
+                <SidebarLabel>Clients</SidebarLabel>
+              </SidebarItem>
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
