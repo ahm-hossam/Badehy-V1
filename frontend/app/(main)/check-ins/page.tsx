@@ -10,6 +10,7 @@ import { getStoredUser } from '@/lib/auth';
 import { useSearchParams } from 'next/navigation';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Toast } from '@/components/toast';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from "@/components/table";
 
 export default function CheckInsPage() {
   const [checkIns, setCheckIns] = useState<any[]>([]);
@@ -23,6 +24,9 @@ export default function CheckInsPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
 
   // Fetch check-ins
   useEffect(() => {
@@ -73,6 +77,9 @@ export default function CheckInsPage() {
     ? checkIns.filter(c => c.name.toLowerCase().includes(filter.trim().toLowerCase()))
     : checkIns;
 
+  // Pagination logic for check-ins
+  const paginatedCheckIns = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Check-ins</h1>
@@ -91,33 +98,39 @@ export default function CheckInsPage() {
           </Button>
         </Link>
       </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <table className="min-w-full divide-y divide-zinc-200">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Name</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Created</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Name</TableHeader>
+              <TableHeader>Created</TableHeader>
+              <TableHeader>Actions</TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {loading ? (
-              <tr><td colSpan={3} className="text-center py-8 text-zinc-400">Loading...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={3} className="text-center py-8 text-zinc-400">No check-ins found.</td></tr>
-            ) : filtered.map(checkIn => (
-              <tr key={checkIn.id} className="border-b last:border-0">
-                <td className="px-4 py-2 font-medium text-zinc-900">{checkIn.name}</td>
-                <td className="px-4 py-2 text-zinc-600">{new Date(checkIn.createdAt).toLocaleString()}</td>
-                <td className="px-4 py-2 flex gap-2">
+              <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
+            ) : paginatedCheckIns.length === 0 ? (
+              <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">No check-ins found.</TableCell></TableRow>
+            ) : paginatedCheckIns.map(checkIn => (
+              <TableRow key={checkIn.id}>
+                <TableCell className="font-medium text-zinc-900">{checkIn.name}</TableCell>
+                <TableCell className="text-zinc-600">{new Date(checkIn.createdAt).toLocaleString()}</TableCell>
+                <TableCell className="flex gap-2">
                   <Button outline onClick={() => router.push(`/check-ins/${checkIn.id}/edit`)}>Edit</Button>
                   <Button outline onClick={() => { setDeleteTarget(checkIn); setShowDeleteDialog(true); }}>Delete</Button>
                   <Button outline onClick={() => handleCopy(checkIn.id)}>Copy URL</Button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
+        {/* Pagination (matching responses page) */}
+        <div className="flex justify-end mt-4 gap-2">
+          <Button outline disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
+          <span className="px-2 py-1 text-sm">Page {page}</span>
+          <Button outline disabled={page * pageSize >= filtered.length} onClick={() => setPage(page + 1)}>Next</Button>
+        </div>
       </div>
       {/* Toasts and dialogs */}
       <Toast open={showSuccessToast} message="Check-in deleted successfully!" type="success" onClose={() => setShowSuccessToast(false)} />

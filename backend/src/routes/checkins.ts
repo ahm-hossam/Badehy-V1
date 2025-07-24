@@ -83,11 +83,22 @@ router.get('/responses', async (req: Request, res: Response) => {
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        form: { select: { id: true, name: true } },
+        form: { select: { id: true, name: true, trainer: { select: { fullName: true } } } },
         client: { select: { id: true, fullName: true, email: true } },
       },
     });
-    res.json({ total, submissions });
+    // Add filledBy info to each submission
+    const isPlainObject = (val: any) => val && typeof val === 'object' && !Array.isArray(val);
+    const enhanced = submissions.map(sub => {
+      let filledBy = 'client';
+      let filledByName = sub.client?.fullName || '-';
+      if (isPlainObject(sub.answers) && (sub.answers as any).filledByTrainer) {
+        filledBy = 'trainer';
+        filledByName = sub.form?.trainer?.fullName || 'Trainer';
+      }
+      return { ...sub, filledBy, filledByName };
+    });
+    res.json({ total, submissions: enhanced });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch responses' });
   }
@@ -134,14 +145,57 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
   const { answers, clientId } = req.body;
   if (!id || !answers) return res.status(400).json({ error: 'Missing id or answers' });
   try {
-    const form = await prisma.checkInForm.findUnique({ where: { id } });
+    const form = await prisma.checkInForm.findUnique({ where: { id }, include: { questions: true, trainer: true } });
     if (!form) return res.status(404).json({ error: 'Check-in form not found' });
-    const data: any = {
-      formId: id,
-      answers,
+    // Map answers to client fields (robust best practice)
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+    // Accept a variety of possible name labels
+    const nameLabels = [
+      'Full Name', 'Name', 'Client Name', 'Client Full Name', 'Fullname', 'Client'
+    ];
+    const getAnswer = (labels: string[]) => {
+      for (const label of labels) {
+        const q = form.questions.find(q => normalize(q.label) === normalize(label));
+        if (q && answers[q.id] !== undefined) return answers[q.id];
+      }
+      return '';
     };
-    if (clientId) data.clientId = Number(clientId);
-    const submission = await prisma.checkInSubmission.create({ data });
+    // Try to get full name from robust label set
+    let fullName = getAnswer(nameLabels);
+    // Fallback: use first non-empty short/long answer
+    if (!fullName) {
+      const firstTextQ = form.questions.find(q => (q.type === 'short' || q.type === 'long') && answers[q.id] && String(answers[q.id]).trim() !== '');
+      if (firstTextQ) fullName = answers[firstTextQ.id];
+    }
+    if (!fullName) fullName = 'Unnamed';
+    const clientData: any = {
+      trainerId: form.trainerId,
+      fullName,
+      phone: getAnswer(['Phone', 'Phone Number', 'Mobile', 'Mobile Number']) || '',
+      email: getAnswer(['Email', 'Email Address']) || '',
+      gender: getAnswer(['Gender']) || null,
+      age: getAnswer(['Age']) ? Number(getAnswer(['Age'])) : null,
+      source: getAnswer(['Source']) || null,
+      level: getAnswer(['Level']) || null,
+      registrationDate: new Date(),
+      injuriesHealthNotes: [],
+      goals: [],
+    };
+    // Optionally extract goals and injuries/health notes if present as arrays
+    const goalsAnswer = getAnswer(['Goals']);
+    if (goalsAnswer) clientData.goals = Array.isArray(goalsAnswer) ? goalsAnswer : [goalsAnswer];
+    const injuriesAnswer = getAnswer(['Injuries', 'Health Notes', 'Injuries / Health Notes']);
+    if (injuriesAnswer) clientData.injuriesHealthNotes = Array.isArray(injuriesAnswer) ? injuriesAnswer : [injuriesAnswer];
+    // Create the client
+    const createdClient = await prisma.trainerClient.create({ data: clientData });
+    // Create the submission and link to the client
+    const submission = await prisma.checkInSubmission.create({
+      data: {
+        formId: id,
+        clientId: createdClient.id,
+        answers,
+      },
+    });
     res.status(201).json(submission);
   } catch (err) {
     res.status(500).json({ error: 'Failed to submit check-in' });
