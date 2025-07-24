@@ -145,10 +145,24 @@ export default function ResponsesPage() {
                     setPage(1);
                   }}>Clear</Button>
                   <Button type="button" onClick={() => {
-                    if (dateRange.startDate) setFromDate(dateRange.startDate.toISOString().slice(0, 10));
-                    else setFromDate("");
-                    if (dateRange.endDate) setToDate(dateRange.endDate.toISOString().slice(0, 10));
-                    else setToDate("");
+                    if (dateRange.startDate) {
+                      let from = new Date(dateRange.startDate);
+                      let end = dateRange.endDate ? new Date(dateRange.endDate) : new Date(dateRange.startDate);
+                      // If only one date is selected, set both start and end to that date
+                      if (!dateRange.endDate || from.toISOString().slice(0, 10) === end.toISOString().slice(0, 10)) {
+                        end = new Date(from);
+                      }
+                      setFromDate(from.toISOString().slice(0, 10));
+                      // Always send toDate as end + 1 day
+                      let to = new Date(end);
+                      to.setDate(to.getDate() + 1);
+                      setToDate(to.toISOString().slice(0, 10));
+                      // Debug log
+                      console.log('Date filter:', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+                    } else {
+                      setFromDate("");
+                      setToDate("");
+                    }
                     setShowDateDropdown(false);
                     setPage(1);
                   }}>Apply</Button>

@@ -74,7 +74,7 @@ router.get('/responses', async (req: Request, res: Response) => {
     if (from || to) {
       where.submittedAt = {};
       if (from) where.submittedAt.gte = from;
-      if (to) where.submittedAt.lte = to;
+      if (to) where.submittedAt.lt = to;
     }
     const total = await prisma.checkInSubmission.count({ where });
     const submissions = await prisma.checkInSubmission.findMany({
