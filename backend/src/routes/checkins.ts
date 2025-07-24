@@ -132,17 +132,16 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/:id/submit', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const { answers, clientId } = req.body;
-  if (!id || !answers || !clientId) return res.status(400).json({ error: 'Missing id, answers, or clientId' });
+  if (!id || !answers) return res.status(400).json({ error: 'Missing id or answers' });
   try {
     const form = await prisma.checkInForm.findUnique({ where: { id } });
     if (!form) return res.status(404).json({ error: 'Check-in form not found' });
-    const submission = await prisma.checkInSubmission.create({
-      data: {
-        formId: id,
-        clientId: Number(clientId),
-        answers,
-      },
-    });
+    const data: any = {
+      formId: id,
+      answers,
+    };
+    if (clientId) data.clientId = Number(clientId);
+    const submission = await prisma.checkInSubmission.create({ data });
     res.status(201).json(submission);
   } catch (err) {
     res.status(500).json({ error: 'Failed to submit check-in' });

@@ -72,6 +72,23 @@ export default function ResponsesPage() {
     return <div className="text-center text-red-500 py-12">You must be logged in as a trainer to view responses.</div>;
   }
 
+  // Helper to get the name from answers if client is anonymous
+  function getNameFromAnswers(resp: any): string {
+    if (resp.client?.fullName) return resp.client.fullName;
+    if (resp.form?.questions && resp.answers) {
+      // Find the 'Full Name' question (case-insensitive, ignore spaces/punctuation)
+      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+      const nameQ = resp.form.questions.find(
+        (q: any) => q.label && normalize(q.label) === 'fullname'
+      );
+      if (nameQ) {
+        const val = resp.answers[nameQ.id];
+        if (val && typeof val === 'string') return val;
+      }
+    }
+    return '-';
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Responses</h1>
@@ -161,7 +178,7 @@ export default function ResponsesPage() {
             ) : responses.map((resp) => (
               <tr key={resp.id} className="border-b last:border-0">
                 <td className="px-4 py-2 font-medium text-zinc-900">{resp.form?.name || "-"}</td>
-                <td className="px-4 py-2 text-zinc-600">{resp.client?.fullName || "-"}</td>
+                <td className="px-4 py-2 text-zinc-600">{getNameFromAnswers(resp)}</td>
                 <td className="px-4 py-2 text-zinc-600">{resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : "-"}</td>
                 <td className="px-4 py-2 flex gap-2">
                   <Button outline onClick={() => router.push(`/check-ins/responses/${resp.id}`)}>View</Button>
