@@ -48,6 +48,7 @@ interface Client {
       }>;
     }>;
   }>;
+  profileCompletion: string;
 }
 
 export default function ClientsPage() {
@@ -204,6 +205,7 @@ export default function ClientsPage() {
               <TableRow>
                 <TableHeader>ID</TableHeader>
                 <TableHeader>Client Name</TableHeader>
+                <TableHeader>Profile Completion</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
@@ -218,6 +220,13 @@ export default function ClientsPage() {
                 <TableRow key={client.id}>
                   <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
                   <TableCell className="font-medium">{client.fullName}</TableCell>
+                  <TableCell>
+                    {client.profileCompletion === 'Completed' ? (
+                      <span className="inline-block px-2 py-1 text-xs rounded bg-green-100 text-green-700 font-semibold">Completed</span>
+                    ) : (
+                      <span className="inline-block px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-700 font-semibold">Not Completed</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
                       <Button outline onClick={() => router.push(`/clients/edit/${client.id}`)} className="px-3 py-1">

@@ -159,7 +159,17 @@ router.get('/', async (req: Request, res: Response) => {
         },
       },
     });
-    res.json(clients);
+    // Add profileCompletion field
+    const requiredFields = ['fullName', 'phone', 'email', 'gender', 'age', 'source', 'level'];
+    const clientsWithCompletion = clients.map((client: any) => {
+      const isComplete = requiredFields.every(field => {
+        const value = client[field];
+        if (field === 'age') return value !== null && value !== undefined && value !== '';
+        return value !== null && value !== undefined && String(value).trim() !== '';
+      });
+      return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed' };
+    });
+    res.json(clientsWithCompletion);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Internal server error' });
