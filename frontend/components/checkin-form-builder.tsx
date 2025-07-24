@@ -112,6 +112,8 @@ export function CheckInFormBuilder({
   submitLabel = "Save & Publish",
   cancelLabel = "Cancel",
   onCancel,
+  publicUrl,
+  onCopyUrl,
 }: {
   initialName: string;
   initialQuestions: any[];
@@ -121,6 +123,8 @@ export function CheckInFormBuilder({
   submitLabel?: string;
   cancelLabel?: string;
   onCancel?: () => void;
+  publicUrl?: string;
+  onCopyUrl?: () => void;
 }) {
   const [checkinName, setCheckinName] = useState(initialName || "");
   // Add a 'showAdvanced' property to each question for stable visibility
@@ -407,6 +411,19 @@ export function CheckInFormBuilder({
     <div className="max-w-2xl mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">{initialName ? 'Edit Check-in' : 'Create New Check-in'}</h1>
+        <div className="flex gap-2">
+          <Button outline type="button" onClick={() => {
+            window.localStorage.setItem('checkinPreview', JSON.stringify({ checkinName, questions }));
+            window.open('/check-ins/preview', '_blank');
+          }}>
+            Preview
+          </Button>
+          {publicUrl && onCopyUrl && (
+            <Button outline type="button" onClick={onCopyUrl}>
+              Copy URL
+            </Button>
+          )}
+        </div>
       </div>
       <div className="mb-6 flex flex-col gap-2">
         <label className="block text-sm font-medium mb-1">Check-in Name <span className="text-red-500">*</span></label>

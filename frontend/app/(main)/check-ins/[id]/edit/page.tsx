@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { CheckInFormBuilder } from '@/components/checkin-form-builder';
+import { Toast } from '@/components/toast';
 
 export default function CheckInEditPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function CheckInEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialName, setInitialName] = useState("");
   const [initialQuestions, setInitialQuestions] = useState<any[]>([]);
+  const [showCopyToast, setShowCopyToast] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -63,6 +65,16 @@ export default function CheckInEditPage() {
     }
   };
 
+  const publicUrl = typeof window !== 'undefined' && id ? `${window.location.origin}/check-ins/${id}` : '';
+
+  const handleCopy = () => {
+    if (publicUrl) {
+      navigator.clipboard.writeText(publicUrl);
+      setShowCopyToast(true);
+      setTimeout(() => setShowCopyToast(false), 1500);
+    }
+  };
+
   if (loading) {
     return <div className="max-w-2xl mx-auto py-8 px-4 text-center text-zinc-500">Loading...</div>;
   }
@@ -71,15 +83,20 @@ export default function CheckInEditPage() {
   }
 
   return (
-    <CheckInFormBuilder
-      initialName={initialName}
-      initialQuestions={initialQuestions}
-      onSave={handleSave}
-      loading={saving}
-      error={error}
-      submitLabel="Save & Publish"
-      cancelLabel="Cancel"
-      onCancel={() => router.push('/check-ins')}
-    />
+    <div className="max-w-2xl mx-auto py-8 px-4">
+      <CheckInFormBuilder
+        initialName={initialName}
+        initialQuestions={initialQuestions}
+        onSave={handleSave}
+        loading={saving}
+        error={error}
+        submitLabel="Save & Publish"
+        cancelLabel="Cancel"
+        onCancel={() => router.push('/check-ins')}
+        publicUrl={publicUrl}
+        onCopyUrl={handleCopy}
+      />
+      <Toast open={showCopyToast} message="Copied!" type="success" onClose={() => setShowCopyToast(false)} />
+    </div>
   );
 } 
