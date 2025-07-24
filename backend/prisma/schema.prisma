@@ -44,6 +44,7 @@ model TrainerClient {
   trainer       Registered     @relation(fields: [trainerId], references: [id])
   labels        Label[]        @relation("ClientLabels")
   notes         Note[]
+  submissions   CheckInSubmission[]
 
   @@index([trainerId])
 }
@@ -196,15 +197,14 @@ model CheckInQuestion {
 model CheckInSubmission {
   id         Int           @id @default(autoincrement())
   formId     Int
+  clientId   Int
   submittedAt DateTime     @default(now())
   answers    Json          // stores all answers as JSON
   form       CheckInForm   @relation(fields: [formId], references: [id])
-
-  // Optionally add client info fields here if needed in the future
-  // clientName String?
-  // clientEmail String?
+  client     TrainerClient @relation(fields: [clientId], references: [id])
 
   @@index([formId])
+  @@index([clientId])
 }
 
 model CheckInFormHistory {

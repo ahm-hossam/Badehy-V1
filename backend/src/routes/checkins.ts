@@ -51,6 +51,67 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/checkins/responses?trainerId=...&formId=...&clientId=...&from=...&to=...&page=...&pageSize=...
+router.get('/responses', async (req: Request, res: Response) => {
+  const trainerIdRaw = req.query.trainerId;
+  const trainerId = Number(trainerIdRaw);
+  console.log('Received trainerId:', trainerIdRaw, 'Parsed:', trainerId);
+  const formId = req.query.formId ? Number(req.query.formId) : undefined;
+  const clientId = req.query.clientId ? Number(req.query.clientId) : undefined;
+  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  const page = req.query.page ? Number(req.query.page) : 1;
+  const pageSize = req.query.pageSize ? Number(req.query.pageSize) : 20;
+  if (!trainerId || isNaN(trainerId) || trainerId <= 0) {
+    return res.status(400).json({ error: `Missing or invalid trainerId: received '${trainerIdRaw}' (parsed: ${trainerId})` });
+  }
+  try {
+    const where: any = {
+      form: { trainerId },
+    };
+    if (formId) where.formId = formId;
+    if (clientId) where.clientId = clientId;
+    if (from || to) {
+      where.submittedAt = {};
+      if (from) where.submittedAt.gte = from;
+      if (to) where.submittedAt.lte = to;
+    }
+    const total = await prisma.checkInSubmission.count({ where });
+    const submissions = await prisma.checkInSubmission.findMany({
+      where,
+      orderBy: { submittedAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: {
+        form: { select: { id: true, name: true } },
+        client: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+    res.json({ total, submissions });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch responses' });
+  }
+});
+
+// GET /api/checkins/responses/:id - get details for a single submission
+router.get('/responses/:id', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id) || id <= 0) return res.status(404).json({ error: 'Missing or invalid response id' });
+  try {
+    const submission = await prisma.checkInSubmission.findUnique({
+      where: { id },
+      include: {
+        form: { select: { id: true, name: true, questions: true } },
+        client: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+    if (!submission) return res.status(404).json({ error: 'Response not found' });
+    res.json(submission);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch response details' });
+  }
+});
+
 // GET /api/checkins/:id - fetch a single check-in form with questions
 router.get('/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
@@ -70,14 +131,15 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST /api/checkins/:id/submit - public submission
 router.post('/:id/submit', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const { answers } = req.body;
-  if (!id || !answers) return res.status(400).json({ error: 'Missing id or answers' });
+  const { answers, clientId } = req.body;
+  if (!id || !answers || !clientId) return res.status(400).json({ error: 'Missing id, answers, or clientId' });
   try {
     const form = await prisma.checkInForm.findUnique({ where: { id } });
     if (!form) return res.status(404).json({ error: 'Check-in form not found' });
     const submission = await prisma.checkInSubmission.create({
       data: {
         formId: id,
+        clientId: Number(clientId),
         answers,
       },
     });
