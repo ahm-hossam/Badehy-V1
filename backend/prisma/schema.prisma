@@ -172,6 +172,8 @@ model CheckInForm {
   updatedAt   DateTime           @updatedAt
   trainer     Registered         @relation(fields: [trainerId], references: [id])
   questions   CheckInQuestion[]
+  submissions CheckInSubmission[]
+  history     CheckInFormHistory[]
 }
 
 model CheckInQuestion {
@@ -189,4 +191,31 @@ model CheckInQuestion {
 
   @@index([formId])
   @@index([order])
+}
+
+model CheckInSubmission {
+  id         Int           @id @default(autoincrement())
+  formId     Int
+  submittedAt DateTime     @default(now())
+  answers    Json          // stores all answers as JSON
+  form       CheckInForm   @relation(fields: [formId], references: [id])
+
+  // Optionally add client info fields here if needed in the future
+  // clientName String?
+  // clientEmail String?
+
+  @@index([formId])
+}
+
+model CheckInFormHistory {
+  id         Int           @id @default(autoincrement())
+  formId     Int
+  version    Int
+  name       String
+  questions  Json          // snapshot of questions/logic at this version
+  createdAt  DateTime      @default(now())
+  form       CheckInForm   @relation(fields: [formId], references: [id])
+
+  @@index([formId])
+  @@unique([formId, version])
 }
