@@ -448,7 +448,7 @@ export function CheckInFormBuilder({
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <div className="max-w-2xl mx-auto py-8 pt-0">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold">{initialName ? 'Edit Check-in' : 'Create New Check-in'}</h1>
         <div className="flex gap-2">
