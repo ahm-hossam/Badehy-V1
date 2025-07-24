@@ -64,6 +64,9 @@ export default function ClientsPage() {
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showUpdatedToast, setShowUpdatedToast] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
 
   // Load clients on component mount
   useEffect(() => {
@@ -107,12 +110,12 @@ export default function ClientsPage() {
         return;
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
-      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}`;
-      console.log('Loading clients for trainerId:', user.id, 'URL:', url);
+      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}&page=${page}&pageSize=${pageSize}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setClients(data);
+        setClients(data.clients || data); // support both array and paginated
+        setTotal(data.total || (Array.isArray(data) ? data.length : 0));
       } else {
         setMessage("Failed to load clients.");
         setMessageType("error");
@@ -206,64 +209,35 @@ export default function ClientsPage() {
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={2} className="text-center py-8">
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                      <span className="ml-2 text-gray-600">Loading clients...</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
+              ) : errorMessage ? (
+                <TableRow><TableCell colSpan={3} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
               ) : clients.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={2} className="text-center py-12">
-                    <div className="text-gray-500">
-                      <UsersIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No clients found</h3>
-                      <p className="text-sm text-gray-600 mb-4">
-                        {searchTerm ? "No clients match your search criteria." : "Get started by adding your first client."}
-                      </p>
-                      {!searchTerm && (
-                        <Button onClick={handleAddClient} className="px-4">
-                          <PlusIcon className="h-5 w-5 mr-2" />
-                          Add Client
-                        </Button>
-                      )}
+                <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
+              ) : clients.map((client) => (
+                <TableRow key={client.id}>
+                  <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
+                  <TableCell className="font-medium">{client.fullName}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end space-x-2">
+                      <Button outline onClick={() => router.push(`/clients/edit/${client.id}`)} className="px-3 py-1">
+                        <PencilIcon className="h-4 w-4 mr-1" />Edit
+                      </Button>
+                      <Button outline onClick={() => handleDelete(client.id, client.fullName)} className="px-3 py-1 text-red-600 hover:text-red-700">
+                        <TrashIcon className="h-4 w-4 mr-1" />Delete
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : (
-                clients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
-                    <TableCell className="font-medium">
-                      {client.fullName}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        <Button
-                          outline
-                          onClick={() => router.push(`/clients/edit/${client.id}`)}
-                          className="px-3 py-1"
-                        >
-                          <PencilIcon className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                        <Button
-                          outline
-                          onClick={() => handleDelete(client.id, client.fullName)}
-                          className="px-3 py-1 text-red-600 hover:text-red-700"
-                        >
-                          <TrashIcon className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
+          {/* Pagination (matching responses page) */}
+          <div className="flex justify-end mt-4 gap-2">
+            <Button outline disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
+            <span className="px-2 py-1 text-sm">Page {page}</span>
+            <Button outline disabled={page * pageSize >= total} onClick={() => setPage(page + 1)}>Next</Button>
+          </div>
         </div>
       </div>
       {confirmDelete && (

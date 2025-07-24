@@ -9,6 +9,7 @@ import { CalendarIcon } from '@heroicons/react/20/solid';
 import { DateRange, Range, RangeKeyDict } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from "@/components/table";
 
 export default function ResponsesPage() {
   const [responses, setResponses] = useState<any[]>([]);
@@ -172,35 +173,42 @@ export default function ResponsesPage() {
           </div>
         </div>
       </div>
-      <div className="bg-white rounded-lg shadow p-4">
-        <table className="min-w-full divide-y divide-zinc-200">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Form Name</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Client Name</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Submission Date</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Form Name</TableHeader>
+              <TableHeader>Client Name</TableHeader>
+              <TableHeader>Filled By</TableHeader>
+              <TableHeader>Submission Date</TableHeader>
+              <TableHeader></TableHeader>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {loading ? (
-              <tr><td colSpan={4} className="text-center py-8 text-zinc-400">Loading...</td></tr>
+              <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
             ) : error ? (
-              <tr><td colSpan={4} className="text-center text-red-500 py-8">{error}</td></tr>
+              <TableRow><TableCell colSpan={5} className="text-center text-red-500 py-8">{error}</TableCell></TableRow>
             ) : responses.length === 0 ? (
-              <tr><td colSpan={4} className="text-center py-8 text-zinc-400">No responses found.</td></tr>
+              <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-400">No responses found.</TableCell></TableRow>
             ) : responses.map((resp) => (
-              <tr key={resp.id} className="border-b last:border-0">
-                <td className="px-4 py-2 font-medium text-zinc-900">{resp.form?.name || "-"}</td>
-                <td className="px-4 py-2 text-zinc-600">{getNameFromAnswers(resp)}</td>
-                <td className="px-4 py-2 text-zinc-600">{resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : "-"}</td>
-                <td className="px-4 py-2 flex gap-2">
+              <TableRow key={resp.id}>
+                <TableCell className="font-medium text-zinc-900">{resp.form?.name || "-"}</TableCell>
+                <TableCell className="text-zinc-600">{getNameFromAnswers(resp)}</TableCell>
+                <TableCell className="text-zinc-600">
+                  <span className={resp.filledBy === 'trainer' ? 'bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-semibold' : 'bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-semibold'}>
+                    {resp.filledBy === 'trainer' ? 'Trainer' : 'Client'}
+                  </span>
+                  <span className="ml-2">{resp.filledByName}</span>
+                </TableCell>
+                <TableCell className="text-zinc-600">{resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : "-"}</TableCell>
+                <TableCell className="flex gap-2">
                   <Button outline onClick={() => router.push(`/check-ins/responses/${resp.id}`)}>View</Button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
         {/* Pagination (basic) */}
         <div className="flex justify-end mt-4 gap-2">
           <Button outline disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
