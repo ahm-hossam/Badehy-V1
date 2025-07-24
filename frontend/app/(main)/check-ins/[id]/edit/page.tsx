@@ -24,18 +24,24 @@ export default function CheckInEditPage() {
         if (!res.ok) throw new Error('Failed to load check-in form');
         const data = await res.json();
         setInitialName(data.name || "");
-        setInitialQuestions(
-          (data.questions || []).map((q: any) => ({
-            id: q.id?.toString() || Math.random().toString(36).slice(2),
-            question: q.label || "",
-            customQuestion: q.label && data.staticQuestions && data.staticQuestions.includes(q.label) ? "" : q.label || "",
-            answerType: q.type || "",
-            required: !!q.required,
-            answerOptions: Array.isArray(q.options) ? q.options : [],
-            collapsed: false,
-            conditionGroup: q.conditionGroup || undefined,
-          }))
-        );
+        setInitialQuestions(prev => {
+          return (data.questions || []).map((q: any, idx: number) => {
+            // Try to find a previous question with the same label/type
+            const prevQ = prev?.find(
+              (pq: any) => pq.label === q.label && pq.type === q.type
+            );
+            return {
+              id: q.id?.toString() || prevQ?.id || Math.random().toString(36).slice(2),
+              question: q.label || "",
+              customQuestion: q.label && data.staticQuestions && data.staticQuestions.includes(q.label) ? "" : q.label || "",
+              answerType: q.type || "",
+              required: !!q.required,
+              answerOptions: Array.isArray(q.options) ? q.options : [],
+              collapsed: false,
+              conditionGroup: q.conditionGroup || undefined,
+            };
+          });
+        });
       })
       .catch((err) => setError(err.message || 'Failed to load check-in form'))
       .finally(() => setLoading(false));

@@ -458,6 +458,50 @@ export function CheckInFormBuilder({
     );
   }
 
+  function SortableQuestionCard({
+    q,
+    idx,
+    usedStaticQuestions,
+    questions,
+    onUpdate,
+    onDelete,
+    onReorder,
+  }: {
+    q: any;
+    idx: number;
+    usedStaticQuestions: string[];
+    questions: any[];
+    onUpdate: (id: string, update: any) => void;
+    onDelete: (id: string) => void;
+    onReorder: (oldIndex: number, newIndex: number) => void;
+  }) {
+    const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useDndSortable({ id: q.id });
+    const style = {
+      transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+      transition,
+      zIndex: isDragging ? 10 : undefined,
+      opacity: isDragging ? 0.7 : 1,
+    };
+    return (
+      <div ref={setNodeRef} style={style} className="relative">
+        <div className="absolute left-0 top-4 z-10">
+          <span {...attributes} {...listeners}><DragHandle /></span>
+        </div>
+        <div className="pl-8">
+          <QuestionCard
+            q={q}
+            idx={idx}
+            usedStaticQuestions={usedStaticQuestions}
+            questions={questions}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+            onReorder={onReorder}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto py-8 pt-0">
       <div className="flex items-center justify-between mb-2">
@@ -501,22 +545,16 @@ export function CheckInFormBuilder({
       >
         <DndSortableContext items={questions.map(q => q.id)} strategy={dndVerticalListSortingStrategy}>
           {questions.map((q, idx) => (
-            <div key={q.id} className="relative">
-              <div className="absolute left-0 top-4 z-10">
-                <DragHandle />
-              </div>
-              <div className="pl-8">
-                <QuestionCard
-                  q={q}
-                  idx={idx}
-                  usedStaticQuestions={questions.filter(qq => qq.id !== q.id && qq.question).map(qq => qq.question)}
-                  questions={questions}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                  onReorder={handleReorder}
-                />
-              </div>
-            </div>
+            <SortableQuestionCard
+              key={q.id}
+              q={q}
+              idx={idx}
+              usedStaticQuestions={questions.filter(qq => qq.id !== q.id && qq.question).map(qq => qq.question)}
+              questions={questions}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              onReorder={handleReorder}
+            />
           ))}
           {/* Add Question button after last card */}
           <div className="mt-4 mb-2 flex">
