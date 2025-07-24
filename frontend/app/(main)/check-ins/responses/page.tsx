@@ -72,6 +72,23 @@ export default function ResponsesPage() {
     return <div className="text-center text-red-500 py-12">You must be logged in as a trainer to view responses.</div>;
   }
 
+  // Helper to get the name from answers if client is anonymous
+  function getNameFromAnswers(resp: any): string {
+    if (resp.client?.fullName) return resp.client.fullName;
+    if (resp.form?.questions && resp.answers) {
+      // Find the 'Full Name' question (case-insensitive, ignore spaces/punctuation)
+      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+      const nameQ = resp.form.questions.find(
+        (q: any) => q.label && normalize(q.label) === 'fullname'
+      );
+      if (nameQ) {
+        const val = resp.answers[nameQ.id];
+        if (val && typeof val === 'string') return val;
+      }
+    }
+    return '-';
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Responses</h1>
@@ -128,10 +145,24 @@ export default function ResponsesPage() {
                     setPage(1);
                   }}>Clear</Button>
                   <Button type="button" onClick={() => {
-                    if (dateRange.startDate) setFromDate(dateRange.startDate.toISOString().slice(0, 10));
-                    else setFromDate("");
-                    if (dateRange.endDate) setToDate(dateRange.endDate.toISOString().slice(0, 10));
-                    else setToDate("");
+                    if (dateRange.startDate) {
+                      let from = new Date(dateRange.startDate);
+                      let end = dateRange.endDate ? new Date(dateRange.endDate) : new Date(dateRange.startDate);
+                      // If only one date is selected, set both start and end to that date
+                      if (!dateRange.endDate || from.toISOString().slice(0, 10) === end.toISOString().slice(0, 10)) {
+                        end = new Date(from);
+                      }
+                      setFromDate(from.toISOString().slice(0, 10));
+                      // Always send toDate as end + 1 day
+                      let to = new Date(end);
+                      to.setDate(to.getDate() + 1);
+                      setToDate(to.toISOString().slice(0, 10));
+                      // Debug log
+                      console.log('Date filter:', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+                    } else {
+                      setFromDate("");
+                      setToDate("");
+                    }
                     setShowDateDropdown(false);
                     setPage(1);
                   }}>Apply</Button>
@@ -161,7 +192,7 @@ export default function ResponsesPage() {
             ) : responses.map((resp) => (
               <tr key={resp.id} className="border-b last:border-0">
                 <td className="px-4 py-2 font-medium text-zinc-900">{resp.form?.name || "-"}</td>
-                <td className="px-4 py-2 text-zinc-600">{resp.client?.fullName || "-"}</td>
+                <td className="px-4 py-2 text-zinc-600">{getNameFromAnswers(resp)}</td>
                 <td className="px-4 py-2 text-zinc-600">{resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : "-"}</td>
                 <td className="px-4 py-2 flex gap-2">
                   <Button outline onClick={() => router.push(`/check-ins/responses/${resp.id}`)}>View</Button>
