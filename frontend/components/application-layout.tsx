@@ -45,6 +45,7 @@ import {
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getStoredUser, removeUser } from '../lib/auth'
+import { Disclosure } from '@headlessui/react';
 
 function AccountDropdownMenu({ 
   anchor, 
@@ -146,10 +147,36 @@ export function ApplicationLayout({
                 <UsersIcon />
                 <SidebarLabel>Clients</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/check-ins" current={pathname.startsWith('/check-ins')}>
-                <Square2StackIcon />
-                <SidebarLabel>Check-ins</SidebarLabel>
-              </SidebarItem>
+              {/* Check-ins collapsible section */}
+              <Disclosure defaultOpen={pathname.startsWith('/check-ins')}>
+                {({ open }) => (
+                  <div>
+                    <Disclosure.Button as={SidebarItem} className="w-full flex items-center">
+                      <Square2StackIcon />
+                      <SidebarLabel>Check-ins</SidebarLabel>
+                      <span className="ml-auto">
+                        {open ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
+                      </span>
+                    </Disclosure.Button>
+                    <Disclosure.Panel static>
+                      <div className="pl-8 flex flex-col gap-0.5 mt-1">
+                        <SidebarItem
+                          href="/check-ins"
+                          current={pathname === '/check-ins' || (pathname.startsWith('/check-ins/') && !pathname.startsWith('/check-ins/responses'))}
+                        >
+                          <SidebarLabel>My Check-ins</SidebarLabel>
+                        </SidebarItem>
+                        <SidebarItem
+                          href="/check-ins/responses"
+                          current={pathname.startsWith('/check-ins/responses')}
+                        >
+                          <SidebarLabel>Responses</SidebarLabel>
+                        </SidebarItem>
+                      </div>
+                    </Disclosure.Panel>
+                  </div>
+                )}
+              </Disclosure>
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
