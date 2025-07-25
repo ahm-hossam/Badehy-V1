@@ -9,6 +9,8 @@ import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
 import { getStoredUser } from '@/lib/auth';
 import dayjs from "dayjs";
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table';
+import { TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
 
 // Grouped fields (should match backend and create page)
 const GROUPS = [
@@ -210,10 +212,13 @@ export default function EditClientPage() {
         endDate: latest.endDate ? latest.endDate.slice(0, 10) : '',
         paymentStatus: latest.paymentStatus || '',
         paymentMethod: latest.paymentMethod || '',
-        discount: latest.discountValue || '',
+        discount: latest.discountApplied ? 'yes' : 'no',
+        discountType: latest.discountType || 'fixed',
+        discountValue: latest.discountValue || '',
         priceBeforeDisc: latest.priceBeforeDisc || '',
         installments: latest.installments || '',
       });
+      if (latest.discountType) setDiscountType(latest.discountType);
     } else {
       setSubscription({
         id: undefined,
@@ -224,12 +229,22 @@ export default function EditClientPage() {
         endDate: '',
         paymentStatus: '',
         paymentMethod: '',
-        discount: '',
+        discount: 'no',
+        discountType: 'fixed',
+        discountValue: '',
         priceBeforeDisc: '',
         installments: '',
       });
     }
   }, [formData]);
+  useEffect(() => {
+    if (!subscription) return;
+    setShowPaymentMethod(['paid', 'installments'].includes(subscription.paymentStatus));
+    setShowDiscountFields(['paid', 'installments'].includes(subscription.paymentStatus));
+    setShowDiscountValue(subscription.discount === 'yes');
+    setShowPriceFields(subscription.discount === 'yes');
+    if (subscription.discountType) setDiscountType(subscription.discountType);
+  }, [subscription]);
   const handleSubscriptionChange = (key: string, value: any) => {
     setSubscription((prev: any) => ({ ...prev, [key]: value }));
   };
@@ -307,7 +322,6 @@ export default function EditClientPage() {
     setLoading(true);
     setError(null);
     setSuccess(false);
-    // Frontend validation for subscription fields
     const requiredSubFields = ['packageId', 'startDate', 'durationValue', 'durationUnit', 'endDate'];
     for (const field of requiredSubFields) {
       if (!subscription[field] || subscription[field] === '') {
@@ -316,19 +330,46 @@ export default function EditClientPage() {
         return;
       }
     }
-    // Log the subscription object for debugging
-    console.log('Submitting subscription:', subscription);
+    // Build a complete subscription object to send
+    const subscriptionToSend = {
+      id: subscription.id,
+      packageId: Number(subscription.packageId),
+      startDate: subscription.startDate,
+      durationValue: Number(subscription.durationValue),
+      durationUnit: subscription.durationUnit,
+      endDate: subscription.endDate,
+      paymentStatus: subscription.paymentStatus,
+      paymentMethod: subscription.paymentMethod,
+      priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
+      discountApplied: subscription.discount === 'yes',
+      discountType: discountType,
+      discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
+      priceAfterDisc: (() => {
+        const before = Number(subscription.priceBeforeDisc) || 0;
+        const discount = Number(subscription.discountValue) || 0;
+        if (discountType === 'fixed') return before - discount;
+        if (discountType === 'percentage') return before - (before * discount / 100);
+        return before;
+      })(),
+    };
+    // Build installments array with correct fields and types
+    const installmentsToSend = installments.map((inst: any) => ({
+      id: inst.id, // if editing existing
+      paidDate: inst.date,
+      amount: Number(inst.amount),
+      remaining: Number(inst.remaining) || 0,
+      nextInstallment: inst.nextDate,
+      status: 'paid',
+    }));
     try {
       const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
-      // Convert array fields from comma-separated strings to arrays
       const formDataToSend = { ...formData };
       arrayFields.forEach(field => {
         if (typeof formDataToSend[field] === 'string') {
           formDataToSend[field] = formDataToSend[field].split(',').map((s: string) => s.trim()).filter(Boolean);
         }
       });
-      // Build answers object: question ID for check-in questions, field key for profile fields
       let mergedAnswers: Record<string, any> = {};
       if (submissionForm && submissionForm.questions) {
         submissionForm.questions.forEach((q: any) => {
@@ -344,12 +385,42 @@ export default function EditClientPage() {
           mergedAnswers[key] = answers[key];
         }
       });
+      console.log('Payload sent to backend:', {
+        client: { ...formDataToSend, answers: mergedAnswers },
+        subscription: subscriptionToSend,
+        installments: installmentsToSend,
+      });
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client: { ...formDataToSend, answers: mergedAnswers }, subscription }),
+        body: JSON.stringify({ client: { ...formDataToSend, answers: mergedAnswers }, subscription: subscriptionToSend, installments: installmentsToSend }),
       });
       if (res.ok) {
+        // Fetch updated client data to get new installment IDs
+        const updatedClient = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`).then(r => r.json());
+        const updatedInstallments = updatedClient.subscriptions?.[0]?.installments || [];
+        // For each local installment with an image, upload it
+        await Promise.all(
+          installments.map(async (inst, idx) => {
+            if (inst.image) {
+              const match = updatedInstallments.find(
+                (u: any) =>
+                  u.paidDate?.slice(0, 10) === inst.date &&
+                  String(u.amount) === String(inst.amount) &&
+                  (u.nextInstallment?.slice(0, 10) || '') === (inst.nextDate || '')
+              );
+              if (match) {
+                const formData = new FormData();
+                formData.append('file', inst.image);
+                formData.append('installmentId', match.id);
+                await fetch('/api/transaction-images/installment', {
+                  method: 'POST',
+                  body: formData,
+                });
+              }
+            }
+          })
+        );
         setSuccess(true);
         router.push("/clients?updated=1");
       } else {
@@ -365,6 +436,98 @@ export default function EditClientPage() {
 
   const [transactionImage, setTransactionImage] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Add after other useState declarations in EditClientPage:
+  const [packages, setPackages] = useState<any[]>([]);
+  const [newPackageName, setNewPackageName] = useState('');
+  const [showAddPackage, setShowAddPackage] = useState(false);
+  const [packageError, setPackageError] = useState('');
+  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [showTransactionImage, setShowTransactionImage] = useState(false);
+  const [showDiscountValue, setShowDiscountValue] = useState(false);
+  const [showPriceFields, setShowPriceFields] = useState(false);
+  type InstallmentRow = {
+    date: string;
+    amount: string;
+    remaining: string;
+    image: File | null;
+    nextDate: string;
+  };
+  const [installments, setInstallments] = useState<InstallmentRow[]>([
+    { date: '', amount: '', remaining: '', image: null, nextDate: '' }
+  ]);
+
+  // 1. Fix handleAddPackage to set packageId and fetch updated packages
+  const handleAddPackage = async () => {
+    setPackageError('');
+    const user = getStoredUser();
+    if (!user) return;
+    if (!newPackageName.trim()) {
+      setPackageError('Package name is required.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trainerId: user.id, name: newPackageName.trim() }),
+      });
+      if (res.ok) {
+        const pkg = await res.json();
+        setSubscription((prev: any) => ({ ...prev, packageId: pkg.id }));
+        setNewPackageName('');
+        setShowAddPackage(false);
+        // Fetch updated packages list
+        fetch(`/api/packages?trainerId=${user.id}`)
+          .then(res => res.json())
+          .then(data => setPackages(data || []));
+      } else {
+        const data = await res.json();
+        setPackageError(data.error || 'Failed to create package.');
+      }
+    } catch (err) {
+      setPackageError('Network error.');
+    }
+  };
+
+  // 2. Always fetch packages on edit and append selected if missing
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
+    fetch(`/api/packages?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (subscription.packageId && !data.find((pkg: any) => pkg.id === Number(subscription.packageId))) {
+          data.push({ id: Number(subscription.packageId), name: formData.packageName || 'Current Package' });
+        }
+        setPackages(data || []);
+      });
+  }, [subscription.packageId]);
+
+  const getInstallmentRemaining = (idx: number) => {
+    const before = Number(subscription.priceBeforeDisc) || 0;
+    const after = subscription.discount === 'yes' ? (() => {
+      const discount = Number(subscription.discountValue) || 0;
+      if (discountType === 'fixed') return before - discount;
+      if (discountType === 'percentage') return before - (before * discount / 100);
+      return before;
+    })() : before;
+    const paid = installments.slice(0, idx).reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
+    return Math.max(after - paid, 0);
+  };
+
+  const handleInstallmentChange = (idx: number, key: string, value: any) => {
+    setInstallments(insts => insts.map((inst, i) => i === idx ? { ...inst, [key]: value } : inst));
+  };
+
+  const handleInstallmentImage = (idx: number, file: File | null) => {
+    setInstallments(insts => insts.map((inst, i) => i === idx ? { ...inst, image: file } : inst));
+  };
+
+  const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', remaining: '', image: null, nextDate: '' }]);
+  const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
@@ -480,8 +643,8 @@ export default function EditClientPage() {
                           onChange={e => handleChange(field.key, e.target.value)}
                           placeholder={field.label}
                           required={field.required}
-                        />
-                      )}
+                      />
+                    )}
             </div>
                   );
                 })}
@@ -542,7 +705,7 @@ export default function EditClientPage() {
               </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Duration</label>
-              <div className="flex gap-2">
+                <div className="flex gap-2">
                   <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
                   <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
                     <option value="month">Month(s)</option>
@@ -557,61 +720,220 @@ export default function EditClientPage() {
             </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Payment Status</label>
-                <Select value={subscription.paymentStatus} onChange={e => handleSubscriptionChange('paymentStatus', e.target.value)}>
+                <Select
+                  value={subscription.paymentStatus}
+                  onChange={e => {
+                    handleSubscriptionChange('paymentStatus', e.target.value);
+                    setShowPaymentMethod(['paid', 'installments'].includes(e.target.value));
+                    setShowDiscountFields(['paid', 'installments'].includes(e.target.value));
+                    setShowTransactionImage(e.target.value === 'paid');
+                  }}
+                >
                   <option value="">Select...</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                  <option value="unpaid">Unpaid</option>
+                  <option value="paid">Paid</option>
+                  <option value="free">Free</option>
+                  <option value="free_trial">Free Trial</option>
+                  <option value="pending">Pending</option>
+                  <option value="installments">Installments</option>
                 </Select>
               </div>
+              {/* Add package dropdown and inline add new package */}
               <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Payment Method</label>
-                <Input type="text" value={subscription.paymentMethod} onChange={e => handleSubscriptionChange('paymentMethod', e.target.value)} />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Discount</label>
-                <Input type="number" value={subscription.discount} onChange={e => handleSubscriptionChange('discount', e.target.value)} />
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Price Before Discount</label>
-                <Input type="number" value={subscription.priceBeforeDisc} onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)} />
+                <label className="text-sm font-medium mb-1">Package</label>
+                <div className="flex gap-2 items-center">
+                  <Select
+                    value={subscription.packageId || ''}
+                    onChange={e => handleSubscriptionChange('packageId', e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="">Select package...</option>
+                    {packages.map((pkg: any) => (
+                      <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="button"
+                    outline
+                    className="min-w-[110px] text-xs"
+                    onClick={() => setShowAddPackage(v => !v)}
+                  >
+                    Add New
+                  </Button>
+                </div>
+                {showAddPackage && (
+                  <div className="mt-2 flex gap-2 items-center rounded p-2 bg-zinc-50">
+                    <Input
+                      type="text"
+                      value={newPackageName}
+                      onChange={e => setNewPackageName(e.target.value)}
+                      placeholder="Package Name"
+                      className="w-1/2"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddPackage}
+                      className="px-3"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      type="button"
+                      outline
+                      onClick={() => {
+                        setShowAddPackage(false);
+                        setNewPackageName('');
+                        setPackageError('');
+                      }}
+                      className="px-3"
+                    >
+                      Cancel
+                    </Button>
+                    {packageError && <span className="text-red-500 text-xs ml-2">{packageError}</span>}
                   </div>
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Installment Data (if any)</label>
-                <Input type="text" value={subscription.installments || ''} onChange={e => handleSubscriptionChange('installments', e.target.value)} placeholder="(To be implemented)" />
+                )}
               </div>
-              {subscription.paymentStatus === 'paid' && (
+              {showPaymentMethod && (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Payment Method</label>
+                  <Select value={subscription.paymentMethod} onChange={e => handleSubscriptionChange('paymentMethod', e.target.value)}>
+                    <option value="">Select...</option>
+                    <option value="instapay">Instapay</option>
+                    <option value="vodafone_cash">Vodafone Cash</option>
+                    <option value="fawry">Fawry</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                  </Select>
+                </div>
+              )}
+              {showDiscountFields && (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Discount</label>
+                  <Select
+                    value={subscription.discount}
+                    onChange={e => {
+                      handleSubscriptionChange('discount', e.target.value);
+                      setShowDiscountValue(e.target.value === 'yes');
+                      setShowPriceFields(e.target.value === 'yes');
+                    }}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </Select>
+                </div>
+              )}
+              {showDiscountValue && (
+                <>
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Discount Value</label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        value={subscription.discountValue || ''}
+                        onChange={e => handleSubscriptionChange('discountValue', e.target.value)}
+                        className="w-1/2"
+                      />
+                      <Select
+                        value={discountType}
+                        onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
+                        className="w-1/2"
+                      >
+                        <option value="fixed">Fixed Amount</option>
+                        <option value="percentage">Percentage</option>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                    <Input
+                      type="number"
+                      value={subscription.priceBeforeDisc || ''}
+                      onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+              {showPriceFields && (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Price After Discount</label>
+                  <Input
+                    type="number"
+                    value={(() => {
+                      const before = Number(subscription.priceBeforeDisc) || 0;
+                      const discount = Number(subscription.discountValue) || 0;
+                      if (discountType === 'fixed') return before - discount;
+                      if (discountType === 'percentage') return before - (before * discount / 100);
+                      return before;
+                    })()}
+                    readOnly
+                    disabled
+                    className="bg-zinc-100"
+                  />
+                </div>
+              )}
+              {showTransactionImage && (
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Transaction Image</label>
-                <input
-                  type="file"
+                  <input
+                    type="file"
                     accept="image/*"
                     ref={fileInputRef}
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (!file || !subscription.id) return;
-                      const formData = new FormData();
-                      formData.append('file', file);
-                      formData.append('subscriptionId', subscription.id);
-                      const res = await fetch('/api/transaction-images/subscription', {
-                        method: 'POST',
-                        body: formData,
-                      });
-                      if (res.ok) {
-                        const img = await res.json();
-                        setTransactionImage(img);
-                      } else {
-                        alert('Failed to upload transaction image');
-                      }
+                      setTransactionImage(file);
                     }}
+                    className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                   />
                   {transactionImage && (
-                    <div className="mt-2 text-xs text-zinc-600">Uploaded: {transactionImage.originalName}</div>
-                )}
+                    <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {subscription.paymentStatus === 'installments' && (
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Installments Management</h2>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableHeader>Installment Date</TableHeader>
+                      <TableHeader>Amount</TableHeader>
+                      <TableHeader>Remaining</TableHeader>
+                      <TableHeader>Transaction Image</TableHeader>
+                      <TableHeader>Next Installment Date</TableHeader>
+                      <TableHeader>Actions</TableHeader>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {installments.map((inst, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
+                        </TableCell>
+                        <TableCell>
+                          <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
+                        </TableCell>
+                        <TableCell>
+                          <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
+                        </TableCell>
+                        <TableCell>
+                          <input type="file" accept="image/*" onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" />
+                          {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
+                        </TableCell>
+                        <TableCell>
+                          <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
+                        </TableCell>
+                        <TableCell className="flex gap-2 items-center">
+                          <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>
+                          <button type="button" onClick={addInstallment} className="text-green-600"><PlusIcon className="w-5 h-5" /></button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-          </div>
-          </div>
+            </div>
+          )}
           <div className="flex gap-4 justify-end mt-8">
             <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>

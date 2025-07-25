@@ -638,6 +638,60 @@ export default function CreateClientPage() {
                   )}
                 </div>
               )}
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Package</label>
+                <div className="flex gap-2 items-center">
+                  <Select
+                    value={subscription.packageId || ''}
+                    onChange={e => handleSubscriptionChange('packageId', e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="">Select package...</option>
+                    {packages.map((pkg: any) => (
+                      <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                    ))}
+                  </Select>
+                  <Button
+                    type="button"
+                    outline
+                    className="min-w-[110px] text-xs"
+                    onClick={() => setShowAddPackage(v => !v)}
+                  >
+                    Add New
+                  </Button>
+                </div>
+                {showAddPackage && (
+                  <div className="mt-2 flex gap-2 items-center rounded p-2 bg-zinc-50">
+                    <Input
+                      type="text"
+                      value={newPackageName}
+                      onChange={e => setNewPackageName(e.target.value)}
+                      placeholder="Package Name"
+                      className="w-1/2"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddPackage}
+                      className="px-3"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      type="button"
+                      outline
+                      onClick={() => {
+                        setShowAddPackage(false);
+                        setNewPackageName('');
+                        setPackageError('');
+                      }}
+                      className="px-3"
+                    >
+                      Cancel
+                    </Button>
+                    {packageError && <span className="text-red-500 text-xs ml-2">{packageError}</span>}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
