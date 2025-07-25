@@ -38,6 +38,23 @@ model TrainerClient {
   registrationDate DateTime?
   injuriesHealthNotes String[]
   goals         String[] // New field for client goals
+  // --- Added fields for full profile support ---
+  goal                     String?
+  workoutPlace             String?
+  height                   Int?
+  weight                   Int?
+  preferredTrainingDays    String?
+  preferredTrainingTime    String?
+  equipmentAvailability    String?
+  favoriteTrainingStyle    String?
+  weakAreas                String?
+  nutritionGoal            String?
+  dietPreference           String?
+  mealCount                Int?
+  foodAllergies            String?
+  dislikedIngredients      String?
+  currentNutritionPlan     String?
+  // --- End added fields ---
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]

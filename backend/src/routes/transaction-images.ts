@@ -122,6 +122,30 @@ router.post('/upload/subscription/:subscriptionId', upload.array('images', 10), 
   }
 });
 
+// POST /api/transaction-images/subscription
+router.post('/subscription', upload.single('file'), async (req, res) => {
+  try {
+    const { subscriptionId } = req.body;
+    if (!subscriptionId || !req.file) {
+      return res.status(400).json({ error: 'Missing subscriptionId or file' });
+    }
+    const image = await prisma.subscriptionTransactionImage.create({
+      data: {
+        subscriptionId: Number(subscriptionId),
+        filename: req.file.filename || req.file.originalname,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        imageData: req.file.buffer,
+      },
+    });
+    res.json(image);
+  } catch (error) {
+    console.error('Error uploading subscription transaction image:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
 // Get transaction images for an installment
 router.get('/installment/:installmentId', async (req: express.Request, res: express.Response) => {
   try {

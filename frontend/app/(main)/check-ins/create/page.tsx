@@ -577,7 +577,7 @@ export default function CheckInCreatePage() {
       }
       setIsSaved(true);
       setError(null);
-      router.push('/check-ins');
+      router.push('/check-ins?success=create');
     } catch (err: any) {
       setError(err.message || 'Failed to save form');
     } finally {

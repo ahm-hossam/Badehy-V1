@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Select } from "@/components/select";
 import { Button } from "@/components/button";
@@ -106,12 +106,12 @@ export default function EditClientPage() {
       });
   }, [formData.checkInFormId]);
 
-  // When client data is loaded, set answers from formData.answers (if available)
+  // When client data is loaded, set answers from submissionAnswers (if available)
   useEffect(() => {
-    if (formData && formData.answers) {
-      setAnswers(formData.answers);
+    if (submissionAnswers) {
+      setAnswers(submissionAnswers);
     }
-  }, [formData]);
+  }, [submissionAnswers]);
 
   // Add debug log for formData
   useEffect(() => {
@@ -126,6 +126,28 @@ export default function EditClientPage() {
       .then(res => res.json())
       .then(data => setAllForms(data || []));
   }, []);
+
+  // Helper: map static question labels to field keys
+  const staticLabelToKey: Record<string, string> = {};
+  GROUPS.forEach(group => {
+    group.fields.forEach(field => {
+      staticLabelToKey[field.label] = field.key;
+    });
+  });
+
+  // When fetching the latest check-in submission, build a merged answers object
+  useEffect(() => {
+    if (!submissionForm || !submissionAnswers) return;
+    // Map answers by both question ID and static field key
+    const merged: Record<string, any> = { ...submissionAnswers };
+    (submissionForm.questions || []).forEach((q: any) => {
+      const key = staticLabelToKey[q.label];
+      if (key && submissionAnswers[q.id] !== undefined) {
+        merged[key] = submissionAnswers[q.id];
+      }
+    });
+    setAnswers((prev: any) => ({ ...merged, ...prev })); // preserve any manual edits
+  }, [submissionForm, submissionAnswers]);
 
   // Fetch the latest check-in submission for this client
   useEffect(() => {
@@ -175,6 +197,39 @@ export default function EditClientPage() {
       setSubscription((prev: any) => ({ ...prev, endDate: end.format("YYYY-MM-DD") }));
     }
   }, [subscription.startDate, subscription.durationValue, subscription.durationUnit]);
+  // When client data is loaded, set subscription from latest subscription
+  useEffect(() => {
+    if (formData && formData.subscriptions && formData.subscriptions.length > 0) {
+      const latest = formData.subscriptions[0];
+      setSubscription({
+        id: latest.id || undefined,
+        packageId: latest.packageId || '',
+        startDate: latest.startDate ? latest.startDate.slice(0, 10) : '',
+        durationValue: latest.durationValue || '',
+        durationUnit: latest.durationUnit || 'month',
+        endDate: latest.endDate ? latest.endDate.slice(0, 10) : '',
+        paymentStatus: latest.paymentStatus || '',
+        paymentMethod: latest.paymentMethod || '',
+        discount: latest.discountValue || '',
+        priceBeforeDisc: latest.priceBeforeDisc || '',
+        installments: latest.installments || '',
+      });
+    } else {
+      setSubscription({
+        id: undefined,
+        packageId: '',
+        startDate: '',
+        durationValue: '',
+        durationUnit: 'month',
+        endDate: '',
+        paymentStatus: '',
+        paymentMethod: '',
+        discount: '',
+        priceBeforeDisc: '',
+        installments: '',
+      });
+    }
+  }, [formData]);
   const handleSubscriptionChange = (key: string, value: any) => {
     setSubscription((prev: any) => ({ ...prev, [key]: value }));
   };
@@ -182,7 +237,7 @@ export default function EditClientPage() {
   // Handler to assign a check-in form to a client
   const handleAssignForm = async () => {
     if (!selectedFormId) return;
-    setLoading(true);
+      setLoading(true);
     setError(null);
     try {
       const user = getStoredUser();
@@ -200,9 +255,9 @@ export default function EditClientPage() {
       }
     } catch (err) {
       setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+      } finally {
+        setLoading(false);
+      }
   };
 
   // Compute groupedFields as in create client
@@ -236,23 +291,63 @@ export default function EditClientPage() {
     })).filter(group => group.fields.length > 0);
   }, [submissionForm, groupedFields]);
 
-  const handleChange = (key: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [key]: value }));
+  // Update handleChange to update formData for profile fields and answers for check-in questions
+  const handleChange = (key: string, value: any, isCheckInQuestion: boolean = false) => {
+    if (isCheckInQuestion) {
+      setAnswers((prev: any) => ({ ...prev, [key]: value }));
+    } else {
+      setFormData((prev: any) => ({ ...prev, [key]: value }));
+    }
   };
 
   // On save, send answers as part of the client update
+  const arrayFields = ['goals', 'injuriesHealthNotes'];
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(false);
+    // Frontend validation for subscription fields
+    const requiredSubFields = ['packageId', 'startDate', 'durationValue', 'durationUnit', 'endDate'];
+    for (const field of requiredSubFields) {
+      if (!subscription[field] || subscription[field] === '') {
+        setError(`Subscription field '${field}' is required.`);
+        setLoading(false);
+        return;
+      }
+    }
+    // Log the subscription object for debugging
+    console.log('Submitting subscription:', subscription);
     try {
       const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
+      // Convert array fields from comma-separated strings to arrays
+      const formDataToSend = { ...formData };
+      arrayFields.forEach(field => {
+        if (typeof formDataToSend[field] === 'string') {
+          formDataToSend[field] = formDataToSend[field].split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      });
+      // Build answers object: question ID for check-in questions, field key for profile fields
+      let mergedAnswers: Record<string, any> = {};
+      if (submissionForm && submissionForm.questions) {
+        submissionForm.questions.forEach((q: any) => {
+          if (answers[q.id] !== undefined) {
+            mergedAnswers[q.id] = answers[q.id];
+          } else if (answers[q.label] !== undefined) {
+            mergedAnswers[q.id] = answers[q.label];
+          }
+        });
+      }
+      Object.keys(answers).forEach(key => {
+        if (!Object.values(mergedAnswers).includes(answers[key])) {
+          mergedAnswers[key] = answers[key];
+        }
+      });
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client: { ...formData, answers } }),
+        body: JSON.stringify({ client: { ...formDataToSend, answers: mergedAnswers }, subscription }),
       });
       if (res.ok) {
         setSuccess(true);
@@ -267,6 +362,9 @@ export default function EditClientPage() {
       setLoading(false);
     }
   };
+
+  const [transactionImage, setTransactionImage] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
@@ -283,8 +381,8 @@ export default function EditClientPage() {
           <div className="mb-4">This client does not have a check-in submission.<br />
             Editing check-in questions is not available for this client.<br />
             (This client was not created via a check-in form, or the data is missing.)
-          </div>
-        </div>
+            </div>
+            </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Check-In Data Section (always, if checkInFields exist) */}
@@ -303,8 +401,8 @@ export default function EditClientPage() {
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Select
-                            value={answers[field.key] || submissionAnswers[field.key] || ''}
-                            onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                            value={answers[field.key] || ''}
+                            onChange={e => handleChange(field.key, e.target.value, true)}
                             required={field.required}
                             className="w-full"
                           >
@@ -312,8 +410,8 @@ export default function EditClientPage() {
                             {field.options.map((opt: string) => (
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
-                          </Select>
-                        </div>
+              </Select>
+            </div>
                       );
                     }
                     if (field.type === 'textarea') {
@@ -324,12 +422,12 @@ export default function EditClientPage() {
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Textarea
-                            value={answers[field.key] || submissionAnswers[field.key] || ''}
-                            onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                            value={answers[field.key] || ''}
+                            onChange={e => handleChange(field.key, e.target.value, true)}
                             placeholder={field.label}
                             required={field.required}
                           />
-                        </div>
+            </div>
                       );
                     }
                     // Default to text input
@@ -341,12 +439,12 @@ export default function EditClientPage() {
                         </label>
                         <Input
                           type={field.type || 'text'}
-                          value={answers[field.key] || submissionAnswers[field.key] || ''}
-                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          value={answers[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value, true)}
                           placeholder={field.label}
                           required={field.required}
-                        />
-                      </div>
+              />
+            </div>
                     );
                   }
                   // Render normal fields
@@ -358,10 +456,10 @@ export default function EditClientPage() {
                       </label>
                       {field.type === 'select' ? (
                         <Select
-                          value={answers[field.key] || submissionAnswers[field.key] || ''}
-                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          value={formData[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value)}
                           required={field.required}
-                          className="w-full"
+                className="w-full"
                         >
                           <option value="">Select...</option>
                           {field.options && field.options.map((opt: string) => (
@@ -370,24 +468,24 @@ export default function EditClientPage() {
                         </Select>
                       ) : field.type === 'textarea' ? (
                         <Textarea
-                          value={answers[field.key] || submissionAnswers[field.key] || ''}
-                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          value={formData[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value)}
                           placeholder={field.label}
                           required={field.required}
                         />
                       ) : (
                         <Input
                           type={field.type}
-                          value={answers[field.key] || submissionAnswers[field.key] || ''}
-                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          value={formData[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value)}
                           placeholder={field.label}
                           required={field.required}
                         />
                       )}
-                    </div>
+            </div>
                   );
                 })}
-              </div>
+          </div>
             </div>
           )}
           {/* Profile Data Sections (always) */}
@@ -402,7 +500,7 @@ export default function EditClientPage() {
                       {field.required && <span className="text-red-500">*</span>}
                     </label>
                     {field.type === 'select' ? (
-                      <Select
+              <Select
                         value={formData[field.key] || ''}
                         onChange={e => handleChange(field.key, e.target.value)}
                         required={field.required}
@@ -444,25 +542,25 @@ export default function EditClientPage() {
               </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Duration</label>
-                <div className="flex gap-2">
+              <div className="flex gap-2">
                   <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
                   <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
                     <option value="month">Month(s)</option>
                     <option value="week">Week(s)</option>
                     <option value="day">Day(s)</option>
-                  </Select>
+                </Select>
                 </div>
               </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
                 <Input type="date" value={subscription.endDate} readOnly disabled className="bg-zinc-100" />
-              </div>
+            </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Payment Status</label>
                 <Select value={subscription.paymentStatus} onChange={e => handleSubscriptionChange('paymentStatus', e.target.value)}>
                   <option value="">Select...</option>
-                  <option value="paid">Paid</option>
-                  <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
                   <option value="unpaid">Unpaid</option>
                 </Select>
               </div>
@@ -477,18 +575,48 @@ export default function EditClientPage() {
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Price Before Discount</label>
                 <Input type="number" value={subscription.priceBeforeDisc} onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)} />
-              </div>
+                  </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Installment Data (if any)</label>
                 <Input type="text" value={subscription.installments || ''} onChange={e => handleSubscriptionChange('installments', e.target.value)} placeholder="(To be implemented)" />
               </div>
-            </div>
+              {subscription.paymentStatus === 'paid' && (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Transaction Image</label>
+                <input
+                  type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !subscription.id) return;
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      formData.append('subscriptionId', subscription.id);
+                      const res = await fetch('/api/transaction-images/subscription', {
+                        method: 'POST',
+                        body: formData,
+                      });
+                      if (res.ok) {
+                        const img = await res.json();
+                        setTransactionImage(img);
+                      } else {
+                        alert('Failed to upload transaction image');
+                      }
+                    }}
+                  />
+                  {transactionImage && (
+                    <div className="mt-2 text-xs text-zinc-600">Uploaded: {transactionImage.originalName}</div>
+                )}
+              </div>
+            )}
+          </div>
           </div>
           <div className="flex gap-4 justify-end mt-8">
             <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
-          </div>
-        </form>
+        </div>
+      </form>
       )}
     </div>
   );

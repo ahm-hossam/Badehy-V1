@@ -135,6 +135,13 @@ router.get('/', async (req: Request, res: Response) => {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
+        submissions: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          include: {
+            form: { select: { id: true, name: true, questions: true } },
+          },
+        },
         subscriptions: {
           orderBy: { createdAt: 'desc' },
           take: 1, // latest subscription only
@@ -159,15 +166,42 @@ router.get('/', async (req: Request, res: Response) => {
         },
       },
     });
-    // Add profileCompletion field
-    const requiredFields = ['fullName', 'phone', 'email', 'gender', 'age', 'source', 'level'];
+    // Add profileCompletion field using both client fields and latest check-in answers
+    const requiredFields = [
+      // Basic Data
+      'fullName', 'phone', 'email', 'gender', 'age', 'source', 'level',
+      // Client Profile & Preferences
+      'goal', 'injuries', 'workoutPlace', 'height', 'weight',
+      // Workout Preferences
+      'preferredTrainingDays', 'preferredTrainingTime', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas',
+      // Nutrition Preferences
+      'nutritionGoal', 'dietPreference', 'mealCount', 'foodAllergies', 'dislikedIngredients', 'currentNutritionPlanFollowed'
+    ];
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
     const clientsWithCompletion = clients.map((client: any) => {
+      // Get latest submission answers (if any)
+      const latestSubmission = client.submissions && client.submissions[0];
+      const answers = latestSubmission?.answers && typeof latestSubmission.answers === 'object' ? latestSubmission.answers : {};
+      // Map form questions by normalized label
+      const formQuestions = latestSubmission?.form?.questions || [];
+      const answerByLabel: Record<string, any> = {};
+      for (const q of formQuestions) {
+        if (answers && typeof answers === 'object' && answers.hasOwnProperty(String(q.id))) {
+          answerByLabel[normalize(q.label)] = answers[String(q.id)];
+        }
+      }
+      // Check all required fields in both client fields and answers
       const isComplete = requiredFields.every(field => {
-        const value = client[field];
+        // Try client field first
+        let value = (client as any)[field];
+        if (value === undefined) {
+          // Try to find in answers by label
+          value = answerByLabel[normalize(field)];
+        }
         if (field === 'age') return value !== null && value !== undefined && value !== '';
         return value !== null && value !== undefined && String(value).trim() !== '';
       });
-      return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed' };
+      return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission };
     });
     res.json(clientsWithCompletion);
   } catch (error) {
@@ -186,6 +220,13 @@ router.get('/:id', async (req: Request, res: Response) => {
     const client = await prisma.trainerClient.findUnique({
       where: { id: clientId },
       include: {
+        submissions: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+          include: {
+            form: { select: { id: true, name: true, questions: true } },
+          },
+        },
         subscriptions: {
           orderBy: { createdAt: 'desc' },
           include: {
@@ -204,7 +245,33 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    res.json(client);
+    // Compute profileCompletion for this client
+    const requiredFields = [
+      'fullName', 'phone', 'email', 'gender', 'age', 'source', 'level',
+      'goal', 'injuries', 'workoutPlace', 'height', 'weight',
+      'preferredTrainingDays', 'preferredTrainingTime', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas',
+      'nutritionGoal', 'dietPreference', 'mealCount', 'foodAllergies', 'dislikedIngredients', 'currentNutritionPlanFollowed'
+    ];
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+    const latestSubmission = client.submissions && client.submissions[0];
+    const answers = latestSubmission?.answers && typeof latestSubmission.answers === 'object' ? latestSubmission.answers : {};
+    const answersObj = answers as Record<string, any>;
+    const formQuestions = latestSubmission?.form?.questions || [];
+    const answerByLabel: Record<string, any> = {};
+    for (const q of formQuestions) {
+      if (answersObj && typeof answersObj === 'object' && answersObj.hasOwnProperty(String(q.id))) {
+        answerByLabel[normalize(q.label)] = answersObj[String(q.id)];
+      }
+    }
+    const isComplete = requiredFields.every(field => {
+      let value = (client as any)[field];
+      if (value === undefined) {
+        value = answerByLabel[normalize(field)];
+      }
+      if (field === 'age') return value !== null && value !== undefined && value !== '';
+      return value !== null && value !== undefined && String(value).trim() !== '';
+    });
+    res.json({ ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission });
   } catch (error) {
     console.error('Error fetching client:', error);
     res.status(500).json({ error: 'Failed to fetch client' });
@@ -230,30 +297,88 @@ router.put('/:id', async (req: Request, res: Response) => {
           gender: client.gender,
           age: client.age ? Number(client.age) : null,
           source: client.source,
+          level: client.level,
+          registrationDate: client.registrationDate ? new Date(client.registrationDate) : null,
+          injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes) ? client.injuriesHealthNotes : [],
           goals: Array.isArray(client.goals) ? client.goals : [],
+          // --- Added fields for full profile support ---
+          goal: client.goal,
+          workoutPlace: client.workoutPlace,
+          height: client.height ? Number(client.height) : null,
+          weight: client.weight ? Number(client.weight) : null,
+          preferredTrainingDays: client.preferredTrainingDays,
+          preferredTrainingTime: client.preferredTrainingTime,
+          equipmentAvailability: client.equipmentAvailability,
+          favoriteTrainingStyle: client.favoriteTrainingStyle,
+          weakAreas: client.weakAreas,
+          nutritionGoal: client.nutritionGoal,
+          dietPreference: client.dietPreference,
+          mealCount: client.mealCount ? Number(client.mealCount) : null,
+          foodAllergies: client.foodAllergies,
+          dislikedIngredients: client.dislikedIngredients,
+          currentNutritionPlan: client.currentNutritionPlan,
+          // --- End added fields ---
           labels: client.labels && Array.isArray(client.labels) ? { set: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
-      // 2. Update subscription (assume only one active subscription)
-      let updatedSubscription = null;
-      if (subscription && subscription.id) {
-        updatedSubscription = await tx.subscription.update({
-          where: { id: subscription.id },
-          data: {
-            packageId: Number(subscription.packageId),
-            startDate: new Date(subscription.startDate),
-            durationValue: Number(subscription.durationValue),
-            durationUnit: subscription.durationUnit,
-            endDate: new Date(subscription.endDate),
-            paymentStatus: subscription.paymentStatus,
-            paymentMethod: subscription.paymentMethod,
-            priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
-            discountApplied: Boolean(subscription.discountApplied),
-            discountType: subscription.discountType,
-            discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-            priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
-          },
+      // 1b. If answers are present, update the latest check-in submission
+      if (client.answers) {
+        const latestSubmission = await tx.checkInSubmission.findFirst({
+          where: { clientId },
+          orderBy: { submittedAt: 'desc' },
         });
+        if (latestSubmission) {
+          await tx.checkInSubmission.update({
+            where: { id: latestSubmission.id },
+            data: { answers: client.answers },
+          });
+        }
+      }
+      // 2. Update or create subscription (assume only one active subscription)
+      let updatedSubscription = null;
+      if (subscription) {
+        if (subscription.id) {
+          console.log('Updating subscription:', subscription);
+          updatedSubscription = await tx.subscription.update({
+            where: { id: subscription.id },
+            data: {
+              packageId: Number(subscription.packageId),
+              startDate: new Date(subscription.startDate),
+              durationValue: Number(subscription.durationValue),
+              durationUnit: subscription.durationUnit,
+              endDate: new Date(subscription.endDate),
+              paymentStatus: subscription.paymentStatus,
+              paymentMethod: subscription.paymentMethod,
+              priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
+              discountApplied: Boolean(subscription.discountApplied),
+              discountType: subscription.discountType,
+              discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
+              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+            },
+          });
+          console.log('Updated subscription:', updatedSubscription);
+        } else {
+          // Create new subscription for this client
+          console.log('Creating new subscription:', subscription);
+          updatedSubscription = await tx.subscription.create({
+            data: {
+              clientId,
+              packageId: Number(subscription.packageId),
+              startDate: new Date(subscription.startDate),
+              durationValue: Number(subscription.durationValue),
+              durationUnit: subscription.durationUnit,
+              endDate: new Date(subscription.endDate),
+              paymentStatus: subscription.paymentStatus,
+              paymentMethod: subscription.paymentMethod,
+              priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
+              discountApplied: Boolean(subscription.discountApplied),
+              discountType: subscription.discountType,
+              discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
+              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+            },
+          });
+          console.log('Created subscription:', updatedSubscription);
+        }
       }
       // 3. Delete removed installments
       if (Array.isArray(deleteInstallmentIds) && deleteInstallmentIds.length > 0) {
@@ -284,7 +409,7 @@ router.put('/:id', async (req: Request, res: Response) => {
             // Create new installment
             const newInst = await tx.installment.create({
               data: {
-                subscriptionId: subscription.id,
+                subscriptionId: updatedSubscription?.id || subscription.id, // Use the newly created subscription ID
                 paidDate: new Date(inst.paidDate),
                 amount: Number(inst.amount),
                 remaining: inst.remaining ? Number(inst.remaining) : 0,
