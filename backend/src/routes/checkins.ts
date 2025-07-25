@@ -83,7 +83,7 @@ router.get('/responses', async (req: Request, res: Response) => {
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
-        form: { select: { id: true, name: true, trainer: { select: { fullName: true } } } },
+        form: { select: { id: true, name: true, trainer: { select: { fullName: true } }, questions: true } },
         client: { select: { id: true, fullName: true, email: true } },
       },
     });

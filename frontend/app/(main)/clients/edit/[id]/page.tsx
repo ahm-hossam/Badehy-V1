@@ -8,6 +8,7 @@ import { Alert } from "@/components/alert";
 import { Input } from "@/components/input";
 import { Textarea } from "@/components/textarea";
 import { getStoredUser } from '@/lib/auth';
+import dayjs from "dayjs";
 
 // Grouped fields (should match backend and create page)
 const GROUPS = [
@@ -64,7 +65,23 @@ export default function EditClientPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  // Add state for selectedForm and check-in questions
+  const [selectedForm, setSelectedForm] = useState<any>(null);
+  const [checkinQuestions, setCheckinQuestions] = useState<any[]>([]);
+  // Add state for answers
+  const [answers, setAnswers] = useState<any>({});
+  const [allForms, setAllForms] = useState<any[]>([]);
+  const [selectedFormId, setSelectedFormId] = useState<string>("");
+  const [submission, setSubmission] = useState<any>(null);
+  const [submissionForm, setSubmissionForm] = useState<any>(null);
+  const [submissionAnswers, setSubmissionAnswers] = useState<any>({});
+  // Replace direct getStoredUser() call with useState
+  const [user, setUser] = useState<any>(null);
+  useEffect(() => {
+    setUser(getStoredUser());
+  }, []);
 
+  // Fetch the check-in form for this client (assume client data includes checkInFormId or similar)
   useEffect(() => {
     if (!clientId) return;
     setLoading(true);
@@ -78,10 +95,152 @@ export default function EditClientPage() {
       .finally(() => setLoading(false));
   }, [clientId]);
 
+  // Fetch the check-in form for this client (assume client data includes checkInFormId or similar)
+  useEffect(() => {
+    if (!formData || !formData.checkInFormId) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/${formData.checkInFormId}`)
+      .then(res => res.json())
+      .then(data => {
+        setSelectedForm(data);
+        setCheckinQuestions(data.questions || []);
+      });
+  }, [formData.checkInFormId]);
+
+  // When client data is loaded, set answers from formData.answers (if available)
+  useEffect(() => {
+    if (formData && formData.answers) {
+      setAnswers(formData.answers);
+    }
+  }, [formData]);
+
+  // Add debug log for formData
+  useEffect(() => {
+    console.log('EditClientPage formData:', formData);
+  }, [formData]);
+
+  // Fetch all check-in forms for fallback UI
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setAllForms(data || []));
+  }, []);
+
+  // Fetch the latest check-in submission for this client
+  useEffect(() => {
+    if (!clientId || !user?.id) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/responses?clientId=${clientId}&trainerId=${user.id}&page=1&pageSize=1`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.submissions && data.submissions.length > 0) {
+          setSubmission(data.submissions[0]);
+          setSubmissionForm(data.submissions[0].form);
+          setSubmissionAnswers(data.submissions[0].answers || {});
+        }
+      });
+  }, [clientId, user?.id]);
+
+  // Add debug logs for submission, submissionForm, and submissionAnswers
+  useEffect(() => {
+    console.log('EditClientPage submission:', submission);
+    console.log('EditClientPage submissionForm:', submissionForm);
+    console.log('EditClientPage submissionAnswers:', submissionAnswers);
+  }, [submission, submissionForm, submissionAnswers]);
+
+  // Add state for subscription
+  const [subscription, setSubscription] = useState<any>({
+    startDate: "",
+    durationValue: "",
+    durationUnit: "month",
+    endDate: "",
+    paymentStatus: "",
+    paymentMethod: "",
+    discount: "",
+    priceBeforeDisc: "",
+    installments: "",
+  });
+  // Auto-calculate end date
+  useEffect(() => {
+    if (subscription.startDate && subscription.durationValue && subscription.durationUnit) {
+      const start = dayjs(subscription.startDate);
+      let end = start;
+      if (subscription.durationUnit === "month") {
+        end = start.add(Number(subscription.durationValue), "month");
+      } else if (subscription.durationUnit === "week") {
+        end = start.add(Number(subscription.durationValue), "week");
+      } else if (subscription.durationUnit === "day") {
+        end = start.add(Number(subscription.durationValue), "day");
+      }
+      setSubscription((prev: any) => ({ ...prev, endDate: end.format("YYYY-MM-DD") }));
+    }
+  }, [subscription.startDate, subscription.durationValue, subscription.durationUnit]);
+  const handleSubscriptionChange = (key: string, value: any) => {
+    setSubscription((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  // Handler to assign a check-in form to a client
+  const handleAssignForm = async () => {
+    if (!selectedFormId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const user = getStoredUser();
+      if (!user) throw new Error("Not authenticated");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client: { ...formData, checkInFormId: selectedFormId } }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to assign check-in form.");
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Compute groupedFields as in create client
+  const groupedFields = GROUPS;
+  // Compute check-in fields and profile fields based on submissionForm
+  const checkInFields = React.useMemo(() => {
+    if (!submissionForm) return [];
+    const formQuestions = (submissionForm.questions || []).map((q: any) => q.label);
+    // All fields from GROUPS that match a form question label
+    const matchedFields = groupedFields.flatMap(group =>
+      group.fields.filter(field => formQuestions.includes(field.label))
+    );
+    // Find custom questions (those in the form but not in GROUPS)
+    const customQuestions = (submissionForm.questions || []).filter((q: any) => !matchedFields.some(f => f.label === q.label));
+    return [...matchedFields, ...customQuestions.map((q: any) => ({
+      key: q.id || q.label,
+      label: q.label,
+      type: q.type || 'text',
+      required: !!q.required,
+      options: q.options || [],
+      isCustom: true,
+    }))];
+  }, [submissionForm, groupedFields]);
+  // Compute profile fields by group (fields not in the form)
+  const profileFieldsByGroup = React.useMemo(() => {
+    if (!submissionForm) return groupedFields;
+    const formQuestions = (submissionForm.questions || []).map((q: any) => q.label);
+    return groupedFields.map(group => ({
+      ...group,
+      fields: group.fields.filter(field => !formQuestions.includes(field.label)),
+    })).filter(group => group.fields.length > 0);
+  }, [submissionForm, groupedFields]);
+
   const handleChange = (key: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [key]: value }));
   };
 
+  // On save, send answers as part of the client update
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -93,7 +252,7 @@ export default function EditClientPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client: formData }),
+        body: JSON.stringify({ client: { ...formData, answers } }),
       });
       if (res.ok) {
         setSuccess(true);
@@ -118,52 +277,219 @@ export default function EditClientPage() {
           {error}
         </Alert>
       )}
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {GROUPS.map(group => (
-          <div key={group.label} className="mb-6">
-            <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
+      {/* Show message and hide form if no check-in form is associated */}
+      {!submissionForm ? (
+        <div className="text-center text-zinc-500 py-12">
+          <div className="mb-4">This client does not have a check-in submission.<br />
+            Editing check-in questions is not available for this client.<br />
+            (This client was not created via a check-in form, or the data is missing.)
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Check-In Data Section (always, if checkInFields exist) */}
+          {checkInFields.length > 0 && (
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {checkInFields.map(field => {
+                  // Render custom questions
+                  if (field.isCustom) {
+                    if (field.type === 'select' && field.options.length > 0) {
+                      return (
+                        <div key={field.key} className="flex flex-col">
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            {field.label}
+                            {field.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <Select
+                            value={answers[field.key] || submissionAnswers[field.key] || ''}
+                            onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          >
+                            <option value="">Select...</option>
+                            {field.options.map((opt: string) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </Select>
+                        </div>
+                      );
+                    }
+                    if (field.type === 'textarea') {
+                      return (
+                        <div key={field.key} className="flex flex-col">
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            {field.label}
+                            {field.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <Textarea
+                            value={answers[field.key] || submissionAnswers[field.key] || ''}
+                            onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                            placeholder={field.label}
+                            required={field.required}
+                          />
+                        </div>
+                      );
+                    }
+                    // Default to text input
+                    return (
+                      <div key={field.key} className="flex flex-col">
+                        <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                          {field.label}
+                          {field.required && <span className="text-red-500">*</span>}
+                        </label>
+                        <Input
+                          type={field.type || 'text'}
+                          value={answers[field.key] || submissionAnswers[field.key] || ''}
+                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          placeholder={field.label}
+                          required={field.required}
+                        />
+                      </div>
+                    );
+                  }
+                  // Render normal fields
+                  return (
+                    <div key={field.key} className="flex flex-col">
+                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                        {field.label}
+                        {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {field.type === 'select' ? (
+                        <Select
+                          value={answers[field.key] || submissionAnswers[field.key] || ''}
+                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          required={field.required}
+                          className="w-full"
+                        >
+                          <option value="">Select...</option>
+                          {field.options && field.options.map((opt: string) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </Select>
+                      ) : field.type === 'textarea' ? (
+                        <Textarea
+                          value={answers[field.key] || submissionAnswers[field.key] || ''}
+                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          placeholder={field.label}
+                          required={field.required}
+                        />
+                      ) : (
+                        <Input
+                          type={field.type}
+                          value={answers[field.key] || submissionAnswers[field.key] || ''}
+                          onChange={e => setAnswers((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                          placeholder={field.label}
+                          required={field.required}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {/* Profile Data Sections (always) */}
+          {profileFieldsByGroup.map(group => (
+            <div key={group.label} className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {group.fields.map(field => (
+                  <div key={field.key} className="flex flex-col">
+                    <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                      {field.label}
+                      {field.required && <span className="text-red-500">*</span>}
+                    </label>
+                    {field.type === 'select' ? (
+                      <Select
+                        value={formData[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        required={field.required}
+                        className="w-full"
+                      >
+                        <option value="">Select...</option>
+                        {field.options && field.options.map((opt: string) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </Select>
+                    ) : field.type === 'textarea' ? (
+                      <Textarea
+                        value={formData[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        placeholder={field.label}
+                        required={field.required}
+                      />
+                    ) : (
+                      <Input
+                        type={field.type}
+                        value={formData[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        placeholder={field.label}
+                        required={field.required}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {/* Subscription Details Section */}
+          <div className="mb-6 bg-white rounded-xl shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {group.fields.map(field => (
-                <div key={field.key} className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">{field.label}{field.required && <span className="text-red-500">*</span>}</label>
-                  {field.type === 'select' ? (
-                    <Select
-                      value={formData[field.key] || ''}
-                      onChange={e => handleChange(field.key, e.target.value)}
-                      required={field.required}
-                      className="w-full"
-                    >
-                      <option value="">Select...</option>
-                      {field.options && field.options.map((opt: string) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </Select>
-                  ) : field.type === 'textarea' ? (
-                    <Textarea
-                      value={formData[field.key] || ''}
-                      onChange={e => handleChange(field.key, e.target.value)}
-                      placeholder={field.label}
-                      required={field.required}
-                    />
-                  ) : (
-                    <Input
-                      type={field.type}
-                      value={formData[field.key] || ''}
-                      onChange={e => handleChange(field.key, e.target.value)}
-                      placeholder={field.label}
-                      required={field.required}
-                    />
-                  )}
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Subscription Start Date</label>
+                <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Subscription Duration</label>
+                <div className="flex gap-2">
+                  <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
+                  <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
+                    <option value="month">Month(s)</option>
+                    <option value="week">Week(s)</option>
+                    <option value="day">Day(s)</option>
+                  </Select>
                 </div>
-              ))}
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
+                <Input type="date" value={subscription.endDate} readOnly disabled className="bg-zinc-100" />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Payment Status</label>
+                <Select value={subscription.paymentStatus} onChange={e => handleSubscriptionChange('paymentStatus', e.target.value)}>
+                  <option value="">Select...</option>
+                  <option value="paid">Paid</option>
+                  <option value="pending">Pending</option>
+                  <option value="unpaid">Unpaid</option>
+                </Select>
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Payment Method</label>
+                <Input type="text" value={subscription.paymentMethod} onChange={e => handleSubscriptionChange('paymentMethod', e.target.value)} />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Discount</label>
+                <Input type="number" value={subscription.discount} onChange={e => handleSubscriptionChange('discount', e.target.value)} />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                <Input type="number" value={subscription.priceBeforeDisc} onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)} />
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Installment Data (if any)</label>
+                <Input type="text" value={subscription.installments || ''} onChange={e => handleSubscriptionChange('installments', e.target.value)} placeholder="(To be implemented)" />
+              </div>
             </div>
           </div>
-        ))}
-        <div className="flex gap-4 justify-end mt-8">
-          <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
-          <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
-        </div>
-      </form>
+          <div className="flex gap-4 justify-end mt-8">
+            <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
+            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
+          </div>
+        </form>
+      )}
     </div>
   );
 } 
