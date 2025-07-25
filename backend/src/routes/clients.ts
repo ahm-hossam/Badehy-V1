@@ -285,6 +285,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid client ID' });
   }
   const { client, subscription, installments, deleteInstallmentIds, deleteTransactionImageIds, deleteSubscriptionImageIds } = req.body;
+  // Log the received payload
+  console.log('Received payload:', req.body);
   try {
     const updated = await prisma.$transaction(async (tx) => {
       // 1. Update client details
@@ -448,6 +450,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
       return result;
     });
+    // Log the saved client object
+    console.log('Saved client:', updated);
     res.json(updated);
   } catch (error) {
     console.error('Error updating client:', error);
