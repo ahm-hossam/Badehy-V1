@@ -31,7 +31,7 @@ const ANSWER_TYPES = [
 function OptionDragHandle() { return <Bars3Icon className="w-4 h-4 text-zinc-400 cursor-grab" />; }
 // --- Copy from create/page.tsx ---
 
-function SortableOption({ id, value, onChange, onRemove }: any) {
+function SortableOption({ id, value, onChange, onRemove }: { id: string; value: string; onChange: (val: string) => void; onRemove: () => void; }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useDndSortable({ id });
   const style = {
     transform: DndCSS.Transform.toString(transform),
@@ -129,7 +129,27 @@ function QuestionCard({
   conditionGroup,
   setConditionGroup,
   index,
-}: any) {
+}: {
+  question: string;
+  setQuestion: (val: string) => void;
+  answerType: string;
+  setAnswerType: (val: string) => void;
+  required: boolean;
+  setRequired: (val: boolean) => void;
+  onDelete: () => void;
+  collapsed: boolean;
+  setCollapsed: (val: boolean) => void;
+  customQuestion: string;
+  setCustomQuestion: (val: string) => void;
+  answerOptions: string[];
+  setAnswerOptions: (opts: string[]) => void;
+  usedStaticQuestions: string[];
+  currentId: string;
+  questions: any[];
+  conditionGroup?: any;
+  setConditionGroup: (c: any) => void;
+  index: number;
+}) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const eligibleQuestions = questions.slice(0, index).filter((q: any) => ['yesno', 'single', 'multi'].includes(q.answerType));
   const updateCondition = (condIdx: number, update: any) => {
@@ -434,7 +454,7 @@ export default function CheckInEditPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to update form');
       }
-      router.push('/check-ins?success=1');
+      router.push('/check-ins?success=edit');
     } catch (err: any) {
       setError(err.message || 'Failed to update form');
     } finally {

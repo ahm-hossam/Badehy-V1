@@ -27,6 +27,7 @@ export default function CheckInsPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
+  const [successType, setSuccessType] = useState<string | null>(null);
 
   // Fetch check-ins
   useEffect(() => {
@@ -40,10 +41,12 @@ export default function CheckInsPage() {
 
   // Show success toast if redirected from create/edit
   useEffect(() => {
-    if (searchParams.get('success') === '1') {
+    const successParam = searchParams.get('success');
+    if (successParam === 'create' || successParam === 'edit') {
+      setSuccessType(successParam);
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 2000);
-      // Remove ?success=1 from URL
+      // Remove ?success from URL
       router.replace('/check-ins');
     }
   }, [searchParams, router]);
@@ -134,7 +137,18 @@ export default function CheckInsPage() {
         </div>
       </div>
       {/* Toasts and dialogs */}
-      <Toast open={showSuccessToast} message="Check-in deleted successfully!" type="success" onClose={() => setShowSuccessToast(false)} />
+      <Toast
+        open={showSuccessToast}
+        message={
+          successType === 'create'
+            ? 'Check-in form created successfully!'
+            : successType === 'edit'
+              ? 'Check-in form updated successfully!'
+              : 'Check-in form deleted successfully!'
+        }
+        type="success"
+        onClose={() => setShowSuccessToast(false)}
+      />
       <Toast open={showCopyToast} message="Copied!" type="success" onClose={() => setShowCopyToast(false)} />
       <Toast open={showErrorToast} message={errorMsg || 'An error occurred.'} type="error" onClose={() => setShowErrorToast(false)} />
       <ConfirmDialog
