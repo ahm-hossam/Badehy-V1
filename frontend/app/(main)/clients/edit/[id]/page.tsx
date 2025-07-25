@@ -353,11 +353,11 @@ export default function EditClientPage() {
       })(),
     };
     // Build installments array with correct fields and types
-    const installmentsToSend = installments.map((inst: any) => ({
+    const installmentsToSend = installments.map((inst: any, idx: number) => ({
       id: inst.id, // if editing existing
       paidDate: inst.date,
       amount: Number(inst.amount),
-      remaining: Number(inst.remaining) || 0,
+      remaining: getInstallmentRemaining(idx),
       nextInstallment: inst.nextDate,
       status: 'paid',
     }));
@@ -451,12 +451,11 @@ export default function EditClientPage() {
   type InstallmentRow = {
     date: string;
     amount: string;
-    remaining: string;
     image: File | null;
     nextDate: string;
   };
   const [installments, setInstallments] = useState<InstallmentRow[]>([
-    { date: '', amount: '', remaining: '', image: null, nextDate: '' }
+    { date: '', amount: '', image: null, nextDate: '' }
   ]);
 
   // 1. Fix handleAddPackage to set packageId and fetch updated packages
@@ -507,26 +506,46 @@ export default function EditClientPage() {
   }, [subscription.packageId]);
 
   const getInstallmentRemaining = (idx: number) => {
+    const total = getTotalPrice();
+    let paid = 0;
+    for (let i = 0; i <= idx; i++) {
+      paid += Number(installments[i]?.amount) || 0;
+    }
+    return Math.max(total - paid, 0);
+  };
+
+  const getTotalPrice = () => {
     const before = Number(subscription.priceBeforeDisc) || 0;
-    const after = subscription.discount === 'yes' ? (() => {
-      const discount = Number(subscription.discountValue) || 0;
+    const discount = Number(subscription.discountValue) || 0;
+    if (subscription.discount === 'yes') {
       if (discountType === 'fixed') return before - discount;
       if (discountType === 'percentage') return before - (before * discount / 100);
-      return before;
-    })() : before;
-    const paid = installments.slice(0, idx).reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
-    return Math.max(after - paid, 0);
+    }
+    return before;
   };
 
   const handleInstallmentChange = (idx: number, key: string, value: any) => {
-    setInstallments(insts => insts.map((inst, i) => i === idx ? { ...inst, [key]: value } : inst));
+    setInstallments(insts => {
+      const newInsts = insts.map((inst, i) => i === idx ? { ...inst, [key]: value } : inst);
+      // Debug: log installments after change
+      setTimeout(() => console.log('installments:', newInsts), 0);
+      // If amount changed, recalculate remaining for all rows
+      if (key === 'amount') {
+        let total = getTotalPrice();
+        for (let i = 0; i < newInsts.length; i++) {
+          const paid = Number(newInsts[i].amount) || 0;
+          newInsts[i].remaining = String(Math.max(total - newInsts.slice(0, i + 1).reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0), 0));
+        }
+      }
+      return newInsts;
+    });
   };
 
   const handleInstallmentImage = (idx: number, file: File | null) => {
     setInstallments(insts => insts.map((inst, i) => i === idx ? { ...inst, image: file } : inst));
   };
 
-  const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', remaining: '', image: null, nextDate: '' }]);
+  const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
   return (
@@ -820,6 +839,16 @@ export default function EditClientPage() {
                   </Select>
                 </div>
               )}
+              {['paid', 'installments'].includes(subscription.paymentStatus) && (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                  <Input
+                    type="number"
+                    value={subscription.priceBeforeDisc || ''}
+                    onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                  />
+                </div>
+              )}
               {showDiscountValue && (
                 <>
                   <div className="flex flex-col">
@@ -842,32 +871,22 @@ export default function EditClientPage() {
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                    <label className="text-sm font-medium mb-1">Price After Discount</label>
                     <Input
                       type="number"
-                      value={subscription.priceBeforeDisc || ''}
-                      onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                      value={(() => {
+                        const before = Number(subscription.priceBeforeDisc) || 0;
+                        const discount = Number(subscription.discountValue) || 0;
+                        if (discountType === 'fixed') return before - discount;
+                        if (discountType === 'percentage') return before - (before * discount / 100);
+                        return before;
+                      })()}
+                      readOnly
+                      disabled
+                      className="bg-zinc-100"
                     />
                   </div>
                 </>
-              )}
-              {showPriceFields && (
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Price After Discount</label>
-                  <Input
-                    type="number"
-                    value={(() => {
-                      const before = Number(subscription.priceBeforeDisc) || 0;
-                      const discount = Number(subscription.discountValue) || 0;
-                      if (discountType === 'fixed') return before - discount;
-                      if (discountType === 'percentage') return before - (before * discount / 100);
-                      return before;
-                    })()}
-                    readOnly
-                    disabled
-                    className="bg-zinc-100"
-                  />
-                </div>
               )}
               {showTransactionImage && (
                 <div className="flex flex-col">
@@ -906,7 +925,7 @@ export default function EditClientPage() {
                   </TableHead>
                   <TableBody>
                     {installments.map((inst, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={inst.id || idx}>
                         <TableCell>
                           <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
                         </TableCell>

@@ -88,16 +88,8 @@ export default function CreateClientPage() {
   const [newPackageName, setNewPackageName] = useState('');
   const [showAddPackage, setShowAddPackage] = useState(false);
   const [packageError, setPackageError] = useState('');
-  type InstallmentRow = {
-    date: string;
-    amount: string;
-    remaining: string;
-    image: File | null;
-    nextDate: string;
-  };
-  const [installments, setInstallments] = useState<InstallmentRow[]>([
-    { date: '', amount: '', remaining: '', image: null, nextDate: '' }
-  ]);
+  type InstallmentRow = { date: string; amount: string; image: File | null; nextDate: string; };
+  const [installments, setInstallments] = useState<InstallmentRow[]>([{ date: '', amount: '', image: null, nextDate: '' }]);
 
   // Fetch trainer's check-in forms
   useEffect(() => {
@@ -297,14 +289,17 @@ export default function CreateClientPage() {
   // Helper to calculate remaining for each row
   const getInstallmentRemaining = (idx: number) => {
     const before = Number(subscription.priceBeforeDisc) || 0;
-    const after = subscription.discount === 'yes' ? (() => {
-      const discount = Number(subscription.discountValue) || 0;
-      if (discountType === 'fixed') return before - discount;
-      if (discountType === 'percentage') return before - (before * discount / 100);
-      return before;
-    })() : before;
-    const paid = installments.slice(0, idx).reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
-    return Math.max(after - paid, 0);
+    const discount = Number(subscription.discountValue) || 0;
+    let total = before;
+    if (subscription.discount === 'yes') {
+      if (discountType === 'fixed') total = before - discount;
+      if (discountType === 'percentage') total = before - (before * discount / 100);
+    }
+    let paid = 0;
+    for (let i = 0; i <= idx; i++) {
+      paid += Number(installments[i]?.amount) || 0;
+    }
+    return Math.max(total - paid, 0);
   };
 
   // Handler for changing installment fields
@@ -318,7 +313,7 @@ export default function CreateClientPage() {
   };
 
   // Handler to add/remove installment rows
-  const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', remaining: '', image: null, nextDate: '' }]);
+  const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
   return (
@@ -554,6 +549,16 @@ export default function CreateClientPage() {
                   </Select>
                 </div>
               )}
+              {['paid', 'installments'].includes(subscription.paymentStatus) && (
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                  <Input
+                    type="number"
+                    value={subscription.priceBeforeDisc || ''}
+                    onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                  />
+                </div>
+              )}
               {showDiscountFields && (
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Discount</label>
@@ -592,32 +597,22 @@ export default function CreateClientPage() {
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                    <label className="text-sm font-medium mb-1">Price After Discount</label>
                     <Input
                       type="number"
-                      value={subscription.priceBeforeDisc || ''}
-                      onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                      value={(() => {
+                        const before = Number(subscription.priceBeforeDisc) || 0;
+                        const discount = Number(subscription.discountValue) || 0;
+                        if (discountType === 'fixed') return before - discount;
+                        if (discountType === 'percentage') return before - (before * discount / 100);
+                        return before;
+                      })()}
+                      readOnly
+                      disabled
+                      className="bg-zinc-100"
                     />
                   </div>
                 </>
-              )}
-              {showPriceFields && (
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Price After Discount</label>
-                  <Input
-                    type="number"
-                    value={(() => {
-                      const before = Number(subscription.priceBeforeDisc) || 0;
-                      const discount = Number(subscription.discountValue) || 0;
-                      if (discountType === 'fixed') return before - discount;
-                      if (discountType === 'percentage') return before - (before * discount / 100);
-                      return before;
-                    })()}
-                    readOnly
-                    disabled
-                    className="bg-zinc-100"
-                  />
-                </div>
               )}
               {showTransactionImage && (
                 <div className="flex flex-col">
@@ -713,7 +708,7 @@ export default function CreateClientPage() {
                     </TableHead>
                     <TableBody>
                       {installments.map((inst, idx) => (
-                        <TableRow key={idx}>
+                        <TableRow key={inst.id || idx}>
                           <TableCell>
                             <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
                           </TableCell>
