@@ -147,9 +147,20 @@ export default function CreateClientPage() {
   const checkInFields = useMemo(() => {
     if (!selectedForm) return [];
     const formQuestions = (selectedForm.questions || []).map((q: any) => q.label);
-    return groupedFields.flatMap(group =>
+    // All fields from GROUPS that match a form question label
+    const matchedFields = groupedFields.flatMap(group =>
       group.fields.filter(field => formQuestions.includes(field.label))
     );
+    // Find custom questions (those in the form but not in GROUPS)
+    const customQuestions = (selectedForm.questions || []).filter((q: any) => !matchedFields.some(f => f.label === q.label));
+    return [...matchedFields, ...customQuestions.map((q: any) => ({
+      key: q.id || q.label,
+      label: q.label,
+      type: q.type || 'text',
+      required: !!q.required,
+      options: q.options || [],
+      isCustom: true,
+    }))];
   }, [selectedForm, groupedFields]);
 
   const profileFieldsByGroup = useMemo(() => {
@@ -247,6 +258,66 @@ export default function CreateClientPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {checkInFields.map(field => {
                     const isMissing = missingFields.includes(field.label);
+                    // Render custom questions
+                    if (field.isCustom) {
+                      // Render based on type
+                      if (field.type === 'select' && field.options.length > 0) {
+                        return (
+                          <div key={field.key} className="flex flex-col">
+                            <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                              {field.label}
+                              {field.required && <span className="text-red-500">*</span>}
+                            </label>
+                            <Select
+                              value={formData[field.key] || ''}
+                              onChange={e => handleChange(field.key, e.target.value)}
+                              required={field.required}
+                              className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
+                            >
+                              <option value="">Select...</option>
+                              {field.options.map((opt: string) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </Select>
+                          </div>
+                        );
+                      }
+                      if (field.type === 'textarea') {
+                        return (
+                          <div key={field.key} className="flex flex-col">
+                            <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                              {field.label}
+                              {field.required && <span className="text-red-500">*</span>}
+                            </label>
+                            <Textarea
+                              value={formData[field.key] || ''}
+                              onChange={e => handleChange(field.key, e.target.value)}
+                              placeholder={field.label}
+                              required={field.required}
+                              className={isMissing ? 'border-yellow-400' : ''}
+                            />
+                          </div>
+                        );
+                      }
+                      // Default to text input
+                      return (
+                        <div key={field.key} className="flex flex-col">
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            {field.label}
+                            {field.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <Input
+                            type={field.type || 'text'}
+                            value={formData[field.key] || ''}
+                            onChange={e => handleChange(field.key, e.target.value)}
+                            placeholder={field.label}
+                            required={field.required}
+                            className={isMissing ? 'border-yellow-400' : ''}
+                          />
+                        </div>
+                      );
+                    }
+                    // Render normal fields
                     return (
                       <div key={field.key} className="flex flex-col">
                         <label className="text-sm font-medium mb-1 flex items-center gap-1">
