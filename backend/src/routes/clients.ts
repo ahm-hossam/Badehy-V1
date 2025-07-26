@@ -87,7 +87,7 @@ router.post('/', async (req: Request, res: Response) => {
           data: {
             clientId: createdClient.id,
             formId: Number(client.selectedFormId),
-            answers: answers,
+            answers: { ...answers, filledByTrainer: true }, // Mark as filled by trainer
             submittedAt: new Date(),
           },
         });
@@ -394,14 +394,14 @@ router.put('/:id', async (req: Request, res: Response) => {
         if (latestSubmission) {
           await tx.checkInSubmission.update({
             where: { id: latestSubmission.id },
-            data: { answers: answers, submittedAt: new Date() },
+            data: { answers: { ...answers, filledByTrainer: true }, submittedAt: new Date() }, // Mark as filled by trainer
           });
         } else {
           await tx.checkInSubmission.create({
             data: {
               clientId,
               formId: Number(client.selectedFormId),
-              answers: answers,
+              answers: { ...answers, filledByTrainer: true }, // Mark as filled by trainer
               submittedAt: new Date(),
             },
           });

@@ -54,10 +54,10 @@ router.post('/', async (req: Request, res: Response) => {
 // GET /api/checkins/responses?trainerId=...&formId=...&clientId=...&from=...&to=...&page=...&pageSize=...
 router.get('/responses', async (req: Request, res: Response) => {
   const trainerIdRaw = req.query.trainerId;
-  const trainerId = Number(trainerIdRaw);
-  console.log('Received trainerId:', trainerIdRaw, 'Parsed:', trainerId);
+  const trainerId = req.query.trainerId ? Number(req.query.trainerId) : undefined;
   const formId = req.query.formId ? Number(req.query.formId) : undefined;
   const clientId = req.query.clientId ? Number(req.query.clientId) : undefined;
+  const filledBy = req.query.filledBy ? String(req.query.filledBy) : undefined; // Add filledBy filter
   const from = req.query.from ? new Date(String(req.query.from)) : undefined;
   const to = req.query.to ? new Date(String(req.query.to)) : undefined;
   const page = req.query.page ? Number(req.query.page) : 1;
@@ -98,7 +98,14 @@ router.get('/responses', async (req: Request, res: Response) => {
       }
       return { ...sub, filledBy, filledByName };
     });
-    res.json({ total, submissions: enhanced });
+
+    // Filter by filledBy if specified
+    const filtered = filledBy ? enhanced.filter(sub => sub.filledBy === filledBy) : enhanced;
+
+    // Recalculate total for filtered results
+    const filteredTotal = filledBy ? filtered.length : total;
+
+    res.json({ total: filteredTotal, submissions: filtered });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch responses' });
   }

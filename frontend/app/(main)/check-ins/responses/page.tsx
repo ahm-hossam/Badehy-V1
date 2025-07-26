@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getStoredUser } from "@/lib/auth";
 import { Dropdown, DropdownButton, DropdownMenu } from "@/components/dropdown";
 import { CalendarIcon } from '@heroicons/react/20/solid';
+import { UserIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import { DateRange, Range, RangeKeyDict } from 'react-date-range';
 import 'react-date-range/dist/styles.css';
 import 'react-date-range/dist/theme/default.css';
@@ -20,6 +21,7 @@ export default function ResponsesPage() {
   const [pageSize] = useState(20);
   const [formId, setFormId] = useState("");
   const [clientId, setClientId] = useState("");
+  const [filledBy, setFilledBy] = useState(""); // Add filter for filled by
   const [forms, setForms] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [trainerId, setTrainerId] = useState<number | null>(null);
@@ -55,6 +57,7 @@ export default function ResponsesPage() {
       `pageSize=${pageSize}`,
       formId ? `formId=${formId}` : null,
       clientId ? `clientId=${clientId}` : null,
+      filledBy ? `filledBy=${filledBy}` : null, // Add filledBy filter
       fromDate ? `from=${fromDate}` : null,
       toDate ? `to=${toDate}` : null,
     ].filter(Boolean).join("&");
@@ -67,7 +70,7 @@ export default function ResponsesPage() {
       })
       .catch((err) => setError(err.message || "Failed to fetch responses"))
       .finally(() => setLoading(false));
-  }, [trainerId, page, pageSize, formId, clientId, fromDate, toDate]);
+  }, [trainerId, page, pageSize, formId, clientId, filledBy, fromDate, toDate]);
 
   if (trainerId === null) {
     return <div className="text-center text-red-500 py-12">You must be logged in as a trainer to view responses.</div>;
@@ -107,6 +110,11 @@ export default function ResponsesPage() {
             {clients.map((client: any) => (
               <option key={client.id} value={client.id}>{client.fullName}</option>
             ))}
+          </Select>
+          <Select value={filledBy} onChange={e => { setFilledBy(e.target.value); setPage(1); }} className="w-32">
+            <option value="">All</option>
+            <option value="trainer">Trainer</option>
+            <option value="client">Client</option>
           </Select>
           <div className="relative">
             <Button
@@ -179,7 +187,7 @@ export default function ResponsesPage() {
             <TableRow>
               <TableHeader>Form Name</TableHeader>
               <TableHeader>Client Name</TableHeader>
-              <TableHeader>Filled By</TableHeader>
+              <TableHeader className="text-center">Filled By</TableHeader>
               <TableHeader>Submission Date</TableHeader>
               <TableHeader></TableHeader>
             </TableRow>
@@ -195,11 +203,29 @@ export default function ResponsesPage() {
               <TableRow key={resp.id}>
                 <TableCell className="font-medium text-zinc-900">{resp.form?.name || "-"}</TableCell>
                 <TableCell className="text-zinc-600">{getNameFromAnswers(resp)}</TableCell>
-                <TableCell className="text-zinc-600">
-                  <span className={resp.filledBy === 'trainer' ? 'bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-semibold' : 'bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-semibold'}>
-                    {resp.filledBy === 'trainer' ? 'Trainer' : 'Client'}
-                  </span>
-                  <span className="ml-2">{resp.filledByName}</span>
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    {resp.filledBy === 'trainer' ? (
+                      <>
+                        <AcademicCapIcon className="w-4 h-4 text-blue-600" />
+                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          Trainer
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <UserIcon className="w-4 h-4 text-green-600" />
+                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          Client
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  {resp.filledByName && (
+                    <div className="text-xs text-zinc-500 mt-1">
+                      {resp.filledByName}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="text-zinc-600">{resp.submittedAt ? new Date(resp.submittedAt).toLocaleString() : "-"}</TableCell>
                 <TableCell className="flex gap-2">
