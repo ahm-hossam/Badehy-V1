@@ -1091,163 +1091,183 @@ export default function CreateClientPage() {
             )}
 
             {/* Extras Section */}
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Extras</h2>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6">Extras</h3>
               
-              {/* Labels Subsection */}
-              <div className="mb-6">
-                <h3 className="text-md font-medium mb-3">Labels/Tags</h3>
+              {/* Labels/Tags Section */}
+              <div className="mb-8">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Labels/Tags</h4>
                 <div className="space-y-3">
-                  {/* Existing Labels */}
+                  {/* Add New Label Input */}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={newLabelName}
+                      onChange={(e) => setNewLabelName(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddLabel()}
+                      placeholder="Type and press Enter to add a label..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                                    <button
+                  type="button"
+                  onClick={handleAddLabel}
+                  disabled={!newLabelName.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Add
+                </button>
+                  </div>
+                  {labelError && (
+                    <p className="text-red-500 text-sm">{labelError}</p>
+                  )}
+                  
+                  {/* Available Labels */}
                   <div className="flex flex-wrap gap-2">
                     {labels.map((label) => (
-                      <button
-                        key={label.id}
-                        type="button"
-                        onClick={() => handleLabelToggle(label.id)}
-                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                          selectedLabels.includes(label.id)
-                            ? 'bg-blue-500 text-white border-blue-500'
-                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
-                        }`}
-                      >
+                                        <button
+                    key={label.id}
+                    type="button"
+                    onClick={() => handleLabelToggle(label.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+                      selectedLabels.includes(label.id)
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200'
+                        : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+                    }`}
+                  >
                         {label.name}
+                        {selectedLabels.includes(label.id) && (
+                          <span className="ml-1.5 text-blue-600">✓</span>
+                        )}
                       </button>
                     ))}
                   </div>
                   
-                  {/* Add New Label */}
-                  <div className="flex gap-2 items-center">
-                    <Button
-                      type="button"
-                      outline
-                      className="text-xs"
-                      onClick={() => setShowAddLabel(v => !v)}
-                    >
-                      Add New Label
-                    </Button>
-                  </div>
-                  
-                  {showAddLabel && (
-                    <div className="flex gap-2 items-center rounded p-2 bg-zinc-50">
-                      <Input
-                        type="text"
-                        value={newLabelName}
-                        onChange={e => setNewLabelName(e.target.value)}
-                        placeholder="Label Name"
-                        className="w-1/2"
-                      />
-                      <Button
-                        type="button"
-                        onClick={handleAddLabel}
-                        className="px-3"
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        type="button"
-                        outline
-                        onClick={() => {
-                          setShowAddLabel(false);
-                          setNewLabelName('');
-                          setLabelError('');
-                        }}
-                        className="px-3"
-                      >
-                        Cancel
-                      </Button>
-                      {labelError && <span className="text-red-500 text-xs ml-2">{labelError}</span>}
+                  {/* Selected Labels Display */}
+                  {selectedLabels.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-2">Selected labels:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {labels
+                          .filter((label) => selectedLabels.includes(label.id))
+                          .map((label) => (
+                            <span
+                              key={label.id}
+                              className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                            >
+                              {label.name}
+                              <button
+                                type="button"
+                                onClick={() => handleLabelToggle(label.id)}
+                                className="ml-1.5 text-blue-600 hover:text-blue-800 focus:outline-none"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Notes Subsection */}
+              {/* Notes Section */}
               <div>
-                <h3 className="text-md font-medium mb-3">Notes</h3>
-                <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">Notes</h4>
+                <div className="space-y-4">
                   {/* Add New Note */}
-                  <div className="flex gap-2">
-                    <Textarea
+                  <div className="flex space-x-2">
+                    <textarea
                       value={newNote}
-                      onChange={e => setNewNote(e.target.value)}
+                      onChange={(e) => setNewNote(e.target.value)}
                       placeholder="Add a note about this client..."
-                      className="flex-1"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={3}
                     />
-                    <Button
-                      type="button"
-                      onClick={handleAddNote}
-                      disabled={!newNote.trim()}
-                      className="px-4"
-                    >
-                      Add
-                    </Button>
+                                    <button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={!newNote.trim()}
+                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-start"
+                >
+                  Add
+                </button>
                   </div>
-                  
-                  {/* Existing Notes */}
-                  <div className="space-y-2">
-                    {notes.map((note) => (
-                      <div key={note.id} className="border rounded-lg p-3 bg-yellow-50">
-                        {editingNoteId === note.id ? (
-                          <div className="space-y-2">
-                            <Textarea
-                              value={editingNoteContent}
-                              onChange={e => setEditingNoteContent(e.target.value)}
-                              className="w-full"
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                type="button"
-                                onClick={() => handleEditNote(note.id)}
-                                className="px-3 text-xs"
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                type="button"
-                                outline
-                                onClick={() => {
-                                  setEditingNoteId(null);
-                                  setEditingNoteContent('');
-                                }}
-                                className="px-3 text-xs"
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="text-sm text-gray-600">
-                                {new Date(note.createdAt).toLocaleString()}
-                              </p>
-                              <div className="flex gap-1">
+
+                  {/* Notes List */}
+                  {notes.length > 0 && (
+                    <div className="space-y-3">
+                      {notes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="bg-gray-50 border border-gray-200 rounded-lg p-4"
+                        >
+                          {editingNoteId === note.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                value={editingNoteContent}
+                                onChange={(e) => setEditingNoteContent(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                rows={3}
+                              />
+                              <div className="flex space-x-2">
                                 <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingNoteId(note.id);
-                                    setEditingNoteContent(note.content);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                  onClick={() => handleEditNote(note.id)}
+                                  disabled={!editingNoteContent.trim()}
+                                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                 >
-                                  Edit
+                                  Save
                                 </button>
                                 <button
-                                  type="button"
-                                  onClick={() => handleDeleteNote(note.id)}
-                                  className="text-red-600 hover:text-red-800 text-xs"
+                                  onClick={() => {
+                                    setEditingNoteId(null);
+                                    setEditingNoteContent('');
+                                  }}
+                                  className="px-3 py-1.5 bg-gray-500 text-white text-xs font-medium rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
                                 >
-                                  Delete
+                                  Cancel
                                 </button>
                               </div>
                             </div>
-                            <p className="text-sm">{note.content}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          ) : (
+                            <div>
+                              <div className="flex items-start justify-between">
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                                <div className="flex space-x-1 ml-3">
+                                  <button
+                                    onClick={() => {
+                                      setEditingNoteId(note.id);
+                                      setEditingNoteContent(note.content);
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-blue-600 focus:outline-none transition-colors"
+                                    title="Edit note"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteNote(note.id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 focus:outline-none transition-colors"
+                                    title="Delete note"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="flex items-center mt-2 text-xs text-gray-500">
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {new Date(note.createdAt).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
