@@ -10,6 +10,7 @@ import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
 import dayjs from "dayjs";
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table';
+import { MultiSelect, MultiSelectOption } from '@/components/multiselect';
 import { TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
 
 // Import the same QUESTION_CONFIGS from check-in create page
@@ -375,6 +376,8 @@ export default function CreateClientPage() {
     setFormData((prev: any) => ({ ...prev, [key]: value }));
   };
 
+
+
   const handleSubscriptionChange = (key: string, value: any) => {
     setSubscription((prev: any) => ({ ...prev, [key]: value }));
   };
@@ -541,6 +544,29 @@ export default function CreateClientPage() {
                           </div>
                         );
                       }
+                      if (field.type === 'multiselect' && field.options && field.options.length > 0) {
+                        const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
+                        return (
+                          <div key={field.key} className="flex flex-col">
+                            <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                              {field.label}
+                              {field.required && <span className="text-red-500">*</span>}
+                            </label>
+                            <MultiSelect
+                              value={currentValues}
+                              onChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
+                              placeholder={`Select ${field.label}...`}
+                              className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
+                            >
+                              {field.options.map((opt: string) => (
+                                <MultiSelectOption key={opt} value={opt}>
+                                  {opt}
+                                </MultiSelectOption>
+                              ))}
+                            </MultiSelect>
+                          </div>
+                        );
+                      }
                       if (field.type === 'textarea') {
                         return (
                           <div key={field.key} className="flex flex-col">
@@ -595,6 +621,24 @@ export default function CreateClientPage() {
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </Select>
+                        ) : field.type === 'multiselect' && field.options && field.options.length > 0 ? (
+                          (() => {
+                            const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
+                            return (
+                              <MultiSelect
+                                value={currentValues}
+                                onChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
+                                placeholder={`Select ${field.label}...`}
+                                className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
+                              >
+                                {field.options.map((opt: string) => (
+                                  <MultiSelectOption key={opt} value={opt}>
+                                    {opt}
+                                  </MultiSelectOption>
+                                ))}
+                              </MultiSelect>
+                            );
+                          })()
                         ) : field.type === 'textarea' ? (
                           <Textarea
                             value={formData[field.key] || ''}
@@ -644,6 +688,25 @@ export default function CreateClientPage() {
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </Select>
+                      ) : field.type === 'multiselect' ? (
+                        (() => {
+                          const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
+                          return (
+                            <div className={`border rounded-lg p-3 ${isMissing ? 'border-yellow-400' : 'border-zinc-950/10'}`}>
+                              {field.options && field.options.map((opt: string) => (
+                                <label key={opt} className="flex items-center gap-2 mb-2 last:mb-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentValues.includes(opt)}
+                                    onChange={e => handleMultiSelectChange(field.key, opt, e.target.checked)}
+                                    className="rounded border-zinc-950/20"
+                                  />
+                                  <span className="text-sm">{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          );
+                        })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
                           value={formData[field.key] || ''}

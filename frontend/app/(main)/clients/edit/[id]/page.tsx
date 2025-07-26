@@ -10,6 +10,7 @@ import { Textarea } from "@/components/textarea";
 import { getStoredUser } from '@/lib/auth';
 import dayjs from "dayjs";
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table';
+import { MultiSelect, MultiSelectOption } from '@/components/multiselect';
 import { TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
 
 // Import the same QUESTION_CONFIGS from check-in create page
@@ -91,8 +92,9 @@ export default function EditClientPage() {
   const mapFormTypeToInputType = (formType: string): string => {
     switch (formType) {
       case 'single':
-      case 'multi':
         return 'select';
+      case 'multi':
+        return 'multiselect';
       case 'long':
         return 'textarea';
       case 'short':
@@ -143,54 +145,68 @@ export default function EditClientPage() {
       .finally(() => setLoading(false));
   }, [clientId]);
 
-  // Fetch the check-in form for this client (assume client data includes checkInFormId or similar)
+  // Process check-in questions from submissionForm (new approach)
   useEffect(() => {
-    if (!formData || !formData.checkInFormId) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/${formData.checkInFormId}`)
-      .then(res => res.json())
-      .then(data => {
-        setSelectedForm(data);
-        // Process the questions to match the create page logic
-        const processedQuestions = (data.questions || []).map((q: any) => {
-          if (!q || !q.label) return null;
-          
-          // Check if this question exists in GROUPS
-          let groupField: any = null;
-          for (const group of GROUPS) {
-            for (const field of group.fields) {
-              if (field.label === q.label) {
-                groupField = field;
-                break;
-              }
-            }
-            if (groupField) break;
+    if (!submissionForm) return;
+    
+    // Process the questions to match the create page logic
+    const processedQuestions = (submissionForm.questions || []).map((q: any) => {
+      if (!q || !q.label) return null;
+      
+      // Create a mapping for label variations (same as create page)
+      const labelMapping: { [key: string]: string[] } = {
+        'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
+        'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
+        'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
+        'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
+        'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
+        'Equipment Availability': ['Equipment', 'Equipment Availability'],
+        'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
+        'Nutrition Goal': ['Goal', 'Nutrition Goal'],
+        'Diet Preference': ['Diet', 'Diet Preference'],
+        'Meal Count': ['Meal Frequency', 'Meal Count'],
+        'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
+      };
+      
+      // Check if this question exists in GROUPS (with label variations)
+      let groupField: any = null;
+      for (const group of GROUPS) {
+        for (const field of group.fields) {
+          const fieldVariations = labelMapping[field.label] || [field.label];
+          if (fieldVariations.includes(q.label)) {
+            groupField = field;
+            break;
           }
-          
-          if (groupField) {
-            // Question is from GROUPS - use form configuration but keep original key
-            return {
-              ...groupField,
-              type: mapFormTypeToInputType(q.type || groupField.type),
-              options: q.options || groupField.options || [],
-              required: groupField.required,
-              isCustom: false,
-            };
-          } else {
-            // Custom question - use form configuration
-            return {
-              key: q.id || q.label,
-              label: q.label,
-              type: mapFormTypeToInputType(q.type || 'text'),
-              required: !!q.required,
-              options: q.options || [],
-              isCustom: true,
-            };
-          }
-        }).filter(Boolean);
-        
-        setCheckinQuestions(processedQuestions);
-      });
-  }, [formData.checkInFormId]);
+        }
+        if (groupField) break;
+      }
+      
+      if (groupField) {
+        // Question is from GROUPS - use form configuration but keep original key
+        return {
+          ...groupField,
+          type: mapFormTypeToInputType(q.type || groupField.type),
+          options: q.options || groupField.options || [],
+          required: groupField.required,
+          isCustom: false,
+        };
+      } else {
+        // Custom question - use form configuration
+        return {
+          key: q.id || q.label,
+          label: q.label,
+          type: mapFormTypeToInputType(q.type || 'text'),
+          required: !!q.required,
+          options: q.options || [],
+          isCustom: true,
+        };
+      }
+    }).filter(Boolean);
+    
+    console.log('Edit page - Processed questions from submissionForm:', processedQuestions);
+    console.log('Edit page - Questions with types:', processedQuestions.map(q => ({ label: q.label, type: q.type, options: q.options })));
+    setCheckinQuestions(processedQuestions);
+  }, [submissionForm]);
 
   // When client data is loaded, set answers from submissionAnswers (if available)
   useEffect(() => {
@@ -213,11 +229,31 @@ export default function EditClientPage() {
       .then(data => setAllForms(data || []));
   }, []);
 
-  // Helper: map static question labels to field keys
+  // Helper: map static question labels to field keys (with label variations)
   const staticLabelToKey: Record<string, string> = {};
+  const labelMapping: { [key: string]: string[] } = {
+    'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
+    'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
+    'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
+    'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
+    'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
+    'Equipment Availability': ['Equipment', 'Equipment Availability'],
+    'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
+    'Nutrition Goal': ['Goal', 'Nutrition Goal'],
+    'Diet Preference': ['Diet', 'Diet Preference'],
+    'Meal Count': ['Meal Frequency', 'Meal Count'],
+    'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
+  };
+  
   GROUPS.forEach(group => {
     group.fields.forEach(field => {
+      // Map the main label
       staticLabelToKey[field.label] = field.key;
+      // Map all variations
+      const variations = labelMapping[field.label] || [];
+      variations.forEach(variation => {
+        staticLabelToKey[variation] = field.key;
+      });
     });
   });
 
@@ -255,6 +291,8 @@ export default function EditClientPage() {
     console.log('EditClientPage submissionForm:', submissionForm);
     console.log('EditClientPage submissionAnswers:', submissionAnswers);
   }, [submission, submissionForm, submissionAnswers]);
+
+
 
   // Add state for subscription
   const [subscription, setSubscription] = useState<any>({
@@ -382,7 +420,7 @@ export default function EditClientPage() {
   }, [submissionForm, groupedFields]);
   // Compute profile fields by group (fields not in the form)
   const profileFieldsByGroup = React.useMemo(() => {
-    if (!submissionForm) return groupedFields;
+    if (!submissionForm) return GROUPS;
     
     try {
       // Get all question labels from the form
@@ -391,7 +429,7 @@ export default function EditClientPage() {
         .map((q: any) => q.label);
       
       console.log('Edit page - Form question labels:', formQuestionLabels);
-      console.log('Edit page - Original grouped fields:', groupedFields);
+      console.log('Edit page - Original grouped fields:', GROUPS);
       
       // Create a mapping for label variations
       const labelMapping: { [key: string]: string[] } = {
@@ -409,7 +447,7 @@ export default function EditClientPage() {
       };
       
       // Filter out questions that are in the form, and add pre-filled options for remaining questions
-      const filteredGroups = groupedFields.map(group => {
+      const filteredGroups = GROUPS.map(group => {
         const filteredFields = group.fields.filter(field => {
           // Check if the field label or any of its variations are in the form
           const fieldVariations = labelMapping[field.label] || [field.label];
@@ -436,9 +474,9 @@ export default function EditClientPage() {
       return filteredGroups;
     } catch (error) {
       console.error('Error processing profile fields:', error);
-      return groupedFields;
+      return GROUPS;
     }
-  }, [submissionForm, groupedFields]);
+  }, [submissionForm]);
 
   // Update handleChange to update formData for profile fields and answers for check-in questions
   const handleChange = (key: string, value: any, isCheckInQuestion: boolean = false) => {
@@ -448,6 +486,8 @@ export default function EditClientPage() {
       setFormData((prev: any) => ({ ...prev, [key]: value }));
     }
   };
+
+
 
   // On save, send answers as part of the client update
   const arrayFields = ['goals', 'injuriesHealthNotes'];
@@ -684,6 +724,13 @@ export default function EditClientPage() {
   const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
+  // Debug logging
+  console.log('Edit page - checkinQuestions:', checkinQuestions);
+  console.log('Edit page - checkinQuestions.length:', checkinQuestions.length);
+  console.log('Edit page - profileFieldsByGroup:', profileFieldsByGroup);
+  console.log('Edit page - profileFieldsByGroup.length:', profileFieldsByGroup.length);
+  console.log('Edit page - submissionForm:', submissionForm);
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
@@ -703,12 +750,12 @@ export default function EditClientPage() {
             </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Check-In Data Section (always, if checkInFields exist) */}
-          {checkInFields.length > 0 && (
+          {/* Check-In Data Section (always, if checkinQuestions exist) */}
+          {checkinQuestions.length > 0 && (
             <div className="mb-6 bg-white rounded-xl shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {checkInFields.map(field => {
+                {checkinQuestions.map(field => {
                   // Render custom questions
                   if (field.isCustom) {
                     if (field.type === 'select' && field.options.length > 0) {
@@ -730,6 +777,29 @@ export default function EditClientPage() {
                             ))}
               </Select>
             </div>
+                      );
+                    }
+                    if (field.type === 'multiselect' && field.options.length > 0) {
+                      const currentValues = answers[field.key] ? (Array.isArray(answers[field.key]) ? answers[field.key] : [answers[field.key]]) : [];
+                      return (
+                        <div key={field.key} className="flex flex-col">
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            {field.label}
+                            {field.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <MultiSelect
+                            value={currentValues}
+                            onChange={(value) => setAnswers(prev => ({ ...prev, [field.key]: value }))}
+                            placeholder={`Select ${field.label}...`}
+                            className="w-full"
+                          >
+                            {field.options.map((opt: string) => (
+                              <MultiSelectOption key={opt} value={opt}>
+                                {opt}
+                              </MultiSelectOption>
+                            ))}
+                          </MultiSelect>
+                        </div>
                       );
                     }
                     if (field.type === 'textarea') {
@@ -784,6 +854,24 @@ export default function EditClientPage() {
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </Select>
+                      ) : field.type === 'multiselect' ? (
+                        (() => {
+                          const currentValues = answers[field.key] ? (Array.isArray(answers[field.key]) ? answers[field.key] : [answers[field.key]]) : [];
+                          return (
+                            <MultiSelect
+                              value={currentValues}
+                              onChange={(value) => setAnswers(prev => ({ ...prev, [field.key]: value }))}
+                              placeholder={`Select ${field.label}...`}
+                              className="w-full"
+                            >
+                              {field.options && field.options.map((opt: string) => (
+                                <MultiSelectOption key={opt} value={opt}>
+                                  {opt}
+                                </MultiSelectOption>
+                              ))}
+                            </MultiSelect>
+                          );
+                        })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
                           value={answers[field.key] || ''}
@@ -817,18 +905,36 @@ export default function EditClientPage() {
                       {field.label}
                       {field.required && <span className="text-red-500">*</span>}
                     </label>
-                    {field.type === 'select' ? (
-              <Select
-                        value={formData[field.key] || ''}
-                        onChange={e => handleChange(field.key, e.target.value)}
-                        required={field.required}
-                        className="w-full"
-                      >
-                        <option value="">Select...</option>
-                        {field.options && field.options.map((opt: string) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </Select>
+                                          {field.type === 'select' ? (
+                        <Select
+                          value={formData[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value)}
+                          required={field.required}
+                          className="w-full"
+                        >
+                          <option value="">Select...</option>
+                          {field.options && field.options.map((opt: string) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </Select>
+                      ) : field.type === 'multiselect' ? (
+                        (() => {
+                          const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
+                          return (
+                            <MultiSelect
+                              value={currentValues}
+                              onChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
+                              placeholder={`Select ${field.label}...`}
+                              className="w-full"
+                            >
+                              {field.options && field.options.map((opt: string) => (
+                                <MultiSelectOption key={opt} value={opt}>
+                                  {opt}
+                                </MultiSelectOption>
+                              ))}
+                            </MultiSelect>
+                          );
+                        })()
                     ) : field.type === 'textarea' ? (
                       <Textarea
                         value={formData[field.key] || ''}
