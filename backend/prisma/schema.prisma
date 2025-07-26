@@ -54,6 +54,7 @@ model TrainerClient {
   foodAllergies            String?
   dislikedIngredients      String?
   currentNutritionPlan     String?
+  selectedFormId           Int?
   // --- End added fields ---
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -62,6 +63,7 @@ model TrainerClient {
   labels        Label[]        @relation("ClientLabels")
   notes         Note[]
   submissions   CheckInSubmission[]
+  selectedForm  CheckInForm?   @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
 
   @@index([trainerId])
 }
@@ -192,6 +194,7 @@ model CheckInForm {
   questions   CheckInQuestion[]
   submissions CheckInSubmission[]
   history     CheckInFormHistory[]
+  selectedByClients TrainerClient[] @relation("ClientSelectedForm")
 }
 
 model CheckInQuestion {

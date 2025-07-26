@@ -38,8 +38,32 @@ router.post('/', async (req: Request, res: Response) => {
           source: client.source ? String(client.source) : null,
           level: client.level ? String(client.level) : null,
           registrationDate: client.registrationDate ? new Date(client.registrationDate) : null,
-          injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes) ? client.injuriesHealthNotes : [],
+          selectedFormId: client.selectedFormId ? Number(client.selectedFormId) : null,
+          injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes)
+            ? client.injuriesHealthNotes
+            : typeof client.injuriesHealthNotes === 'string'
+              ? client.injuriesHealthNotes.split(',').map((s: string) => s.trim()).filter(Boolean)
+              : [],
           goals: Array.isArray(client.goals) ? client.goals : [],
+          // --- Added fields for full profile support ---
+          goal: Array.isArray(client.goal) ? client.goal.join(',') : client.goal,
+          workoutPlace: Array.isArray(client.workoutPlace) ? client.workoutPlace.join(',') : client.workoutPlace,
+          height: client.height ? Number(client.height) : null,
+          weight: client.weight ? Number(client.weight) : null,
+          preferredTrainingDays: Array.isArray(client.preferredTrainingDays) ? client.preferredTrainingDays.join(',') : client.preferredTrainingDays,
+          preferredTrainingTime: Array.isArray(client.preferredTrainingTime) ? client.preferredTrainingTime.join(',') : client.preferredTrainingTime,
+          equipmentAvailability: Array.isArray(client.equipmentAvailability) ? client.equipmentAvailability.join(',') : client.equipmentAvailability,
+          favoriteTrainingStyle: Array.isArray(client.favoriteTrainingStyle) ? client.favoriteTrainingStyle.join(',') : client.favoriteTrainingStyle,
+          weakAreas: Array.isArray(client.weakAreas) ? client.weakAreas.join(',') : client.weakAreas,
+          nutritionGoal: Array.isArray(client.nutritionGoal) ? client.nutritionGoal.join(',') : client.nutritionGoal,
+          dietPreference: Array.isArray(client.dietPreference) ? client.dietPreference.join(',') : client.dietPreference,
+          mealCount: client.mealCount === '' || client.mealCount === undefined
+            ? null
+            : Number(client.mealCount),
+          foodAllergies: Array.isArray(client.foodAllergies) ? client.foodAllergies.join(',') : client.foodAllergies,
+          dislikedIngredients: Array.isArray(client.dislikedIngredients) ? client.dislikedIngredients.join(',') : client.dislikedIngredients,
+          currentNutritionPlan: Array.isArray(client.currentNutritionPlan) ? client.currentNutritionPlan.join(',') : client.currentNutritionPlan,
+          // --- End added fields ---
           labels: client.labels && Array.isArray(client.labels) ? { connect: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
@@ -242,6 +266,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         },
       },
     });
+    console.log('Fetched client:', client);
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -301,6 +326,7 @@ router.put('/:id', async (req: Request, res: Response) => {
           source: client.source,
           level: client.level,
           registrationDate: client.registrationDate ? new Date(client.registrationDate) : null,
+          selectedFormId: client.selectedFormId ? Number(client.selectedFormId) : null,
           injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes) ? client.injuriesHealthNotes : [],
           goals: Array.isArray(client.goals) ? client.goals : [],
           // --- Added fields for full profile support ---
