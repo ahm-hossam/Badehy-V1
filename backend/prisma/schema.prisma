@@ -23,6 +23,8 @@ model Registered {
   labels         Label[]
   checkIns       CheckIn[]
   checkInForms   CheckInForm[]
+  exercises      Exercise[]
+  programs       Program[]
 }
 
 model TrainerClient {
@@ -228,14 +230,90 @@ model CheckInSubmission {
 }
 
 model CheckInFormHistory {
-  id         Int           @id @default(autoincrement())
-  formId     Int
-  version    Int
-  name       String
-  questions  Json          // snapshot of questions/logic at this version
-  createdAt  DateTime      @default(now())
-  form       CheckInForm   @relation(fields: [formId], references: [id])
+  id        Int           @id @default(autoincrement())
+  formId    Int
+  version   Int
+  data      Json
+  createdAt DateTime      @default(now())
+  form      CheckInForm   @relation(fields: [formId], references: [id])
 
   @@index([formId])
-  @@unique([formId, version])
+}
+
+// Workout Program Models
+model Exercise {
+  id          Int      @id @default(autoincrement())
+  trainerId   Int
+  name        String
+  videoUrl    String?
+  description String?
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  trainer     Registered @relation(fields: [trainerId], references: [id])
+  programExercises ProgramExercise[]
+
+  @@index([trainerId])
+}
+
+model Program {
+  id          Int      @id @default(autoincrement())
+  trainerId   Int
+  name        String
+  description String?
+  template    String?  // PDF template URL or design template
+  branding    Json?    // Branding settings (colors, logo, etc.)
+  pdfUrl      String?  // Generated PDF URL
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  trainer     Registered @relation(fields: [trainerId], references: [id])
+  weeks       ProgramWeek[]
+
+  @@index([trainerId])
+}
+
+model ProgramWeek {
+  id        Int      @id @default(autoincrement())
+  programId Int
+  weekNumber Int
+  name      String?  // e.g., "Week 1", "Strength Week"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  program   Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  days      ProgramDay[]
+
+  @@index([programId])
+}
+
+model ProgramDay {
+  id         Int      @id @default(autoincrement())
+  weekId     Int
+  dayNumber  Int
+  name       String?  // e.g., "Day 1", "Push Day"
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  week       ProgramWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  exercises  ProgramExercise[]
+
+  @@index([weekId])
+}
+
+model ProgramExercise {
+  id         Int      @id @default(autoincrement())
+  dayId      Int
+  exerciseId Int
+  order      Int      // Order within the day
+  sets       Int?
+  reps       Int?
+  weight     Float?
+  duration   Int?     // Duration in seconds
+  restTime   Int?     // Rest time in seconds
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  day        ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([dayId])
+  @@index([exerciseId])
 }

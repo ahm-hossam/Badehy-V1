@@ -1,0 +1,606 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/button';
+import { Input } from '@/components/input';
+import { Textarea } from '@/components/textarea';
+import { Select } from '@/components/select';
+import { getStoredUser } from '@/lib/auth';
+import { 
+  PlusIcon, 
+  TrashIcon, 
+  ChevronUpIcon, 
+  ChevronDownIcon,
+  DocumentDuplicateIcon,
+  FireIcon,
+  CalendarIcon,
+  ClockIcon
+} from '@heroicons/react/20/solid';
+import { useRouter } from 'next/navigation';
+
+interface Exercise {
+  id: number;
+  name: string;
+  videoUrl?: string;
+  description?: string;
+  category?: string;
+}
+
+interface ProgramExercise {
+  exerciseId: number;
+  exerciseName: string;
+  order: number;
+  sets?: number;
+  reps?: number;
+  weight?: number;
+  duration?: number;
+  restTime?: number;
+  notes?: string;
+}
+
+interface ProgramDay {
+  dayNumber: number;
+  name?: string;
+  exercises: ProgramExercise[];
+}
+
+interface ProgramWeek {
+  weekNumber: number;
+  name?: string;
+  days: ProgramDay[];
+}
+
+export default function CreateProgramPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  // Program metadata
+  const [programData, setProgramData] = useState({
+    name: '',
+    description: '',
+  });
+  
+  // Program structure
+  const [weeks, setWeeks] = useState<ProgramWeek[]>([]);
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+      fetchExercises(storedUser.id);
+    }
+  }, []);
+
+  const fetchExercises = async (trainerId: number) => {
+    try {
+      const response = await fetch(`/api/exercises?trainerId=${trainerId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setExercises(data);
+      }
+    } catch (error) {
+      console.error('Error fetching exercises:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addWeek = () => {
+    const newWeekNumber = weeks.length + 1;
+    const newWeek: ProgramWeek = {
+      weekNumber: newWeekNumber,
+      name: `Week ${newWeekNumber}`,
+      days: []
+    };
+    setWeeks([...weeks, newWeek]);
+    setExpandedWeeks(prev => new Set([...prev, newWeekNumber]));
+  };
+
+  const duplicateWeek = (weekIndex: number) => {
+    const weekToDuplicate = weeks[weekIndex];
+    const newWeekNumber = weeks.length + 1;
+    const newWeek: ProgramWeek = {
+      weekNumber: newWeekNumber,
+      name: `${weekToDuplicate.name} (Copy)`,
+      days: weekToDuplicate.days.map(day => ({
+        ...day,
+        dayNumber: day.dayNumber,
+        exercises: day.exercises.map(ex => ({ ...ex }))
+      }))
+    };
+    setWeeks([...weeks, newWeek]);
+    setExpandedWeeks(prev => new Set([...prev, newWeekNumber]));
+  };
+
+  const removeWeek = (weekIndex: number) => {
+    const newWeeks = weeks.filter((_, index) => index !== weekIndex);
+    // Renumber weeks
+    const renumberedWeeks = newWeeks.map((week, index) => ({
+      ...week,
+      weekNumber: index + 1,
+      name: week.name?.replace(/Week \d+/, `Week ${index + 1}`)
+    }));
+    setWeeks(renumberedWeeks);
+  };
+
+  const addDay = (weekIndex: number) => {
+    const week = weeks[weekIndex];
+    const newDayNumber = week.days.length + 1;
+    const newDay: ProgramDay = {
+      dayNumber: newDayNumber,
+      name: `Day ${newDayNumber}`,
+      exercises: []
+    };
+    
+    const updatedWeeks = [...weeks];
+    updatedWeeks[weekIndex].days.push(newDay);
+    setWeeks(updatedWeeks);
+    
+    const dayKey = `${weekIndex}-${newDayNumber}`;
+    setExpandedDays(prev => new Set([...prev, dayKey]));
+  };
+
+  const duplicateDay = (weekIndex: number, dayIndex: number) => {
+    const week = weeks[weekIndex];
+    const dayToDuplicate = week.days[dayIndex];
+    const newDayNumber = week.days.length + 1;
+    const newDay: ProgramDay = {
+      dayNumber: newDayNumber,
+      name: `${dayToDuplicate.name} (Copy)`,
+      exercises: dayToDuplicate.exercises.map(ex => ({ ...ex }))
+    };
+    
+    const updatedWeeks = [...weeks];
+    updatedWeeks[weekIndex].days.push(newDay);
+    setWeeks(updatedWeeks);
+    
+    const dayKey = `${weekIndex}-${newDayNumber}`;
+    setExpandedDays(prev => new Set([...prev, dayKey]));
+  };
+
+  const removeDay = (weekIndex: number, dayIndex: number) => {
+    const updatedWeeks = [...weeks];
+    updatedWeeks[weekIndex].days.splice(dayIndex, 1);
+    
+    // Renumber days
+    updatedWeeks[weekIndex].days = updatedWeeks[weekIndex].days.map((day, index) => ({
+      ...day,
+      dayNumber: index + 1,
+      name: day.name?.replace(/Day \d+/, `Day ${index + 1}`)
+    }));
+    
+    setWeeks(updatedWeeks);
+  };
+
+  const addExercise = (weekIndex: number, dayIndex: number) => {
+    const updatedWeeks = [...weeks];
+    const day = updatedWeeks[weekIndex].days[dayIndex];
+    const newExercise: ProgramExercise = {
+      exerciseId: 0,
+      exerciseName: '',
+      order: day.exercises.length + 1,
+      sets: 3,
+      reps: 10,
+      weight: 0,
+      duration: 0,
+      restTime: 60,
+      notes: ''
+    };
+    
+    day.exercises.push(newExercise);
+    setWeeks(updatedWeeks);
+  };
+
+  const removeExercise = (weekIndex: number, dayIndex: number, exerciseIndex: number) => {
+    const updatedWeeks = [...weeks];
+    updatedWeeks[weekIndex].days[dayIndex].exercises.splice(exerciseIndex, 1);
+    
+    // Renumber exercises
+    updatedWeeks[weekIndex].days[dayIndex].exercises = 
+      updatedWeeks[weekIndex].days[dayIndex].exercises.map((ex, index) => ({
+        ...ex,
+        order: index + 1
+      }));
+    
+    setWeeks(updatedWeeks);
+  };
+
+  const updateExercise = (weekIndex: number, dayIndex: number, exerciseIndex: number, field: keyof ProgramExercise, value: any) => {
+    const updatedWeeks = [...weeks];
+    const exercise = updatedWeeks[weekIndex].days[dayIndex].exercises[exerciseIndex];
+    
+    if (field === 'exerciseId') {
+      const selectedExercise = exercises.find(ex => ex.id === value);
+      exercise.exerciseId = value;
+      exercise.exerciseName = selectedExercise?.name || '';
+    } else {
+      (exercise as any)[field] = value;
+    }
+    
+    setWeeks(updatedWeeks);
+  };
+
+  const toggleWeekExpansion = (weekNumber: number) => {
+    setExpandedWeeks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(weekNumber)) {
+        newSet.delete(weekNumber);
+      } else {
+        newSet.add(weekNumber);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDayExpansion = (weekIndex: number, dayNumber: number) => {
+    const dayKey = `${weekIndex}-${dayNumber}`;
+    setExpandedDays(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dayKey)) {
+        newSet.delete(dayKey);
+      } else {
+        newSet.add(dayKey);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSave = async () => {
+    if (!programData.name.trim() || !user) return;
+    
+    setSaving(true);
+    try {
+      const response = await fetch('/api/programs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trainerId: user.id,
+          name: programData.name,
+          description: programData.description,
+          weeks: weeks
+        }),
+      });
+
+      if (response.ok) {
+        router.push('/workout-programs');
+      }
+    } catch (error) {
+      console.error('Error creating program:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getTotalExercises = () => {
+    return weeks.reduce((total, week) => {
+      return total + week.days.reduce((dayTotal, day) => {
+        return dayTotal + day.exercises.length;
+      }, 0);
+    }, 0);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Create Workout Program</h1>
+        <p className="mt-2 text-gray-600">
+          Build a comprehensive workout program with weeks, days, and exercises.
+        </p>
+      </div>
+
+      {/* Program Metadata */}
+      <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6 mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Program Details</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Program Name *
+            </label>
+            <Input
+              value={programData.name}
+              onChange={(e) => setProgramData({ ...programData, name: e.target.value })}
+              placeholder="e.g., Beginner Strength Program"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <Textarea
+              value={programData.description}
+              onChange={(e) => setProgramData({ ...programData, description: e.target.value })}
+              placeholder="Brief description of the program..."
+              rows={3}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Program Structure */}
+      <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-6 mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Program Structure</h2>
+          <div className="flex items-center space-x-4 text-sm text-gray-500">
+            <div className="flex items-center">
+              <CalendarIcon className="w-4 h-4 mr-1" />
+              <span>{weeks.length} weeks</span>
+            </div>
+            <div className="flex items-center">
+              <ClockIcon className="w-4 h-4 mr-1" />
+              <span>{getTotalExercises()} exercises</span>
+            </div>
+          </div>
+        </div>
+
+        {weeks.length === 0 ? (
+          <div className="text-center py-8">
+            <FireIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No weeks added yet</h3>
+            <p className="text-gray-600 mb-4">Start by adding your first week to the program.</p>
+            <Button onClick={addWeek}>
+              <PlusIcon className="w-5 h-5 mr-2" />
+              Add Week
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="border border-gray-200 rounded-lg">
+                {/* Week Header */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-t-lg">
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => toggleWeekExpansion(week.weekNumber)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      {expandedWeeks.has(week.weekNumber) ? (
+                        <ChevronDownIcon className="w-5 h-5" />
+                      ) : (
+                        <ChevronUpIcon className="w-5 h-5" />
+                      )}
+                    </button>
+                    <Input
+                      value={week.name}
+                      onChange={(e) => {
+                        const updatedWeeks = [...weeks];
+                        updatedWeeks[weekIndex].name = e.target.value;
+                        setWeeks(updatedWeeks);
+                      }}
+                      className="w-48"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      outline
+                      onClick={() => addDay(weekIndex)}
+                    >
+                      <PlusIcon className="w-4 h-4 mr-1" />
+                      Add Day
+                    </Button>
+                    <Button
+                      outline
+                      onClick={() => duplicateWeek(weekIndex)}
+                    >
+                      <DocumentDuplicateIcon className="w-4 h-4 mr-1" />
+                      Duplicate
+                    </Button>
+                    <button
+                      onClick={() => removeWeek(weekIndex)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Week Content */}
+                {expandedWeeks.has(week.weekNumber) && (
+                  <div className="p-4 space-y-4">
+                    {week.days.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500">
+                        No days added to this week yet.
+                      </div>
+                    ) : (
+                      week.days.map((day, dayIndex) => (
+                        <div key={dayIndex} className="border border-gray-200 rounded-lg">
+                          {/* Day Header */}
+                          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-t-lg">
+                            <div className="flex items-center space-x-3">
+                              <button
+                                onClick={() => toggleDayExpansion(weekIndex, day.dayNumber)}
+                                className="text-gray-500 hover:text-gray-700"
+                              >
+                                {expandedDays.has(`${weekIndex}-${day.dayNumber}`) ? (
+                                  <ChevronDownIcon className="w-4 h-4" />
+                                ) : (
+                                  <ChevronUpIcon className="w-4 h-4" />
+                                )}
+                              </button>
+                              <Input
+                                value={day.name}
+                                onChange={(e) => {
+                                  const updatedWeeks = [...weeks];
+                                  updatedWeeks[weekIndex].days[dayIndex].name = e.target.value;
+                                  setWeeks(updatedWeeks);
+                                }}
+                                className="w-32"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                outline
+                                size="sm"
+                                onClick={() => addExercise(weekIndex, dayIndex)}
+                              >
+                                <PlusIcon className="w-4 h-4 mr-1" />
+                                Add Exercise
+                              </Button>
+                              <Button
+                                outline
+                                size="sm"
+                                onClick={() => duplicateDay(weekIndex, dayIndex)}
+                              >
+                                <DocumentDuplicateIcon className="w-4 h-4 mr-1" />
+                                Duplicate
+                              </Button>
+                              <button
+                                onClick={() => removeDay(weekIndex, dayIndex)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Day Content */}
+                          {expandedDays.has(`${weekIndex}-${day.dayNumber}`) && (
+                            <div className="p-4 space-y-4">
+                              {day.exercises.length === 0 ? (
+                                <div className="text-center py-4 text-gray-500">
+                                  No exercises added to this day yet.
+                                </div>
+                              ) : (
+                                day.exercises.map((exercise, exerciseIndex) => (
+                                  <div key={exerciseIndex} className="border border-gray-200 rounded-lg p-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Exercise *
+                                        </label>
+                                        <Select
+                                          value={exercise.exerciseId}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'exerciseId', Number(e.target.value))}
+                                        >
+                                          <option value={0}>Select Exercise</option>
+                                          {exercises.map((ex) => (
+                                            <option key={ex.id} value={ex.id}>
+                                              {ex.name}
+                                            </option>
+                                          ))}
+                                        </Select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Sets
+                                        </label>
+                                        <Input
+                                          type="number"
+                                          value={exercise.sets || ''}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'sets', Number(e.target.value))}
+                                          placeholder="3"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Reps
+                                        </label>
+                                        <Input
+                                          type="number"
+                                          value={exercise.reps || ''}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'reps', Number(e.target.value))}
+                                          placeholder="10"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Weight (kg)
+                                        </label>
+                                        <Input
+                                          type="number"
+                                          value={exercise.weight || ''}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'weight', Number(e.target.value))}
+                                          placeholder="50"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Duration (sec)
+                                        </label>
+                                        <Input
+                                          type="number"
+                                          value={exercise.duration || ''}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'duration', Number(e.target.value))}
+                                          placeholder="60"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Rest (sec)
+                                        </label>
+                                        <Input
+                                          type="number"
+                                          value={exercise.restTime || ''}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'restTime', Number(e.target.value))}
+                                          placeholder="60"
+                                        />
+                                      </div>
+                                      <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                          Notes
+                                        </label>
+                                        <Input
+                                          value={exercise.notes || ''}
+                                          onChange={(e) => updateExercise(weekIndex, dayIndex, exerciseIndex, 'notes', e.target.value)}
+                                          placeholder="Additional notes..."
+                                        />
+                                      </div>
+                                      <div className="flex items-end">
+                                        <button
+                                          onClick={() => removeExercise(weekIndex, dayIndex, exerciseIndex)}
+                                          className="text-red-600 hover:text-red-800"
+                                        >
+                                          <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6">
+          <Button onClick={addWeek}>
+            <PlusIcon className="w-5 h-5 mr-2" />
+            Add Week
+          </Button>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end space-x-4">
+        <Button outline onClick={() => router.push('/workout-programs')}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleSave} 
+          disabled={!programData.name.trim() || saving}
+        >
+          {saving ? 'Saving...' : 'Save Program'}
+        </Button>
+      </div>
+    </div>
+  );
+} 
