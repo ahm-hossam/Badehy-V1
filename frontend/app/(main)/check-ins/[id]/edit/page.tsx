@@ -415,16 +415,19 @@ export default function CheckInEditPage() {
         if (!res.ok) throw new Error('Failed to load check-in form');
         const data = await res.json();
         setCheckinName(data.name || "");
-        setQuestions((data.questions || []).map((q: any) => ({
-          id: q.id?.toString() || Math.random().toString(36).slice(2),
-          question: q.label || "",
-          customQuestion: q.label && data.staticQuestions && data.staticQuestions.includes(q.label) ? "" : q.label || "",
-          answerType: q.type || "",
-          required: !!q.required,
-          answerOptions: Array.isArray(q.options) ? q.options : [],
-          collapsed: false,
-          conditionGroup: q.conditionGroup || undefined,
-        })));
+        setQuestions((data.questions || []).map((q: any) => {
+          const isStatic = q.label && QUESTION_CONFIGS[q.label];
+          return {
+            id: q.id?.toString() || Math.random().toString(36).slice(2),
+            question: isStatic ? q.label : "",
+            customQuestion: !isStatic ? q.label || "" : "",
+            answerType: q.type || "",
+            required: !!q.required,
+            answerOptions: Array.isArray(q.options) ? q.options : [],
+            collapsed: false,
+            conditionGroup: q.conditionGroup || undefined,
+          };
+        }));
       })
       .catch((err) => setError(err.message || 'Failed to load check-in form'))
       .finally(() => setLoading(false));
