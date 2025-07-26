@@ -46,7 +46,19 @@ function MiniQuestionCard({ q, onUpdate, allQuestions, idx }: { q: any; onUpdate
     <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
       <select
         value={q.staticQuestion || ''}
-        onChange={e => onUpdate({ staticQuestion: e.target.value, customQuestion: '' })}
+        onChange={e => {
+          const value = e.target.value;
+          if (value === "Gender") {
+            onUpdate({
+              staticQuestion: value,
+              customQuestion: '',
+              answerType: 'single',
+              answerOptions: ['Male', 'Female'],
+            });
+          } else {
+            onUpdate({ staticQuestion: value, customQuestion: '' });
+          }
+        }}
         style={{ minWidth: 140, padding: 8 }}
       >
         <option value="">Select a question</option>
@@ -165,8 +177,8 @@ function SortableMiniQuestionCard(props: any) {
 
 function MiniBuilder() {
   const [questions, setQuestions] = useState([
-    { id: '1', customQuestion: '' },
-    { id: '2', customQuestion: '' },
+    { id: '1', customQuestion: '', answerType: '', answerOptions: [] },
+    { id: '2', customQuestion: '', answerType: '', answerOptions: [] },
   ]);
   const sensors = useSensors(useSensor(PointerSensor));
   return (
@@ -190,7 +202,11 @@ function MiniBuilder() {
               q={q}
               allQuestions={questions}
               idx={idx}
-              onUpdate={update => setQuestions(prev => prev.map(qq => qq.id === q.id ? { ...qq, ...update } : qq))}
+              onUpdate={update => setQuestions(prev => prev.map(qq =>
+                qq.id === q.id
+                  ? { ...qq, ...update, answerType: update.answerType ?? qq.answerType ?? '', answerOptions: update.answerOptions ?? qq.answerOptions ?? [] }
+                  : qq
+              ))}
             />
           ))}
         </SortableContext>

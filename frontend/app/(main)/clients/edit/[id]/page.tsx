@@ -10,7 +10,46 @@ import { Textarea } from "@/components/textarea";
 import { getStoredUser } from '@/lib/auth';
 import dayjs from "dayjs";
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table';
+import { MultiSelect, MultiSelectOption } from '@/components/multiselect';
 import { TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
+
+// Import the same QUESTION_CONFIGS from check-in create page
+const QUESTION_CONFIGS: Record<string, { type: string; options: string[] }> = {
+  'Full Name': { type: 'short', options: [] },
+  'Email': { type: 'short', options: [] },
+  'Mobile Number': { type: 'short', options: [] },
+  'Gender': { type: 'single', options: ['Male', 'Female'] },
+  'Age': { type: 'short', options: [] },
+  'Source': { type: 'single', options: ['Facebook Ads', 'Instagram', 'Website', 'WhatsApp', 'Referral', 'Walk-in', 'Google Ads', 'Other'] },
+  'Goal': { type: 'multi', options: ['Fat Loss', 'Muscle Gain', 'Tone & Shape', 'General Fitness', 'Strength', 'Posture Correction', 'Injury Rehab', 'Event Prep', 'Other'] },
+  'Level': { type: 'single', options: ['Beginner', 'Intermediate', 'Advanced', 'Athlete'] },
+  'Injuries': { type: 'multi', options: ['Knee Pain', 'Shoulder Pain', 'Lower Back Pain', 'Herniated Disc', 'Sciatica', 'Elbow Pain', 'Hip Pain', 'Neck Pain', 'Plantar Fasciitis', 'Post-surgery', 'Arthritis', 'Headaches', 'Other'] },
+  'Workout Place': { type: 'single', options: ['Gym', 'Home'] },
+  'Height': { type: 'short', options: [] },
+  'Weight': { type: 'short', options: [] },
+  'Preferred Training Days': { type: 'multi', options: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] },
+  'Preferred Training Time': { type: 'single', options: ['Early Morning (5-8 AM)', 'Morning (8-12 PM)', 'Afternoon (12-5 PM)', 'Evening (5-9 PM)', 'Late Night (9 PM+)'] },
+  'Equipment Availability': { type: 'multi', options: ['Gym Access', 'Dumbbells', 'Barbell', 'Resistance Bands', 'Machines', 'TRX', 'Pull-up Bar', 'Stepper', 'Treadmill', 'Stationary Bike', 'Cable Machine', 'Bodyweight Only', 'Other'] },
+  'Favorite Training Style': { type: 'multi', options: ['Strength', 'HIIT', 'Cardio', 'Pilates', 'Yoga', 'Functional', 'CrossFit', 'Circuit', 'Mobility', 'Bodybuilding', 'Other'] },
+  'Weak Areas (Focus)': { type: 'multi', options: ['Core', 'Lower Back', 'Glutes', 'Hamstrings', 'Shoulders', 'Arms', 'Inner Thigh', 'Calves', 'Neck', 'Grip Strength', 'Other'] },
+  'Nutrition Goal': { type: 'single', options: ['Fat Loss', 'Muscle Gain', 'Maintenance', 'Improve Energy', 'Improve Digestion', 'Medical (e.g. PCOS, Diabetes)', 'Other'] },
+  'Diet Preference': { type: 'single', options: ['Regular', 'Low Carb', 'Low Fat', 'Keto', 'Intermittent Fasting', 'Vegetarian', 'Vegan', 'Pescatarian', 'Mediterranean', 'Gluten-Free', 'Lactose-Free', 'Other'] },
+  'Meal Count': { type: 'single', options: ['2 meals', '3 meals', '4 meals', '5+ meals'] },
+  'Food Allergies / Restrictions': { type: 'multi', options: ['Lactose', 'Gluten', 'Eggs', 'Nuts', 'Shellfish', 'Soy', 'Corn', 'Citrus', 'Legumes', 'Artificial Sweeteners', 'Other'] },
+  'Disliked Ingredients': { type: 'long', options: [] },
+  'Current Nutrition Plan Followed': { type: 'long', options: [] },
+};
+
+// Core business questions only - for all trainer types
+const CORE_QUESTIONS = [
+  { key: 'fullName', label: 'Full Name', type: 'text', required: true },
+  { key: 'email', label: 'Email', type: 'email', required: true },
+  { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
+  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
+  { key: 'age', label: 'Age', type: 'number', required: true },
+  { key: 'source', label: 'Source', type: 'text', required: true },
+];
+const coreKeys = new Set(CORE_QUESTIONS.map(q => q.key));
 
 // Grouped fields (should match backend and create page)
 const GROUPS = [
@@ -25,41 +64,29 @@ const GROUPS = [
       { key: 'source', label: 'Source', type: 'text', required: true },
     ],
   },
-  {
-    label: 'Client Profile & Preferences',
-    fields: [
-      { key: 'goal', label: 'Goal', type: 'text', required: false },
-      { key: 'level', label: 'Level', type: 'text', required: false },
-      { key: 'injuriesHealthNotes', label: 'Injuries / Health Notes', type: 'textarea', required: false },
-      { key: 'workoutPlace', label: 'Workout Place', type: 'text', required: false },
-      { key: 'height', label: 'Height', type: 'number', required: false },
-      { key: 'weight', label: 'Weight', type: 'number', required: false },
-    ],
-  },
-  {
-    label: 'Workout Preferences',
-    fields: [
-      { key: 'preferredTrainingDays', label: 'Preferred Training Days', type: 'text', required: false },
-      { key: 'preferredTrainingTime', label: 'Preferred Training Time', type: 'text', required: false },
-      { key: 'equipmentAvailability', label: 'Equipment Availability', type: 'text', required: false },
-      { key: 'favoriteTrainingStyle', label: 'Favorite Training Style', type: 'text', required: false },
-      { key: 'weakAreas', label: 'Weak Areas (Focus)', type: 'text', required: false },
-    ],
-  },
-  {
-    label: 'Nutrition Preferences',
-    fields: [
-      { key: 'nutritionGoal', label: 'Nutrition Goal', type: 'text', required: false },
-      { key: 'dietPreference', label: 'Diet Preference', type: 'text', required: false },
-      { key: 'mealCount', label: 'Meal Count', type: 'number', required: false },
-      { key: 'foodAllergies', label: 'Food Allergies / Restrictions', type: 'text', required: false },
-      { key: 'dislikedIngredients', label: 'Disliked Ingredients', type: 'text', required: false },
-      { key: 'currentNutritionPlan', label: 'Current Nutrition Plan Followed', type: 'text', required: false },
-    ],
-  },
 ];
 
 export default function EditClientPage() {
+  // Helper function to map check-in form types to client form types
+  const mapFormTypeToInputType = (formType: string): string => {
+    switch (formType) {
+      case 'single':
+        return 'select';
+      case 'multi':
+        return 'multiselect';
+      case 'long':
+        return 'textarea';
+      case 'short':
+        return 'text';
+      case 'date':
+        return 'date';
+      case 'time':
+        return 'time';
+      default:
+        return formType;
+    }
+  };
+
   const router = useRouter();
   const params = useParams();
   const clientId = params?.id as string;
@@ -79,6 +106,17 @@ export default function EditClientPage() {
   const [submissionAnswers, setSubmissionAnswers] = useState<any>({});
   // Replace direct getStoredUser() call with useState
   const [user, setUser] = useState<any>(null);
+  
+  // Extras section state
+  const [labels, setLabels] = useState<any[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [showAddLabel, setShowAddLabel] = useState(false);
+  const [labelError, setLabelError] = useState('');
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
@@ -92,21 +130,80 @@ export default function EditClientPage() {
       .then(res => res.json())
       .then(data => {
         setFormData(data || {});
+        // Initialize selected labels from client data
+        if (data?.labels && Array.isArray(data.labels)) {
+          setSelectedLabels(data.labels.map((label: any) => label.id));
+        }
+        console.log('EditClientPage formData:', data);
       })
       .catch(() => setError("Failed to load client data."))
       .finally(() => setLoading(false));
   }, [clientId]);
 
-  // Fetch the check-in form for this client (assume client data includes checkInFormId or similar)
+  // Process check-in questions from submissionForm (new approach)
   useEffect(() => {
-    if (!formData || !formData.checkInFormId) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/${formData.checkInFormId}`)
-      .then(res => res.json())
-      .then(data => {
-        setSelectedForm(data);
-        setCheckinQuestions(data.questions || []);
-      });
-  }, [formData.checkInFormId]);
+    if (!submissionForm) return;
+    
+    // Process the questions to match the create page logic
+    const processedQuestions = (submissionForm.questions || []).map((q: any) => {
+      if (!q || !q.label) return null;
+      
+      // Create a mapping for label variations (same as create page)
+      const labelMapping: { [key: string]: string[] } = {
+        'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
+        'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
+        'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
+        'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
+        'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
+        'Equipment Availability': ['Equipment', 'Equipment Availability'],
+        'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
+        'Nutrition Goal': ['Goal', 'Nutrition Goal'],
+        'Diet Preference': ['Diet', 'Diet Preference'],
+        'Meal Count': ['Meal Frequency', 'Meal Count'],
+        'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
+      };
+      
+      // Check if this question exists in GROUPS (with label variations)
+      let groupField: any = null;
+      for (const group of GROUPS) {
+        for (const field of group.fields) {
+          const fieldVariations = labelMapping[field.label] || [field.label];
+          if (fieldVariations.includes(q.label)) {
+            groupField = field;
+            break;
+          }
+        }
+        if (groupField) break;
+      }
+      
+      if (groupField) {
+        // Question is from GROUPS - use form configuration but keep original key
+        return {
+          ...groupField,
+          id: q.id, // Ensure id is set
+          type: mapFormTypeToInputType(q.type || groupField.type),
+          options: q.options || groupField.options || [],
+          required: groupField.required,
+          isCustom: false,
+        };
+      } else {
+        // Custom question - use form configuration
+        return {
+          key: q.id || q.label,
+          id: q.id, // Ensure id is set
+          label: q.label,
+          type: mapFormTypeToInputType(q.type || 'text'),
+          required: !!q.required,
+          options: q.options || [],
+          isCustom: true,
+        };
+      }
+    }).filter(Boolean);
+    
+    console.log('Edit page - Processed questions from submissionForm:', processedQuestions);
+    console.log('Edit page - Questions with types:', processedQuestions.map(q => ({ label: q.label, type: q.type, options: q.options })));
+    setCheckinQuestions(processedQuestions);
+  }, [submissionForm]);
 
   // When client data is loaded, set answers from submissionAnswers (if available)
   useEffect(() => {
@@ -129,31 +226,71 @@ export default function EditClientPage() {
       .then(data => setAllForms(data || []));
   }, []);
 
-  // Helper: map static question labels to field keys
+  // Fetch labels and notes for this client
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Fetch labels
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setLabels(data || []))
+      .catch(() => console.error("Failed to load labels."));
+    
+    // Fetch notes for this client
+    if (clientId) {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/notes?clientId=${clientId}`)
+        .then(res => res.json())
+        .then(data => setNotes(data || []))
+        .catch(() => console.error("Failed to load notes."));
+    }
+  }, [user?.id, clientId]);
+
+  // Helper: map static question labels to field keys (with label variations)
   const staticLabelToKey: Record<string, string> = {};
+  const labelMapping: { [key: string]: string[] } = {
+    'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
+    'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
+    'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
+    'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
+    'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
+    'Equipment Availability': ['Equipment', 'Equipment Availability'],
+    'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
+    'Nutrition Goal': ['Goal', 'Nutrition Goal'],
+    'Diet Preference': ['Diet', 'Diet Preference'],
+    'Meal Count': ['Meal Frequency', 'Meal Count'],
+    'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
+  };
+  
   GROUPS.forEach(group => {
     group.fields.forEach(field => {
+      // Map the main label
       staticLabelToKey[field.label] = field.key;
+      // Map all variations
+      const variations = labelMapping[field.label] || [];
+      variations.forEach(variation => {
+        staticLabelToKey[variation] = field.key;
+      });
     });
   });
 
   // When fetching the latest check-in submission, build a merged answers object
   useEffect(() => {
     if (!submissionForm || !submissionAnswers) return;
-    // Map answers by both question ID and static field key
+    // Map answers by question ID (works for both standard and custom questions)
     const merged: Record<string, any> = { ...submissionAnswers };
     (submissionForm.questions || []).forEach((q: any) => {
-      const key = staticLabelToKey[q.label];
-      if (key && submissionAnswers[q.id] !== undefined) {
-        merged[key] = submissionAnswers[q.id];
+      if (submissionAnswers[q.id] !== undefined) {
+        merged[q.id] = submissionAnswers[q.id];
       }
     });
     setAnswers((prev: any) => ({ ...merged, ...prev })); // preserve any manual edits
   }, [submissionForm, submissionAnswers]);
 
-  // Fetch the latest check-in submission for this client
+  // Fetch the latest check-in submission for this client OR the selected form
   useEffect(() => {
     if (!clientId || !user?.id) return;
+    
+    // First try to get check-in submission
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/responses?clientId=${clientId}&trainerId=${user.id}&page=1&pageSize=1`)
       .then(res => res.json())
       .then(data => {
@@ -161,9 +298,24 @@ export default function EditClientPage() {
           setSubmission(data.submissions[0]);
           setSubmissionForm(data.submissions[0].form);
           setSubmissionAnswers(data.submissions[0].answers || {});
+        } else {
+          // If no submission, check if client has a selected form
+          if (formData.selectedFormId) {
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/${formData.selectedFormId}`)
+              .then(res => res.json())
+              .then(formData => {
+                if (formData) {
+                  setSubmissionForm(formData);
+                  // Set empty answers since there's no submission
+                  setSubmissionAnswers({});
+                }
+              })
+              .catch(err => console.error('Error fetching selected form:', err));
+          }
         }
-      });
-  }, [clientId, user?.id]);
+      })
+      .catch(err => console.error('Error fetching submissions:', err));
+  }, [clientId, user?.id, formData.selectedFormId]);
 
   // Add debug logs for submission, submissionForm, and submissionAnswers
   useEffect(() => {
@@ -184,6 +336,11 @@ export default function EditClientPage() {
     priceBeforeDisc: "",
     installments: "",
   });
+  const [registrationDate, setRegistrationDate] = useState<string>("");
+  
+  // Array fields that need special handling
+  const arrayFields = ['injuriesHealthNotes', 'goals', 'preferredTrainingDays', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas', 'foodAllergies'];
+  
   // Auto-calculate end date
   useEffect(() => {
     if (subscription.startDate && subscription.durationValue && subscription.durationUnit) {
@@ -201,6 +358,13 @@ export default function EditClientPage() {
   }, [subscription.startDate, subscription.durationValue, subscription.durationUnit]);
   // When client data is loaded, set subscription from latest subscription
   useEffect(() => {
+    // Set registration date from client data or submission date
+    if (formData.registrationDate) {
+      setRegistrationDate(formData.registrationDate.slice(0, 10));
+    } else if (submission && submission.createdAt) {
+      setRegistrationDate(submission.createdAt.slice(0, 10));
+    }
+    
     if (formData && formData.subscriptions && formData.subscriptions.length > 0) {
       const latest = formData.subscriptions[0];
       setSubscription({
@@ -236,7 +400,7 @@ export default function EditClientPage() {
         installments: '',
       });
     }
-  }, [formData]);
+  }, [formData, submission]);
   useEffect(() => {
     if (!subscription) return;
     setShowPaymentMethod(['paid', 'installments'].includes(subscription.paymentStatus));
@@ -275,36 +439,88 @@ export default function EditClientPage() {
       }
   };
 
-  // Compute groupedFields as in create client
-  const groupedFields = GROUPS;
-  // Compute check-in fields and profile fields based on submissionForm
+  // Compute check-in fields based on submissionForm
   const checkInFields = React.useMemo(() => {
     if (!submissionForm) return [];
-    const formQuestions = (submissionForm.questions || []).map((q: any) => q.label);
-    // All fields from GROUPS that match a form question label
-    const matchedFields = groupedFields.flatMap(group =>
-      group.fields.filter(field => formQuestions.includes(field.label))
-    );
-    // Find custom questions (those in the form but not in GROUPS)
-    const customQuestions = (submissionForm.questions || []).filter((q: any) => !matchedFields.some(f => f.label === q.label));
-    return [...matchedFields, ...customQuestions.map((q: any) => ({
-      key: q.id || q.label,
-      label: q.label,
-      type: q.type || 'text',
-      required: !!q.required,
-      options: q.options || [],
-      isCustom: true,
-    }))];
-  }, [submissionForm, groupedFields]);
-  // Compute profile fields by group (fields not in the form)
-  const profileFieldsByGroup = React.useMemo(() => {
-    if (!submissionForm) return groupedFields;
-    const formQuestions = (submissionForm.questions || []).map((q: any) => q.label);
-    return groupedFields.map(group => ({
-      ...group,
-      fields: group.fields.filter(field => !formQuestions.includes(field.label)),
-    })).filter(group => group.fields.length > 0);
-  }, [submissionForm, groupedFields]);
+    
+    try {
+      // Process ALL questions from the form (both from dropdown and custom)
+      const allFormQuestions = (submissionForm.questions || []).map((q: any) => {
+        if (!q || !q.label) return null;
+        
+        // Check if this question exists in CORE_QUESTIONS
+        let coreField: any = null;
+        for (const field of CORE_QUESTIONS) {
+          if (field.label === q.label) {
+            coreField = field;
+            break;
+          }
+        }
+        
+        if (coreField) {
+          // Question is from CORE_QUESTIONS - use form configuration but keep original key
+          return {
+            ...coreField,
+            type: mapFormTypeToInputType(q.type || coreField.type),
+            options: q.options || coreField.options || [],
+            required: coreField.required,
+            isCustom: false,
+          };
+        } else {
+          // Custom question - use form configuration
+          return {
+            key: q.id || q.label,
+            label: q.label,
+            type: mapFormTypeToInputType(q.type || 'text'),
+            required: !!q.required,
+            options: q.options || [],
+            isCustom: true,
+          };
+        }
+      }).filter(Boolean); // Remove null entries
+      
+      console.log('Check-in fields:', allFormQuestions);
+      return allFormQuestions;
+    } catch (error) {
+      console.error('Error processing check-in fields:', error);
+      return [];
+    }
+  }, [submissionForm]);
+  // Core questions that are NOT in the check-in form
+  const coreFieldsNotInForm = React.useMemo(() => {
+    console.log('Edit page - submissionForm:', submissionForm);
+    console.log('Edit page - submissionForm is null/undefined:', !submissionForm);
+    console.log('Edit page - formData:', formData);
+    
+    // If no submissionForm, return all CORE_QUESTIONS
+    if (!submissionForm) {
+      console.log('Edit page - No submissionForm, returning all CORE_QUESTIONS');
+      return CORE_QUESTIONS;
+    }
+    
+    try {
+      // Get all question labels from the form
+      const formQuestionLabels = (submissionForm.questions || [])
+        .filter((q: any) => q && q.label)
+        .map((q: any) => q.label);
+      
+      console.log('Edit page - Form question labels:', formQuestionLabels);
+      console.log('Edit page - Core questions:', CORE_QUESTIONS);
+      
+      // Filter out core questions that are already in the form
+      const filteredCoreFields = CORE_QUESTIONS.filter(field => {
+        const isInForm = formQuestionLabels.includes(field.label);
+        console.log(`Edit page - Core field "${field.label}" in form: ${isInForm}`);
+        return !isInForm;
+      });
+      
+      console.log('Edit page - Core fields not in form:', filteredCoreFields);
+      return filteredCoreFields;
+    } catch (error) {
+      console.error('Error processing core fields:', error);
+      return CORE_QUESTIONS;
+    }
+  }, [submissionForm, formData]);
 
   // Update handleChange to update formData for profile fields and answers for check-in questions
   const handleChange = (key: string, value: any, isCheckInQuestion: boolean = false) => {
@@ -315,8 +531,9 @@ export default function EditClientPage() {
     }
   };
 
+
+
   // On save, send answers as part of the client update
-  const arrayFields = ['goals', 'injuriesHealthNotes'];
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -364,7 +581,7 @@ export default function EditClientPage() {
     try {
       const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
-      const formDataToSend = { ...formData };
+      const formDataToSend = { ...formData, registrationDate, selectedFormId: formData.selectedFormId };
       arrayFields.forEach(field => {
         if (typeof formDataToSend[field] === 'string') {
           formDataToSend[field] = formDataToSend[field].split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -385,15 +602,27 @@ export default function EditClientPage() {
           mergedAnswers[key] = answers[key];
         }
       });
+      // Collect custom question answers (those with numeric keys)
+      const customAnswers: Record<string, any> = {};
+      Object.entries(answers).forEach(([key, value]) => {
+        if (!isNaN(Number(key))) {
+          customAnswers[key] = value;
+        }
+      });
       console.log('Payload sent to backend:', {
-        client: { ...formDataToSend, answers: mergedAnswers },
+        client: { ...formDataToSend, answers: customAnswers, labels: selectedLabels },
         subscription: subscriptionToSend,
         installments: installmentsToSend,
       });
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client: { ...formDataToSend, answers: mergedAnswers }, subscription: subscriptionToSend, installments: installmentsToSend }),
+        body: JSON.stringify({ 
+          client: { ...formDataToSend, labels: selectedLabels }, 
+          subscription: subscriptionToSend, 
+          installments: installmentsToSend,
+          answers: customAnswers // Move answers to root level
+        }),
       });
       if (res.ok) {
         // Fetch updated client data to get new installment IDs
@@ -449,10 +678,12 @@ export default function EditClientPage() {
   const [showDiscountValue, setShowDiscountValue] = useState(false);
   const [showPriceFields, setShowPriceFields] = useState(false);
   type InstallmentRow = {
+    id?: string;
     date: string;
     amount: string;
     image: File | null;
     nextDate: string;
+    remaining?: string;
   };
   const [installments, setInstallments] = useState<InstallmentRow[]>([
     { date: '', amount: '', image: null, nextDate: '' }
@@ -548,6 +779,363 @@ export default function EditClientPage() {
   const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
+  // Labels handlers
+  const handleAddLabel = async () => {
+    setLabelError('');
+    if (!user?.id) return;
+    if (!newLabelName.trim()) {
+      setLabelError('Label name is required.');
+      return;
+    }
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trainerId: user.id, name: newLabelName.trim() }),
+      });
+      if (res.ok) {
+        const label = await res.json();
+        setLabels(prev => [...prev, label]);
+        setSelectedLabels(prev => [...prev, label.id]);
+        setNewLabelName('');
+        setShowAddLabel(false);
+      } else {
+        const data = await res.json();
+        setLabelError(data.error || 'Failed to create label.');
+      }
+    } catch (err) {
+      setLabelError('Network error.');
+    }
+  };
+
+  const handleLabelToggle = (labelId: number) => {
+    setSelectedLabels(prev => 
+      prev.includes(labelId) 
+        ? prev.filter(id => id !== labelId)
+        : [...prev, labelId]
+    );
+  };
+
+  // Notes handlers
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !clientId) return;
+    
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          clientId: Number(clientId),
+          content: newNote.trim() 
+        }),
+      });
+      if (res.ok) {
+        const note = await res.json();
+        setNotes(prev => [note, ...prev]);
+        setNewNote('');
+      }
+    } catch (err) {
+      console.error('Failed to add note:', err);
+    }
+  };
+
+  const handleEditNote = async (noteId: number) => {
+    if (!editingNoteContent.trim()) return;
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/notes/${noteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editingNoteContent.trim() }),
+      });
+      if (res.ok) {
+        const updatedNote = await res.json();
+        setNotes(prev => prev.map(note => note.id === noteId ? updatedNote : note));
+        setEditingNoteId(null);
+        setEditingNoteContent('');
+      }
+    } catch (err) {
+      console.error('Failed to update note:', err);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: number) => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/notes/${noteId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setNotes(prev => prev.filter(note => note.id !== noteId));
+      }
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    }
+  };
+
+  // Debug logging
+  console.log('Edit page - checkinQuestions:', checkinQuestions);
+  console.log('Edit page - checkinQuestions.length:', checkinQuestions.length);
+  console.log('Edit page - coreFieldsNotInForm:', coreFieldsNotInForm);
+  console.log('Edit page - coreFieldsNotInForm.length:', coreFieldsNotInForm.length);
+  console.log('Edit page - submissionForm:', submissionForm);
+
+  // Add after other useEffects, before return
+  useEffect(() => {
+    // Only run if there is a selected form, no check-in submission, and formData is loaded
+    if (submissionForm && !submission && formData && Object.keys(formData).length > 0) {
+      // Robust label-to-key mapping
+      const labelToKey: Record<string, string> = {
+        'Full Name': 'fullName',
+        'Email': 'email',
+        'Mobile Number': 'phone',
+        'Gender': 'gender',
+        'Age': 'age',
+        'Source': 'source',
+        'Goal': 'goal',
+        'Level': 'level',
+        'Injuries': 'injuriesHealthNotes',
+        'Injuries / Health Notes': 'injuriesHealthNotes',
+        'Workout Place': 'workoutPlace',
+        'Height': 'height',
+        'Weight': 'weight',
+        'Preferred Training Days': 'preferredTrainingDays',
+        'Preferred Training Time': 'preferredTrainingTime',
+        'Equipment Availability': 'equipmentAvailability',
+        'Favorite Training Style': 'favoriteTrainingStyle',
+        'Weak Areas (Focus)': 'weakAreas',
+        'Nutrition Goal': 'nutritionGoal',
+        'Diet Preference': 'dietPreference',
+        'Meal Count': 'mealCount',
+        'Food Allergies / Restrictions': 'foodAllergies',
+        'Disliked Ingredients': 'dislikedIngredients',
+        'Current Nutrition Plan Followed': 'currentNutritionPlan',
+      };
+      const initialAnswers: Record<string, any> = {};
+      (submissionForm.questions || []).forEach((q: any) => {
+        const key = labelToKey[q.label] || q.key || q.label;
+        if (formData.hasOwnProperty(key)) {
+          let value = formData[key];
+          // Handle multi-select fields
+          if (q.type === 'multi' || q.type === 'multiselect') {
+            if (typeof value === 'string') {
+              value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+            }
+            // If value is not an array, make it an array
+            if (!Array.isArray(value)) {
+              value = value ? [value] : [];
+            }
+          }
+          // Handle single-select fields (trim whitespace)
+          if ((q.type === 'single' || q.type === 'select') && typeof value === 'string') {
+            value = value.trim();
+          }
+          initialAnswers[key] = value;
+        }
+      });
+      setAnswers(initialAnswers);
+    }
+  }, [submissionForm, formData, submission]);
+
+  // Populate answers from formData when client has selectedFormId but no submission
+  useEffect(() => {
+    if (submissionForm && !submission && formData && Object.keys(formData).length > 0) {
+      console.log('Populating answers from formData for client with selectedFormId');
+      const initialAnswers: any = {};
+      
+      // Map formData values to question IDs using label mapping
+      const labelToKey: { [key: string]: string } = {
+        'Full Name': 'fullName',
+        'Email': 'email',
+        'Mobile Number': 'phone',
+        'Gender': 'gender',
+        'Age': 'age',
+        'Source': 'source',
+        'Goal': 'goal',
+        'Level': 'level',
+        'Injuries': 'injuriesHealthNotes',
+        'Injuries / Health Notes': 'injuriesHealthNotes',
+        'Workout Place': 'workoutPlace',
+        'Height': 'height',
+        'Weight': 'weight',
+        'Preferred Training Days': 'preferredTrainingDays',
+        'Preferred Training Time': 'preferredTrainingTime',
+        'Equipment Availability': 'equipmentAvailability',
+        'Favorite Training Style': 'favoriteTrainingStyle',
+        'Weak Areas (Focus)': 'weakAreas',
+        'Weak Areas': 'weakAreas',
+        'Nutrition Goal': 'nutritionGoal',
+        'Diet Preference': 'dietPreference',
+        'Meal Count': 'mealCount',
+        'Food Allergies / Restrictions': 'foodAllergies',
+        'Food Allergies': 'foodAllergies',
+        'Disliked Ingredients': 'dislikedIngredients',
+        'Current Nutrition Plan Followed': 'currentNutritionPlan',
+      };
+      
+      submissionForm.questions.forEach((q: any) => {
+        const formDataKey = labelToKey[q.label];
+        let value;
+        
+        if (formDataKey && formData[formDataKey] !== undefined) {
+          // Standard question - get value from formData using mapped key
+          value = formData[formDataKey];
+        } else if (formData[q.id] !== undefined) {
+          // Custom question - get value directly from formData using question ID
+          value = formData[q.id];
+        } else if (formData[q.label] !== undefined) {
+          // Custom question - get value directly from formData using question label
+          value = formData[q.label];
+        }
+        
+        if (value !== undefined) {
+          // Handle different data types
+          if (q.type === 'multi' || q.type === 'multiselect') {
+            if (typeof value === 'string') {
+              value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+            } else if (!Array.isArray(value)) {
+              value = value ? [value] : [];
+            }
+          } else if (q.type === 'single' || q.type === 'select') {
+            if (Array.isArray(value)) {
+              value = value.join(', ');
+            } else if (value !== null && value !== undefined) {
+              value = String(value).trim();
+            }
+          } else if (q.type === 'number' || q.label === 'Meal Count') {
+            // Special handling for Meal Count: allow 0 and handle null properly
+            if (value === undefined || value === null) {
+              value = '';
+            } else if (value === 0) {
+              value = '0'; // Keep 0 as string for display
+            } else {
+              value = String(value);
+            }
+          }
+
+          initialAnswers[q.id] = value;
+        }
+      });
+      
+      console.log('Initial answers populated:', initialAnswers);
+      setAnswers(initialAnswers);
+    }
+  }, [submissionForm, submission, formData]);
+
+  // Set answers from submission if available, otherwise from formData
+  useEffect(() => {
+    if (!submissionForm) return;
+    if (submission && submissionAnswers) {
+      // Use answers from submission
+      const merged: Record<string, any> = { ...submissionAnswers };
+      (submissionForm.questions || []).forEach((q: any) => {
+        if (submissionAnswers[q.id] !== undefined) {
+          merged[q.id] = submissionAnswers[q.id];
+        }
+      });
+      setAnswers((prev: any) => ({ ...merged, ...prev }));
+      console.log('Set answers from submission:', merged);
+    } else if (formData && Object.keys(formData).length > 0) {
+      // Use answers from formData
+      const labelToKey: { [key: string]: string } = {
+        'Full Name': 'fullName',
+        'Email': 'email',
+        'Mobile Number': 'phone',
+        'Gender': 'gender',
+        'Age': 'age',
+        'Source': 'source',
+        'Goal': 'goal',
+        'Level': 'level',
+        'Injuries': 'injuriesHealthNotes',
+        'Injuries / Health Notes': 'injuriesHealthNotes',
+        'Workout Place': 'workoutPlace',
+        'Height': 'height',
+        'Weight': 'weight',
+        'Preferred Training Days': 'preferredTrainingDays',
+        'Preferred Training Time': 'preferredTrainingTime',
+        'Equipment Availability': 'equipmentAvailability',
+        'Favorite Training Style': 'favoriteTrainingStyle',
+        'Weak Areas (Focus)': 'weakAreas',
+        'Weak Areas': 'weakAreas',
+        'Nutrition Goal': 'nutritionGoal',
+        'Diet Preference': 'dietPreference',
+        'Meal Count': 'mealCount',
+        'Food Allergies / Restrictions': 'foodAllergies',
+        'Food Allergies': 'foodAllergies',
+        'Disliked Ingredients': 'dislikedIngredients',
+        'Current Nutrition Plan Followed': 'currentNutritionPlan',
+      };
+      const initialAnswers: any = {};
+      (submissionForm.questions || []).forEach((q: any) => {
+        const formDataKey = labelToKey[q.label];
+        let value;
+        if (formDataKey && formData[formDataKey] !== undefined) {
+          value = formData[formDataKey];
+        } else if (formData[q.id] !== undefined) {
+          value = formData[q.id];
+        } else if (formData[q.label] !== undefined) {
+          value = formData[q.label];
+        }
+        if (value !== undefined) {
+          if (q.type === 'multi' || q.type === 'multiselect') {
+            if (typeof value === 'string') {
+              value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+            } else if (!Array.isArray(value)) {
+              value = value ? [value] : [];
+            }
+          } else if (q.type === 'single' || q.type === 'select') {
+            if (Array.isArray(value)) {
+              value = value.join(', ');
+            } else if (value !== null && value !== undefined) {
+              value = String(value).trim();
+            }
+          } else if (q.type === 'number' || q.label === 'Meal Count') {
+            if (value === undefined || value === null) {
+              value = '';
+            } else if (value === 0) {
+              value = '0';
+            } else {
+              value = String(value);
+            }
+          }
+          initialAnswers[q.id] = value;
+        }
+      });
+      setAnswers(initialAnswers);
+      console.log('Set answers from formData:', initialAnswers);
+    }
+  }, [submissionForm, submission, submissionAnswers, formData]);
+
+  // Add debug logs after formData is loaded
+  useEffect(() => {
+    console.log('DEBUG: formData loaded:', formData);
+  }, [formData]);
+
+  // Add debug logs after coreFieldsNotInForm is computed
+  useEffect(() => {
+    console.log('DEBUG: coreFieldsNotInForm:', coreFieldsNotInForm);
+  }, [coreFieldsNotInForm]);
+
+  // Add debug logs after checkinQuestions is computed
+  useEffect(() => {
+    console.log('DEBUG: checkinQuestions:', checkinQuestions);
+  }, [checkinQuestions]);
+
+  // Add debug logs after submissionForm is loaded
+  useEffect(() => {
+    console.log('DEBUG: submissionForm:', submissionForm);
+  }, [submissionForm]);
+
+  // Add debug logs after answers is computed
+  useEffect(() => {
+    console.log('DEBUG: answers:', answers);
+  }, [answers]);
+
+  // Add debug logs before rendering (log only once on mount to avoid React error)
+  useEffect(() => {
+    console.log('checkinQuestions:', checkinQuestions);
+    console.log('answers:', answers);
+    console.log('formData:', formData);
+  }, []);
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
@@ -557,55 +1145,78 @@ export default function EditClientPage() {
           {error}
         </Alert>
       )}
-      {/* Show message and hide form if no check-in form is associated */}
-      {!submissionForm ? (
-        <div className="text-center text-zinc-500 py-12">
-          <div className="mb-4">This client does not have a check-in submission.<br />
-            Editing check-in questions is not available for this client.<br />
-            (This client was not created via a check-in form, or the data is missing.)
-            </div>
-            </div>
-      ) : (
+      {/* Always show the form, but conditionally show check-in data */}
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Check-In Data Section (always, if checkInFields exist) */}
-          {checkInFields.length > 0 && (
+
+          
+          {/* Check-In Data Section (only if checkinQuestions exist) */}
+          {checkinQuestions.length > 0 ? (
             <div className="mb-6 bg-white rounded-xl shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {checkInFields.map(field => {
+                {checkinQuestions.map((field, fieldIndex) => {
+                  // Use a unique key for each field
+                  const checkinFieldKey = `${field.key || field.label || `checkin-field-${fieldIndex}`}-checkin`;
+                  // Use field.id (question ID) to get the value from answers
+                  const value = coreKeys.has(field.key)
+                    ? formData[field.key] ?? ''
+                    : answers[field.id] ?? '';
                   // Render custom questions
                   if (field.isCustom) {
                     if (field.type === 'select' && field.options.length > 0) {
                       return (
-                        <div key={field.key} className="flex flex-col">
+                        <div key={checkinFieldKey} className="flex flex-col">
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             {field.label}
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Select
-                            value={answers[field.key] || ''}
-                            onChange={e => handleChange(field.key, e.target.value, true)}
+                            value={value || ''}
+                            onChange={e => handleChange(field.id, e.target.value, true)}
                             required={field.required}
                             className="w-full"
                           >
                             <option value="">Select...</option>
                             {field.options.map((opt: string) => (
-                              <option key={opt} value={opt}>{opt}</option>
+                              <option key={`${checkinFieldKey}-${opt}`} value={opt}>{opt}</option>
                             ))}
               </Select>
             </div>
                       );
                     }
+                    if (field.type === 'multiselect' && field.options.length > 0) {
+                      const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
+                      return (
+                        <div key={checkinFieldKey} className="flex flex-col">
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            {field.label}
+                            {field.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <MultiSelect
+                            value={currentValues}
+                            onChange={(value) => setAnswers(prev => ({ ...prev, [field.id]: value }))}
+                            placeholder={`Select ${field.label}...`}
+                            className="w-full"
+                          >
+                            {field.options.map((opt: string) => (
+                              <MultiSelectOption key={`${checkinFieldKey}-${opt}`} value={opt}>
+                                {opt}
+                              </MultiSelectOption>
+                            ))}
+                          </MultiSelect>
+            </div>
+                      );
+                    }
                     if (field.type === 'textarea') {
                       return (
-                        <div key={field.key} className="flex flex-col">
+                        <div key={checkinFieldKey} className="flex flex-col">
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             {field.label}
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Textarea
-                            value={answers[field.key] || ''}
-                            onChange={e => handleChange(field.key, e.target.value, true)}
+                            value={value || ''}
+                            onChange={e => handleChange(field.id, e.target.value, true)}
                             placeholder={field.label}
                             required={field.required}
                           />
@@ -614,52 +1225,85 @@ export default function EditClientPage() {
                     }
                     // Default to text input
                     return (
-                      <div key={field.key} className="flex flex-col">
+                      <div key={checkinFieldKey} className="flex flex-col">
                         <label className="text-sm font-medium mb-1 flex items-center gap-1">
                           {field.label}
                           {field.required && <span className="text-red-500">*</span>}
                         </label>
                         <Input
                           type={field.type || 'text'}
-                          value={answers[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value, true)}
+                          value={value || ''}
+                          onChange={e => handleChange(field.id, e.target.value, true)}
                           placeholder={field.label}
                           required={field.required}
               />
             </div>
                     );
                   }
-                  // Render normal fields
+                  // Render normal fields (GROUPS fields that are in the check-in form)
                   return (
-                    <div key={field.key} className="flex flex-col">
+                    <div key={checkinFieldKey} className="flex flex-col">
                       <label className="text-sm font-medium mb-1 flex items-center gap-1">
                         {field.label}
                         {field.required && <span className="text-red-500">*</span>}
                       </label>
                       {field.type === 'select' ? (
                         <Select
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          value={value || ''}
+                          onChange={e => handleChange(field.id, e.target.value, true)}
                           required={field.required}
                 className="w-full"
                         >
                           <option value="">Select...</option>
                           {field.options && field.options.map((opt: string) => (
-                            <option key={opt} value={opt}>{opt}</option>
+                            <option key={`${checkinFieldKey}-${opt}`} value={opt}>{opt}</option>
                           ))}
                         </Select>
+                      ) : field.type === 'multiselect' ? (
+                        (() => {
+                          const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
+                          return (
+                            <MultiSelect
+                              value={currentValues}
+                              onChange={(value) => handleChange(field.id, value, true)}
+                              placeholder={`Select ${field.label}...`}
+                              className="w-full"
+                            >
+                              {field.options && field.options.map((opt: string) => (
+                                <MultiSelectOption key={`${checkinFieldKey}-${opt}`} value={opt}>
+                                  {opt}
+                                </MultiSelectOption>
+                              ))}
+                            </MultiSelect>
+                          );
+                        })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          value={value}
+                          onChange={e => {
+                            if (field.id === 'injuriesHealthNotes') {
+                              // Split textarea value into array on change
+                              handleChange(field.id, e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean), true);
+                            } else {
+                              handleChange(field.id, e.target.value, true);
+                            }
+                          }}
                           placeholder={field.label}
                           required={field.required}
                         />
                       ) : (
                         <Input
                           type={field.type}
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          value={value || ''}
+                          onChange={e => {
+                            if (field.id === 'mealCount') {
+                              // Convert to number on change
+                              const val = e.target.value;
+                              handleChange(field.id, val === '' ? null : Number(val), true);
+                            } else {
+                              handleChange(field.id, e.target.value, true);
+                            }
+                          }}
                           placeholder={field.label}
                           required={field.required}
                       />
@@ -669,55 +1313,101 @@ export default function EditClientPage() {
                 })}
           </div>
             </div>
+          ) : (
+            // Show message when no check-in data is available
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <div className="text-center text-zinc-500 py-4">
+                <div className="mb-2">No check-in submission data available for this client.</div>
+                <div className="text-sm">(This client was not created via a check-in form, or the data is missing.)</div>
+          </div>
+            </div>
           )}
-          {/* Profile Data Sections (always) */}
-          {profileFieldsByGroup.map(group => (
-            <div key={group.label} className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
+
+          {/* Core Questions Section */}
+          {coreFieldsNotInForm.length > 0 && (
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Core Questions</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {group.fields.map(field => (
-                  <div key={field.key} className="flex flex-col">
-                    <label className="text-sm font-medium mb-1 flex items-center gap-1">
-                      {field.label}
-                      {field.required && <span className="text-red-500">*</span>}
-                    </label>
-                    {field.type === 'select' ? (
-              <Select
-                        value={formData[field.key] || ''}
-                        onChange={e => handleChange(field.key, e.target.value)}
-                        required={field.required}
-                        className="w-full"
-                      >
-                        <option value="">Select...</option>
-                        {field.options && field.options.map((opt: string) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </Select>
-                    ) : field.type === 'textarea' ? (
-                      <Textarea
-                        value={formData[field.key] || ''}
-                        onChange={e => handleChange(field.key, e.target.value)}
-                        placeholder={field.label}
-                        required={field.required}
-                      />
-                    ) : (
-                      <Input
-                        type={field.type}
-                        value={formData[field.key] || ''}
-                        onChange={e => handleChange(field.key, e.target.value)}
-                        placeholder={field.label}
-                        required={field.required}
-                      />
-                    )}
-                  </div>
-                ))}
+                {coreFieldsNotInForm.map((field: any) => {
+                  let value = formData[field.key];
+                  // For multi-selects, ensure value is always an array
+                  if ((field.type === 'multiselect' || field.type === 'multi') && typeof value === 'string') {
+                    value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+                  }
+                  if ((field.type === 'multiselect' || field.type === 'multi') && !Array.isArray(value)) {
+                    value = value ? [value] : [];
+                  }
+                  if (value === null || value === undefined) {
+                    value = (field.type === 'multiselect' || field.type === 'multi') ? [] : '';
+                  }
+                  console.log(`DEBUG: Rendering core field: ${field.label} (key: ${field.key}) with value:`, value);
+                  return (
+                    <div key={field.key} className="flex flex-col">
+                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                        {field.label}
+                        {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {field.type === 'select' ? (
+                        <Select
+                          value={value || ''}
+                          onChange={e => handleChange(field.key, e.target.value, false)}
+                          required={field.required}
+                          className="w-full"
+                        >
+                          <option value="">Select...</option>
+                          {field.options && field.options.map((opt: string) => (
+                            <option key={`${field.key}-${opt}`} value={opt}>{opt}</option>
+                          ))}
+                        </Select>
+                      ) : field.type === 'multiselect' ? (
+                        (() => {
+                          const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
+                          return (
+                            <MultiSelect
+                              value={currentValues}
+                              onChange={(value) => handleChange(field.key, value, false)}
+                              placeholder={`Select ${field.label}...`}
+                              className="w-full"
+                            >
+                              {field.options && field.options.map((opt: string) => (
+                                <MultiSelectOption key={`${field.key}-${opt}`} value={opt}>
+                                  {opt}
+                                </MultiSelectOption>
+                              ))}
+                            </MultiSelect>
+                          );
+                        })()
+                      ) : field.type === 'textarea' ? (
+                        <Textarea
+                          value={value || ''}
+                          onChange={e => handleChange(field.key, e.target.value, false)}
+                          placeholder={field.label}
+                          required={field.required}
+                        />
+                      ) : (
+                        <Input
+                          type={field.type}
+                          value={value || ''}
+                          onChange={e => handleChange(field.key, e.target.value, false)}
+                          placeholder={field.label}
+                          required={field.required}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          ))}
+          )}
+
           {/* Subscription Details Section */}
           <div className="mb-6 bg-white rounded-xl shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Registration Date</label>
+                <Input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} />
+              </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Start Date</label>
                 <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
@@ -925,7 +1615,7 @@ export default function EditClientPage() {
                   </TableHead>
                   <TableBody>
                     {installments.map((inst, idx) => (
-                      <TableRow key={inst.id || idx}>
+                      <TableRow key={inst.id || `installment-${idx}`}>
                         <TableCell>
                           <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
                         </TableCell>
@@ -953,12 +1643,174 @@ export default function EditClientPage() {
               </div>
             </div>
           )}
+
+          {/* Extras Section */}
+          <div className="mb-6 bg-white rounded-xl shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">Extras</h2>
+            
+            {/* Labels Subsection */}
+            <div className="mb-6">
+              <h3 className="text-md font-medium mb-3">Labels/Tags</h3>
+              <div className="space-y-3">
+                {/* Existing Labels */}
+                <div className="flex flex-wrap gap-2">
+                  {labels.map((label) => (
+                    <button
+                      key={label.id}
+                      type="button"
+                      onClick={() => handleLabelToggle(label.id)}
+                      className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                        selectedLabels.includes(label.id)
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                      }`}
+                    >
+                      {label.name}
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Add New Label */}
+                <div className="flex gap-2 items-center">
+                  <Button
+                    type="button"
+                    outline
+                    className="text-xs"
+                    onClick={() => setShowAddLabel(v => !v)}
+                  >
+                    Add New Label
+                  </Button>
+                </div>
+                
+                {showAddLabel && (
+                  <div className="flex gap-2 items-center rounded p-2 bg-zinc-50">
+                    <Input
+                      type="text"
+                      value={newLabelName}
+                      onChange={e => setNewLabelName(e.target.value)}
+                      placeholder="Label Name"
+                      className="w-1/2"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddLabel}
+                      className="px-3"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      type="button"
+                      outline
+                      onClick={() => {
+                        setShowAddLabel(false);
+                        setNewLabelName('');
+                        setLabelError('');
+                      }}
+                      className="px-3"
+                    >
+                      Cancel
+                    </Button>
+                    {labelError && <span className="text-red-500 text-xs ml-2">{labelError}</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Notes Subsection */}
+            <div>
+              <h3 className="text-md font-medium mb-3">Notes</h3>
+              <div className="space-y-3">
+                {/* Add New Note */}
+                <div className="flex gap-2">
+                  <Textarea
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    placeholder="Add a note about this client..."
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddNote}
+                    disabled={!newNote.trim()}
+                    className="px-4"
+                  >
+                    Add
+                  </Button>
+                </div>
+                
+                {/* Existing Notes */}
+                <div className="space-y-2">
+                  {notes.map((note) => (
+                    <div key={note.id} className="border rounded-lg p-3 bg-yellow-50">
+                      {editingNoteId === note.id ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editingNoteContent}
+                            onChange={e => setEditingNoteContent(e.target.value)}
+                            className="w-full"
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              onClick={() => handleEditNote(note.id)}
+                              className="px-3 text-xs"
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              outline
+                              onClick={() => {
+                                setEditingNoteId(null);
+                                setEditingNoteContent('');
+                              }}
+                              className="px-3 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="text-sm text-gray-600">
+                              {new Date(note.createdAt).toLocaleString()}
+                            </p>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingNoteId(note.id);
+                                  setEditingNoteContent(note.content);
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-xs"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteNote(note.id)}
+                                className="text-red-600 hover:text-red-800 text-xs"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-sm">{note.content}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex gap-4 justify-end mt-8">
             <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
         </div>
       </form>
-      )}
     </div>
   );
 } 

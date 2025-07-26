@@ -10,7 +10,6 @@ import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
 import dayjs from "dayjs";
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table';
-import { MultiSelect, MultiSelectOption } from '@/components/multiselect';
 import { TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
 
 // Import the same QUESTION_CONFIGS from check-in create page
@@ -40,17 +39,6 @@ const QUESTION_CONFIGS: Record<string, { type: string; options: string[] }> = {
   'Current Nutrition Plan Followed': { type: 'long', options: [] },
 };
 
-// Core business questions only - for all trainer types
-const CORE_QUESTIONS = [
-  { key: 'fullName', label: 'Full Name', type: 'text', required: true },
-  { key: 'email', label: 'Email', type: 'email', required: true },
-  { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
-  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
-  { key: 'age', label: 'Age', type: 'number', required: true },
-  { key: 'source', label: 'Source', type: 'text', required: true },
-];
-
-// Legacy GROUPS structure (kept for reference but not used in client creation)
 const GROUPS = [
   {
     label: 'Basic Data',
@@ -63,29 +51,41 @@ const GROUPS = [
       { key: 'source', label: 'Source', type: 'text', required: true },
     ],
   },
+  {
+    label: 'Client Profile & Preferences',
+    fields: [
+      { key: 'goal', label: 'Goal', type: 'text', required: false },
+      { key: 'level', label: 'Level', type: 'text', required: false },
+      { key: 'injuriesHealthNotes', label: 'Injuries / Health Notes', type: 'textarea', required: false },
+      { key: 'workoutPlace', label: 'Workout Place', type: 'text', required: false },
+      { key: 'height', label: 'Height', type: 'number', required: false },
+      { key: 'weight', label: 'Weight', type: 'number', required: false },
+    ],
+  },
+  {
+    label: 'Workout Preferences',
+    fields: [
+      { key: 'preferredTrainingDays', label: 'Preferred Training Days', type: 'text', required: false },
+      { key: 'preferredTrainingTime', label: 'Preferred Training Time', type: 'text', required: false },
+      { key: 'equipmentAvailability', label: 'Equipment Availability', type: 'text', required: false },
+      { key: 'favoriteTrainingStyle', label: 'Favorite Training Style', type: 'text', required: false },
+      { key: 'weakAreas', label: 'Weak Areas (Focus)', type: 'text', required: false },
+    ],
+  },
+  {
+    label: 'Nutrition Preferences',
+    fields: [
+      { key: 'nutritionGoal', label: 'Nutrition Goal', type: 'text', required: false },
+      { key: 'dietPreference', label: 'Diet Preference', type: 'text', required: false },
+      { key: 'mealCount', label: 'Meal Count', type: 'number', required: false },
+      { key: 'foodAllergies', label: 'Food Allergies / Restrictions', type: 'text', required: false },
+      { key: 'dislikedIngredients', label: 'Disliked Ingredients', type: 'text', required: false },
+      { key: 'currentNutritionPlan', label: 'Current Nutrition Plan Followed', type: 'text', required: false },
+    ],
+  },
 ];
 
 export default function CreateClientPage() {
-  // Helper function to map check-in form types to client form types
-  const mapFormTypeToInputType = (formType: string): string => {
-    switch (formType) {
-      case 'single':
-        return 'select';
-      case 'multi':
-        return 'multiselect';
-      case 'long':
-        return 'textarea';
-      case 'short':
-        return 'text';
-      case 'date':
-        return 'date';
-      case 'time':
-        return 'time';
-      default:
-        return formType;
-    }
-  };
-
   const [forms, setForms] = useState<any[]>([]);
   const [selectedFormId, setSelectedFormId] = useState<string>("");
   const [selectedForm, setSelectedForm] = useState<any>(null);
@@ -103,23 +103,11 @@ export default function CreateClientPage() {
     discount: "",
     priceBeforeDisc: "",
   });
-  const [registrationDate, setRegistrationDate] = useState<string>("");
   const [transactionImage, setTransactionImage] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [showDiscountFields, setShowDiscountFields] = useState(false);
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  
-  // Extras section state
-  const [labels, setLabels] = useState<any[]>([]);
-  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
-  const [newLabelName, setNewLabelName] = useState('');
-  const [showAddLabel, setShowAddLabel] = useState(false);
-  const [labelError, setLabelError] = useState('');
-  const [notes, setNotes] = useState<any[]>([]);
-  const [newNote, setNewNote] = useState('');
-  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
-  const [editingNoteContent, setEditingNoteContent] = useState('');
   const [showTransactionImage, setShowTransactionImage] = useState(false);
   const [showDiscountValue, setShowDiscountValue] = useState(false);
   const [showPriceFields, setShowPriceFields] = useState(false);
@@ -142,74 +130,36 @@ export default function CreateClientPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Fetch trainer's labels
-  useEffect(() => {
-    const user = getStoredUser();
-    if (!user) return;
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels?trainerId=${user.id}`)
-      .then(res => res.json())
-      .then(data => setLabels(data || []))
-      .catch(() => console.error("Failed to load labels."));
-  }, []);
-
-  // Refresh forms when selected form changes to get latest data
-  useEffect(() => {
-    if (selectedFormId) {
-      const user = getStoredUser();
-      if (!user) return;
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins?trainerId=${user.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setForms(data || []);
-          // Update selected form with latest data
-          const updatedForm = data.find((f: any) => String(f.id) === selectedFormId);
-          if (updatedForm) {
-            setSelectedForm(updatedForm);
-          }
-        })
-        .catch(() => console.error("Failed to refresh forms."));
-    }
-  }, [selectedFormId]);
-
   // Set selected form object when selectedFormId changes
   useEffect(() => {
-    console.log('Selected form ID:', selectedFormId);
-    console.log('Available forms:', forms);
     if (!selectedFormId) setSelectedForm(null);
     else setSelectedForm(forms.find(f => String(f.id) === selectedFormId) || null);
   }, [selectedFormId, forms]);
 
-  // Debug: Log selected form data
-  useEffect(() => {
-    if (selectedForm) {
-      console.log('Selected form:', selectedForm);
-      console.log('Form questions:', selectedForm.questions);
-    }
-  }, [selectedForm]);
-
-  // Core questions with form integration for profile completion
-  const coreFields = useMemo(() => {
-    if (!selectedForm) return CORE_QUESTIONS;
-    
+  // Merge selected form questions with all grouped fields for profile completion
+  const groupedFields = useMemo(() => {
+    if (!selectedForm) return GROUPS;
     // Map selected form questions by label for quick lookup
     const formQuestions = (selectedForm.questions || []).reduce((acc: any, q: any) => {
       acc[q.label] = q;
       return acc;
     }, {});
-    
-    // Process core questions and mark if they're present in the form
-    return CORE_QUESTIONS.map(field => {
-      const q = formQuestions[field.label];
-      // Use form question configuration if available, otherwise fall back to QUESTION_CONFIGS
-      const config = q ? { type: q.type, options: q.options || [] } : QUESTION_CONFIGS[field.label];
-      return {
-        ...field,
-        presentInForm: !!q,
-        type: q ? mapFormTypeToInputType(q.type) : (config ? mapFormTypeToInputType(config.type) : field.type),
-        options: q && q.options ? q.options : (config ? config.options : field.options),
-        required: field.required, // always required for core questions
-      };
-    });
+    // For each group, mark fields as presentInForm and get type/options from form if available
+    return GROUPS.map(group => ({
+      ...group,
+      fields: group.fields.map(field => {
+        const q = formQuestions[field.label];
+        // Use form question configuration if available, otherwise fall back to QUESTION_CONFIGS
+        const config = q ? { type: q.type, options: q.options || [] } : QUESTION_CONFIGS[field.label];
+        return {
+          ...field,
+          presentInForm: !!q,
+          type: q ? q.type : (config ? config.type : field.type),
+          options: q && q.options ? q.options : (config ? config.options : field.options),
+          required: field.required, // always required if in GROUPS
+        };
+      })
+    }));
   }, [selectedForm]);
 
   // Profile completion calculation
@@ -217,103 +167,55 @@ export default function CreateClientPage() {
     let completed = 0;
     let total = 0;
     let missing: string[] = [];
-    
-    // Check core fields
-    coreFields.forEach(field => {
-      if (field.required) {
-        total++;
-        const value = formData[field.key];
-        if (value !== undefined && value !== null && String(value).trim() !== "") {
-          completed++;
-        } else {
-          missing.push(field.label);
+    groupedFields.forEach(group => {
+      group.fields.forEach(field => {
+        if (field.required) {
+          total++;
+          const value = formData[field.key];
+          if (value !== undefined && value !== null && String(value).trim() !== "") {
+            completed++;
+          } else {
+            missing.push(field.label);
+          }
         }
-      }
+      });
     });
-    
     return {
       completedCount: completed,
       totalRequired: total,
       isComplete: completed === total,
       missingFields: missing,
     };
-  }, [formData, coreFields]);
+  }, [formData, groupedFields]);
 
-  // Compute check-in fields based on selected form
+  // Compute check-in fields and profile fields based on selected form
   const checkInFields = useMemo(() => {
     if (!selectedForm) return [];
-    
-    try {
-      // Process ALL questions from the form (both from dropdown and custom)
-      const allFormQuestions = (selectedForm.questions || []).map((q: any) => {
-        if (!q || !q.label) return null;
-        
-        // Check if this question exists in CORE_QUESTIONS
-        let coreField: any = null;
-        for (const field of coreFields) {
-          if (field.label === q.label) {
-            coreField = field;
-            break;
-          }
-        }
-        
-        if (coreField) {
-          // Question is from CORE_QUESTIONS - use form configuration but keep original key
-          return {
-            ...coreField,
-            type: mapFormTypeToInputType(q.type || coreField.type),
-            options: q.options || coreField.options || [],
-            required: coreField.required,
-            isCustom: false,
-          };
-        } else {
-          // Custom question - use form configuration
-          return {
-            key: q.id || q.label,
-            label: q.label,
-            type: mapFormTypeToInputType(q.type || 'text'),
-            required: !!q.required,
-            options: q.options || [],
-            isCustom: true,
-          };
-        }
-      }).filter(Boolean); // Remove null entries
-      
-      console.log('Check-in fields:', allFormQuestions);
-      return allFormQuestions;
-    } catch (error) {
-      console.error('Error processing check-in fields:', error);
-      return [];
-    }
-  }, [selectedForm, coreFields]);
+    const formQuestions = (selectedForm.questions || []).map((q: any) => q.label);
+    // All fields from GROUPS that match a form question label
+    const matchedFields = groupedFields.flatMap(group =>
+      group.fields.filter(field => formQuestions.includes(field.label))
+    );
+    // Find custom questions (those in the form but not in GROUPS)
+    const customQuestions = (selectedForm.questions || []).filter((q: any) => !matchedFields.some(f => f.label === q.label));
+    return [...matchedFields, ...customQuestions.map((q: any) => ({
+      key: q.id || q.label,
+      label: q.label,
+      type: q.type || 'text',
+      required: !!q.required,
+      options: q.options || [],
+      isCustom: true,
+    }))];
+  }, [selectedForm, groupedFields]);
 
-  // Core questions that are NOT in the check-in form
-  const coreFieldsNotInForm = useMemo(() => {
-    if (!selectedForm) return coreFields;
-    
-    try {
-      // Get all question labels from the form
-      const formQuestionLabels = (selectedForm.questions || [])
-        .filter((q: any) => q && q.label)
-        .map((q: any) => q.label);
-      
-      console.log('Form question labels:', formQuestionLabels);
-      console.log('Core fields:', coreFields);
-      
-      // Filter out core questions that are already in the form
-      const filteredCoreFields = coreFields.filter(field => {
-        const isInForm = formQuestionLabels.includes(field.label);
-        console.log(`Core field "${field.label}" in form: ${isInForm}`);
-        return !isInForm;
-      });
-      
-      console.log('Core fields not in form:', filteredCoreFields);
-      return filteredCoreFields;
-    } catch (error) {
-      console.error('Error processing core fields:', error);
-      return coreFields;
-    }
-  }, [selectedForm, coreFields]);
+  const profileFieldsByGroup = useMemo(() => {
+    if (!selectedForm) return groupedFields;
+    const formQuestions = (selectedForm.questions || []).map((q: any) => q.label);
+    return groupedFields.map(group => ({
+      ...group,
+      fields: group.fields.filter(field => !formQuestions.includes(field.label)),
+    })).filter(group => group.fields.length > 0);
+  }, [selectedForm, groupedFields]);
 
   // Auto-calculate end date
   useEffect(() => {
@@ -332,18 +234,8 @@ export default function CreateClientPage() {
   }, [subscription.startDate, subscription.durationValue, subscription.durationUnit]);
 
   const handleChange = (key: string, value: any) => {
-    console.log(`handleChange called - key: ${key}, value:`, value, 'type:', typeof value);
     setFormData((prev: any) => ({ ...prev, [key]: value }));
   };
-
-  const handleMultiSelectChange = (key: string, value: string, checked: boolean) => {
-    const currentValues = formData[key] ? (Array.isArray(formData[key]) ? formData[key] : [formData[key]]) : [];
-    const updatedValues = checked
-      ? [...currentValues, value]
-      : currentValues.filter(v => v !== value);
-    setFormData(prev => ({ ...prev, [key]: updatedValues }));
-  };
-
 
   const handleSubscriptionChange = (key: string, value: any) => {
     setSubscription((prev: any) => ({ ...prev, [key]: value }));
@@ -356,86 +248,10 @@ export default function CreateClientPage() {
     try {
       const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
-      // Before sending, ensure correct types for injuriesHealthNotes and mealCount
-      const formDataToSend = { ...formData };
-      console.log('Original formData before processing:', formData);
-      console.log('formDataToSend before processing:', formDataToSend);
-      if (typeof formDataToSend.injuriesHealthNotes === 'string' && formDataToSend.injuriesHealthNotes.trim() !== '') {
-        formDataToSend.injuriesHealthNotes = formDataToSend.injuriesHealthNotes.split(',').map((s: string) => s.trim()).filter(Boolean);
-      } else if (!Array.isArray(formDataToSend.injuriesHealthNotes)) {
-        formDataToSend.injuriesHealthNotes = [];
-      }
-      // Map numeric keys (question IDs) to client field names
-      const idToField = {
-        65: 'injuriesHealthNotes',
-        76: 'mealCount',
-        // Add other mappings as needed
-      };
-      Object.entries(formDataToSend).forEach(([key, value]) => {
-        if (!isNaN(Number(key)) && idToField[key]) {
-          // Special handling for mealCount - treat as single select and parse number
-          if (idToField[key] === 'mealCount') {
-            let mealCountValue = null;
-            if (Array.isArray(value) && value.length > 0) {
-              mealCountValue = value[0]; // Take first element (e.g., "3 meals")
-            } else if (typeof value === 'string' && value.trim() !== '') {
-              mealCountValue = value; // Keep as string (e.g., "3 meals")
-            }
-
-            if (mealCountValue !== null) {
-              if (typeof mealCountValue === 'string' && mealCountValue.includes('+')) {
-                formDataToSend[idToField[key]] = 5; // For "5+ meals", save as 5
-              } else if (typeof mealCountValue === 'string') {
-                // Extract number from string (e.g., "3 meals" -> 3)
-                const parsedNumber = parseInt(mealCountValue.replace(/\D/g, ''), 10);
-                formDataToSend[idToField[key]] = isNaN(parsedNumber) ? null : parsedNumber;
-              } else {
-                formDataToSend[idToField[key]] = null; // Fallback if not string/array
-              }
-            } else {
-              formDataToSend[idToField[key]] = null;
-            }
-          } else {
-            formDataToSend[idToField[key]] = value;
-          }
-          delete formDataToSend[key];
-        }
-      });
-      // Ensure mealCount is a valid number or null
-      if (Array.isArray(formDataToSend.mealCount)) {
-        formDataToSend.mealCount = formDataToSend.mealCount[0];
-      }
-      if (
-        formDataToSend.mealCount === '' ||
-        formDataToSend.mealCount === undefined ||
-        isNaN(Number(formDataToSend.mealCount))
-      ) {
-        formDataToSend.mealCount = null;
-      } else {
-        formDataToSend.mealCount = Number(formDataToSend.mealCount);
-      }
-      console.log('CreateClientPage formDataToSend:', formDataToSend);
-      // Collect custom question answers (those with numeric keys that are NOT core questions)
-      const customAnswers: Record<string, any> = {};
-      Object.entries(formData).forEach(([key, value]) => {
-        if (!isNaN(Number(key))) {
-          // Check if this is a core question by looking at the question ID
-          // Core questions are typically in GROUPS, custom questions have numeric IDs from the form
-          // For now, assume all numeric keys are custom questions
-          customAnswers[key] = value;
-        }
-      });
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          trainerId: user.id, 
-          client: { ...formDataToSend, registrationDate, selectedFormId, labels: selectedLabels }, 
-          subscription,
-          installments: installments.filter(inst => inst.date && inst.amount), // Only send installments with valid data
-          notes: notes.map(note => ({ content: note.content })),
-          answers: customAnswers // <-- send answers
-        }),
+        body: JSON.stringify({ trainerId: user.id, client: formData, subscription }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -529,76 +345,6 @@ export default function CreateClientPage() {
   const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
-  // Labels handlers
-  const handleAddLabel = async () => {
-    setLabelError('');
-    const user = getStoredUser();
-    if (!user) return;
-    if (!newLabelName.trim()) {
-      setLabelError('Label name is required.');
-      return;
-    }
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trainerId: user.id, name: newLabelName.trim() }),
-      });
-      if (res.ok) {
-        const label = await res.json();
-        setLabels(prev => [...prev, label]);
-        setSelectedLabels(prev => [...prev, label.id]);
-        setNewLabelName('');
-        setShowAddLabel(false);
-      } else {
-        const data = await res.json();
-        setLabelError(data.error || 'Failed to create label.');
-      }
-    } catch (err) {
-      setLabelError('Network error.');
-    }
-  };
-
-  const handleLabelToggle = (labelId: number) => {
-    setSelectedLabels(prev => 
-      prev.includes(labelId) 
-        ? prev.filter(id => id !== labelId)
-        : [...prev, labelId]
-    );
-  };
-
-  // Notes handlers (for Create Client - store locally until client is created)
-  const handleAddNote = () => {
-    if (!newNote.trim()) return;
-    
-    // Create a temporary note object with a temporary ID
-    const tempNote = {
-      id: Date.now(), // Temporary ID for local management
-      content: newNote.trim(),
-      createdAt: new Date().toISOString(),
-      isTemp: true // Flag to identify temporary notes
-    };
-    
-    setNotes(prev => [tempNote, ...prev]);
-    setNewNote('');
-  };
-
-  const handleEditNote = (noteId: number) => {
-    if (!editingNoteContent.trim()) return;
-    
-    setNotes(prev => prev.map(note => 
-      note.id === noteId 
-        ? { ...note, content: editingNoteContent.trim() }
-        : note
-    ));
-    setEditingNoteId(null);
-    setEditingNoteContent('');
-  };
-
-  const handleDeleteNote = (noteId: number) => {
-    setNotes(prev => prev.filter(note => note.id !== noteId));
-  };
-
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Create Client</h1>
@@ -636,7 +382,7 @@ export default function CreateClientPage() {
                     // Render custom questions
                     if (field.isCustom) {
                       // Render based on type
-                      if (field.type === 'select' && field.options && field.options.length > 0) {
+                      if (field.type === 'select' && field.options.length > 0) {
                         return (
                           <div key={field.key} className="flex flex-col">
                             <label className="text-sm font-medium mb-1 flex items-center gap-1">
@@ -654,29 +400,6 @@ export default function CreateClientPage() {
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
                             </Select>
-                          </div>
-                        );
-                      }
-                      if (field.type === 'multiselect' && field.options && field.options.length > 0) {
-                        const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
-                        return (
-                          <div key={field.key} className="flex flex-col">
-                            <label className="text-sm font-medium mb-1 flex items-center gap-1">
-                              {field.label}
-                              {field.required && <span className="text-red-500">*</span>}
-                            </label>
-                            <MultiSelect
-                              value={currentValues}
-                              onChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
-                              placeholder={`Select ${field.label}...`}
-                              className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
-                            >
-                              {field.options.map((opt: string) => (
-                                <MultiSelectOption key={opt} value={opt}>
-                                  {opt}
-                                </MultiSelectOption>
-                              ))}
-                            </MultiSelect>
                           </div>
                         );
                       }
@@ -722,7 +445,7 @@ export default function CreateClientPage() {
                           {field.label}
                           {field.required && <span className="text-red-500">*</span>}
                         </label>
-                        {field.type === 'select' && field.options && field.options.length > 0 ? (
+                        {field.type === 'select' ? (
                           <Select
                             value={formData[field.key] || ''}
                             onChange={e => handleChange(field.key, e.target.value)}
@@ -730,28 +453,10 @@ export default function CreateClientPage() {
                             className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
                           >
                             <option value="">Select...</option>
-                            {field.options.map((opt: string) => (
+                            {field.options && field.options.map((opt: string) => (
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </Select>
-                        ) : field.type === 'multiselect' && field.options && field.options.length > 0 ? (
-                          (() => {
-                            const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
-                            return (
-                              <MultiSelect
-                                value={currentValues}
-                                onChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
-                                placeholder={`Select ${field.label}...`}
-                                className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
-                              >
-                                {field.options.map((opt: string) => (
-                                  <MultiSelectOption key={opt} value={opt}>
-                                    {opt}
-                                  </MultiSelectOption>
-                                ))}
-                              </MultiSelect>
-                            );
-                          })()
                         ) : field.type === 'textarea' ? (
                           <Textarea
                             value={formData[field.key] || ''}
@@ -776,12 +481,12 @@ export default function CreateClientPage() {
               </div>
             </div>
           )}
-          {/* Core Questions Section */}
-          {coreFieldsNotInForm.length > 0 && (
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Core Questions</h2>
+          {/* Profile Data Sections */}
+          {profileFieldsByGroup.map(group => (
+            <div key={group.label} className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {coreFieldsNotInForm.map(field => {
+                {group.fields.map(field => {
                   const isMissing = missingFields.includes(field.label);
                   return (
                     <div key={field.key} className="flex flex-col">
@@ -801,25 +506,6 @@ export default function CreateClientPage() {
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </Select>
-                      ) : field.type === 'multiselect' ? (
-                        (() => {
-                          const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
-                          return (
-                            <div className={`border rounded-lg p-3 ${isMissing ? 'border-yellow-400' : 'border-zinc-950/10'}`}>
-                              {field.options && field.options.map((opt: string) => (
-                                <label key={opt} className="flex items-center gap-2 mb-2 last:mb-0">
-                                  <input
-                                    type="checkbox"
-                                    checked={currentValues.includes(opt)}
-                                    onChange={e => handleMultiSelectChange(field.key, opt, e.target.checked)}
-                                    className="rounded border-zinc-950/20"
-                                  />
-                                  <span className="text-sm">{opt}</span>
-                                </label>
-                              ))}
-                            </div>
-                          );
-                        })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
                           value={formData[field.key] || ''}
@@ -843,15 +529,11 @@ export default function CreateClientPage() {
                 })}
               </div>
             </div>
-          )}
+          ))}
           {/* Subscription Details Section */}
           <div className="mb-6 bg-white rounded-xl shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Registration Date</label>
-                <Input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} />
-              </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Start Date</label>
                 <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
@@ -1089,175 +771,13 @@ export default function CreateClientPage() {
                 </div>
               </div>
             )}
-
-            {/* Extras Section */}
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Extras</h2>
-              
-              {/* Labels Subsection */}
-              <div className="mb-6">
-                <h3 className="text-md font-medium mb-3">Labels/Tags</h3>
-                <div className="space-y-3">
-                  {/* Existing Labels */}
-                  <div className="flex flex-wrap gap-2">
-                    {labels.map((label) => (
-                      <button
-                        key={label.id}
-                        type="button"
-                        onClick={() => handleLabelToggle(label.id)}
-                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                          selectedLabels.includes(label.id)
-                            ? 'bg-blue-500 text-white border-blue-500'
-                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
-                        }`}
-                      >
-                        {label.name}
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {/* Add New Label */}
-                  <div className="flex gap-2 items-center">
-                    <Button
-                      type="button"
-                      outline
-                      className="text-xs"
-                      onClick={() => setShowAddLabel(v => !v)}
-                    >
-                      Add New Label
-                    </Button>
-                  </div>
-                  
-                  {showAddLabel && (
-                    <div className="flex gap-2 items-center rounded p-2 bg-zinc-50">
-                      <Input
-                        type="text"
-                        value={newLabelName}
-                        onChange={e => setNewLabelName(e.target.value)}
-                        placeholder="Label Name"
-                        className="w-1/2"
-                      />
-                      <Button
-                        type="button"
-                        onClick={handleAddLabel}
-                        className="px-3"
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        type="button"
-                        outline
-                        onClick={() => {
-                          setShowAddLabel(false);
-                          setNewLabelName('');
-                          setLabelError('');
-                        }}
-                        className="px-3"
-                      >
-                        Cancel
-                      </Button>
-                      {labelError && <span className="text-red-500 text-xs ml-2">{labelError}</span>}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Notes Subsection */}
-              <div>
-                <h3 className="text-md font-medium mb-3">Notes</h3>
-                <div className="space-y-3">
-                  {/* Add New Note */}
-                  <div className="flex gap-2">
-                    <Textarea
-                      value={newNote}
-                      onChange={e => setNewNote(e.target.value)}
-                      placeholder="Add a note about this client..."
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleAddNote}
-                      disabled={!newNote.trim()}
-                      className="px-4"
-                    >
-                      Add
-                    </Button>
-                  </div>
-                  
-                  {/* Existing Notes */}
-                  <div className="space-y-2">
-                    {notes.map((note) => (
-                      <div key={note.id} className="border rounded-lg p-3 bg-yellow-50">
-                        {editingNoteId === note.id ? (
-                          <div className="space-y-2">
-                            <Textarea
-                              value={editingNoteContent}
-                              onChange={e => setEditingNoteContent(e.target.value)}
-                              className="w-full"
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                type="button"
-                                onClick={() => handleEditNote(note.id)}
-                                className="px-3 text-xs"
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                type="button"
-                                outline
-                                onClick={() => {
-                                  setEditingNoteId(null);
-                                  setEditingNoteContent('');
-                                }}
-                                className="px-3 text-xs"
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex justify-between items-start mb-2">
-                              <p className="text-sm text-gray-600">
-                                {new Date(note.createdAt).toLocaleString()}
-                              </p>
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingNoteId(note.id);
-                                    setEditingNoteContent(note.content);
-                                  }}
-                                  className="text-blue-600 hover:text-blue-800 text-xs"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteNote(note.id)}
-                                  className="text-red-600 hover:text-red-800 text-xs"
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </div>
-                            <p className="text-sm">{note.content}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div className="flex gap-4 justify-end mt-8">
               <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
               <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Create Client'}</Button>
             </div>
           </form>
         )}
+      )}
     </div>
   );
 } 
