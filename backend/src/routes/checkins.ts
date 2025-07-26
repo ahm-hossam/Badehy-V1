@@ -232,8 +232,10 @@ router.put('/:id', async (req: Request, res: Response) => {
       data: {
         formId: id,
         version: latestVersion ? latestVersion.version + 1 : 1,
-        name: form.name,
-        questions: form.questions,
+        data: {
+          name: form.name,
+          questions: form.questions,
+        },
       },
     });
     // Delete old questions

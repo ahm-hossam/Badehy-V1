@@ -12,6 +12,8 @@ import loginRoute from './routes/login';
 import profileRoute from './routes/profile';
 import checkinsRoute from './routes/checkins';
 import notesRoute from './routes/notes';
+import exercisesRoute from './routes/exercises';
+import programsRoute from './routes/programs';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -24,6 +26,9 @@ const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Add logging middleware
 app.use((req, res, next) => {
@@ -41,6 +46,8 @@ app.use('/api/login', loginRoute);
 app.use('/api/profile', profileRoute);
 app.use('/api/checkins', checkinsRoute);
 app.use('/api/notes', notesRoute);
+app.use('/api/exercises', exercisesRoute);
+app.use('/api/programs', programsRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');

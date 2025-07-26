@@ -41,6 +41,7 @@ import {
   Square2StackIcon,
   TicketIcon,
   UsersIcon,
+  FireIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -79,6 +80,45 @@ function CheckInsCollapsible({ pathname }: { pathname: string }) {
             current={pathname.startsWith('/check-ins/responses')}
           >
             <SidebarLabel>Responses</SidebarLabel>
+          </SidebarItem>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkoutProgramsCollapsible({ pathname }: { pathname: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5"
+      >
+        <FireIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5" />
+        <span className="flex-1">Workout Programs</span>
+        <span className="ml-auto transition-transform duration-200 ease-in-out">
+          <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      <div 
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          isOpen ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="pl-8 flex flex-col gap-0.5 mt-1">
+          <SidebarItem
+            href="/workout-programs"
+            current={pathname === '/workout-programs' || (pathname.startsWith('/workout-programs/') && !pathname.startsWith('/workout-programs/exercises'))}
+          >
+            <SidebarLabel>Programs</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem
+            href="/workout-programs/exercises"
+            current={pathname.startsWith('/workout-programs/exercises')}
+          >
+            <SidebarLabel>Exercises</SidebarLabel>
           </SidebarItem>
         </div>
       </div>
@@ -188,6 +228,8 @@ export function ApplicationLayout({
                 <UsersIcon />
                 <SidebarLabel>Clients</SidebarLabel>
               </SidebarItem>
+              {/* Workout Programs collapsible section */}
+              <WorkoutProgramsCollapsible pathname={pathname} />
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
