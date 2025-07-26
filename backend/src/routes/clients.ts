@@ -24,6 +24,8 @@ router.post('/', async (req: Request, res: Response) => {
     if (isNaN(parsedTrainerId)) {
       return res.status(400).json({ error: 'Invalid trainerId' });
     }
+    console.log('Received client:', client);
+    
     // Transaction: create client, subscription, and installments
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create TrainerClient
@@ -78,6 +80,18 @@ router.post('/', async (req: Request, res: Response) => {
           });
         }
       }
+      // After creating the client (in POST)
+      const answers = req.body.answers;
+      if (answers && client.selectedFormId) {
+        await tx.checkInSubmission.create({
+          data: {
+            clientId: createdClient.id,
+            formId: Number(client.selectedFormId),
+            answers: answers,
+            submittedAt: new Date(),
+          },
+        });
+      }
       // 2. Create Subscription (must have packageId)
       const packageId = subscription.packageId ? Number(subscription.packageId) : null;
       if (!packageId) {
@@ -105,13 +119,29 @@ router.post('/', async (req: Request, res: Response) => {
       if (installments && Array.isArray(installments)) {
         for (const inst of installments) {
           if (!inst.paidDate || !inst.amount) continue;
+          
+          // Validate dates before creating
+          const paidDate = inst.paidDate && inst.paidDate.trim() !== '' ? new Date(inst.paidDate) : null;
+          let nextInstallment = inst.nextInstallment && inst.nextInstallment.trim() !== '' ? new Date(inst.nextInstallment) : null;
+          
+          // Check if dates are valid
+          if (paidDate && isNaN(paidDate.getTime())) {
+            console.error('Invalid paidDate for creation:', inst.paidDate);
+            continue; // Skip this installment
+          }
+          if (nextInstallment && isNaN(nextInstallment.getTime())) {
+            console.error('Invalid nextInstallment for creation:', inst.nextInstallment);
+            // Set to null if invalid
+            nextInstallment = null;
+          }
+          
           const createdInstallment = await tx.installment.create({
             data: {
               subscriptionId: createdSubscription.id,
-              paidDate: new Date(inst.paidDate),
+              paidDate: paidDate || new Date(), // Use current date as fallback
               amount: Number(inst.amount),
               remaining: inst.remaining ? Number(inst.remaining) : 0,
-              nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
+              nextInstallment: nextInstallment,
               status: inst.status ? String(inst.status) : 'paid',
             },
           });
@@ -159,6 +189,7 @@ router.get('/', async (req: Request, res: Response) => {
       where,
       orderBy: { createdAt: 'desc' },
       include: {
+        labels: true, // Include labels
         submissions: {
           orderBy: { submittedAt: 'desc' },
           take: 1,
@@ -244,6 +275,10 @@ router.get('/:id', async (req: Request, res: Response) => {
     const client = await prisma.trainerClient.findUnique({
       where: { id: clientId },
       include: {
+        labels: true, // Include labels
+        notes: {
+          orderBy: { createdAt: 'desc' }
+        }, // Include notes
         submissions: {
           orderBy: { submittedAt: 'desc' },
           take: 1,
@@ -349,16 +384,26 @@ router.put('/:id', async (req: Request, res: Response) => {
           labels: client.labels && Array.isArray(client.labels) ? { set: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
-      // 1b. If answers are present, update the latest check-in submission
-      if (client.answers) {
+      // In PUT (edit), after updating client details
+      const answers = req.body.answers;
+      if (answers && client.selectedFormId) {
         const latestSubmission = await tx.checkInSubmission.findFirst({
-          where: { clientId },
+          where: { clientId, formId: Number(client.selectedFormId) },
           orderBy: { submittedAt: 'desc' },
         });
         if (latestSubmission) {
           await tx.checkInSubmission.update({
             where: { id: latestSubmission.id },
-            data: { answers: client.answers },
+            data: { answers: answers, submittedAt: new Date() },
+          });
+        } else {
+          await tx.checkInSubmission.create({
+            data: {
+              clientId,
+              formId: Number(client.selectedFormId),
+              answers: answers,
+              submittedAt: new Date(),
+            },
           });
         }
       }
@@ -422,26 +467,56 @@ router.put('/:id', async (req: Request, res: Response) => {
         for (const inst of installments) {
           if (inst.id) {
             // Update existing installment
+            // Validate dates before updating
+            const paidDate = inst.paidDate && inst.paidDate.trim() !== '' ? new Date(inst.paidDate) : null;
+            let nextInstallment = inst.nextInstallment && inst.nextInstallment.trim() !== '' ? new Date(inst.nextInstallment) : null;
+            
+            // Check if dates are valid
+            if (paidDate && isNaN(paidDate.getTime())) {
+              console.error('Invalid paidDate for update:', inst.paidDate);
+              continue; // Skip this installment
+            }
+            if (nextInstallment && isNaN(nextInstallment.getTime())) {
+              console.error('Invalid nextInstallment for update:', inst.nextInstallment);
+              // Set to null if invalid
+              nextInstallment = null;
+            }
+            
             const updatedInst = await tx.installment.update({
               where: { id: inst.id },
               data: {
-                paidDate: new Date(inst.paidDate),
+                paidDate: paidDate || new Date(), // Use current date as fallback
                 amount: Number(inst.amount),
                 remaining: inst.remaining ? Number(inst.remaining) : 0,
-                nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
+                nextInstallment: nextInstallment,
                 status: inst.status ? String(inst.status) : 'paid',
               },
             });
             updatedInstallments.push(updatedInst);
           } else {
             // Create new installment
+            // Validate dates before creating
+            const paidDate = inst.paidDate && inst.paidDate.trim() !== '' ? new Date(inst.paidDate) : null;
+            let nextInstallment = inst.nextInstallment && inst.nextInstallment.trim() !== '' ? new Date(inst.nextInstallment) : null;
+            
+            // Check if dates are valid
+            if (paidDate && isNaN(paidDate.getTime())) {
+              console.error('Invalid paidDate:', inst.paidDate);
+              continue; // Skip this installment
+            }
+            if (nextInstallment && isNaN(nextInstallment.getTime())) {
+              console.error('Invalid nextInstallment:', inst.nextInstallment);
+              // Set to null if invalid
+              nextInstallment = null;
+            }
+            
             const newInst = await tx.installment.create({
               data: {
                 subscriptionId: updatedSubscription?.id || subscription.id, // Use the newly created subscription ID
-                paidDate: new Date(inst.paidDate),
+                paidDate: paidDate || new Date(), // Use current date as fallback
                 amount: Number(inst.amount),
                 remaining: inst.remaining ? Number(inst.remaining) : 0,
-                nextInstallment: inst.nextInstallment ? new Date(inst.nextInstallment) : null,
+                nextInstallment: nextInstallment,
                 status: inst.status ? String(inst.status) : 'paid',
               },
             });
@@ -497,8 +572,17 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    // Delete related data (subscriptions, installments, images)
+    // Delete related data (subscriptions, installments, images, notes, labels)
     await prisma.$transaction(async (tx) => {
+      // Delete notes for this client
+      await tx.note.deleteMany({ where: { clientId } });
+      
+      // Disconnect labels from this client (many-to-many relationship)
+      await tx.trainerClient.update({
+        where: { id: clientId },
+        data: { labels: { set: [] } }
+      });
+      
       // Find all subscriptions for this client
       const subscriptions = await tx.subscription.findMany({ where: { clientId } });
       for (const sub of subscriptions) {

@@ -40,6 +40,17 @@ const QUESTION_CONFIGS: Record<string, { type: string; options: string[] }> = {
   'Current Nutrition Plan Followed': { type: 'long', options: [] },
 };
 
+// Core business questions only - for all trainer types
+const CORE_QUESTIONS = [
+  { key: 'fullName', label: 'Full Name', type: 'text', required: true },
+  { key: 'email', label: 'Email', type: 'email', required: true },
+  { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
+  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
+  { key: 'age', label: 'Age', type: 'number', required: true },
+  { key: 'source', label: 'Source', type: 'text', required: true },
+];
+
+// Legacy GROUPS structure (kept for reference but not used in client creation)
 const GROUPS = [
   {
     label: 'Basic Data',
@@ -50,38 +61,6 @@ const GROUPS = [
       { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
       { key: 'age', label: 'Age', type: 'number', required: true },
       { key: 'source', label: 'Source', type: 'text', required: true },
-    ],
-  },
-  {
-    label: 'Client Profile & Preferences',
-    fields: [
-      { key: 'goal', label: 'Goal', type: 'text', required: false },
-      { key: 'level', label: 'Level', type: 'text', required: false },
-      { key: 'injuriesHealthNotes', label: 'Injuries / Health Notes', type: 'textarea', required: false },
-      { key: 'workoutPlace', label: 'Workout Place', type: 'text', required: false },
-      { key: 'height', label: 'Height', type: 'number', required: false },
-      { key: 'weight', label: 'Weight', type: 'number', required: false },
-    ],
-  },
-  {
-    label: 'Workout Preferences',
-    fields: [
-      { key: 'preferredTrainingDays', label: 'Preferred Training Days', type: 'text', required: false },
-      { key: 'preferredTrainingTime', label: 'Preferred Training Time', type: 'text', required: false },
-      { key: 'equipmentAvailability', label: 'Equipment Availability', type: 'text', required: false },
-      { key: 'favoriteTrainingStyle', label: 'Favorite Training Style', type: 'text', required: false },
-      { key: 'weakAreas', label: 'Weak Areas (Focus)', type: 'text', required: false },
-    ],
-  },
-  {
-    label: 'Nutrition Preferences',
-    fields: [
-      { key: 'nutritionGoal', label: 'Nutrition Goal', type: 'text', required: false },
-      { key: 'dietPreference', label: 'Diet Preference', type: 'text', required: false },
-      { key: 'mealCount', label: 'Meal Count', type: 'number', required: false },
-      { key: 'foodAllergies', label: 'Food Allergies / Restrictions', type: 'text', required: false },
-      { key: 'dislikedIngredients', label: 'Disliked Ingredients', type: 'text', required: false },
-      { key: 'currentNutritionPlan', label: 'Current Nutrition Plan Followed', type: 'text', required: false },
     ],
   },
 ];
@@ -130,6 +109,17 @@ export default function CreateClientPage() {
   const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [showDiscountFields, setShowDiscountFields] = useState(false);
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  
+  // Extras section state
+  const [labels, setLabels] = useState<any[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [showAddLabel, setShowAddLabel] = useState(false);
+  const [labelError, setLabelError] = useState('');
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
   const [showTransactionImage, setShowTransactionImage] = useState(false);
   const [showDiscountValue, setShowDiscountValue] = useState(false);
   const [showPriceFields, setShowPriceFields] = useState(false);
@@ -150,6 +140,16 @@ export default function CreateClientPage() {
       .then(data => setForms(data || []))
       .catch(() => setError("Failed to load check-in forms."))
       .finally(() => setLoading(false));
+  }, []);
+
+  // Fetch trainer's labels
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setLabels(data || []))
+      .catch(() => console.error("Failed to load labels."));
   }, []);
 
   // Refresh forms when selected form changes to get latest data
@@ -187,30 +187,29 @@ export default function CreateClientPage() {
     }
   }, [selectedForm]);
 
-  // Merge selected form questions with all grouped fields for profile completion
-  const groupedFields = useMemo(() => {
-    if (!selectedForm) return GROUPS;
+  // Core questions with form integration for profile completion
+  const coreFields = useMemo(() => {
+    if (!selectedForm) return CORE_QUESTIONS;
+    
     // Map selected form questions by label for quick lookup
     const formQuestions = (selectedForm.questions || []).reduce((acc: any, q: any) => {
       acc[q.label] = q;
       return acc;
     }, {});
-    // For each group, mark fields as presentInForm and get type/options from form if available
-    return GROUPS.map(group => ({
-      ...group,
-      fields: group.fields.map(field => {
-        const q = formQuestions[field.label];
-        // Use form question configuration if available, otherwise fall back to QUESTION_CONFIGS
-        const config = q ? { type: q.type, options: q.options || [] } : QUESTION_CONFIGS[field.label];
-        return {
-          ...field,
-          presentInForm: !!q,
-          type: q ? q.type : (config ? config.type : field.type),
-          options: q && q.options ? q.options : (config ? config.options : field.options),
-          required: field.required, // always required if in GROUPS
-        };
-      })
-    }));
+    
+    // Process core questions and mark if they're present in the form
+    return CORE_QUESTIONS.map(field => {
+      const q = formQuestions[field.label];
+      // Use form question configuration if available, otherwise fall back to QUESTION_CONFIGS
+      const config = q ? { type: q.type, options: q.options || [] } : QUESTION_CONFIGS[field.label];
+      return {
+        ...field,
+        presentInForm: !!q,
+        type: q ? mapFormTypeToInputType(q.type) : (config ? mapFormTypeToInputType(config.type) : field.type),
+        options: q && q.options ? q.options : (config ? config.options : field.options),
+        required: field.required, // always required for core questions
+      };
+    });
   }, [selectedForm]);
 
   // Profile completion calculation
@@ -218,63 +217,53 @@ export default function CreateClientPage() {
     let completed = 0;
     let total = 0;
     let missing: string[] = [];
-    groupedFields.forEach(group => {
-      group.fields.forEach(field => {
-        if (field.required) {
-          total++;
-          const value = formData[field.key];
-          if (value !== undefined && value !== null && String(value).trim() !== "") {
-            completed++;
-          } else {
-            missing.push(field.label);
-          }
+    
+    // Check core fields
+    coreFields.forEach(field => {
+      if (field.required) {
+        total++;
+        const value = formData[field.key];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+          completed++;
+        } else {
+          missing.push(field.label);
         }
-      });
+      }
     });
+    
     return {
       completedCount: completed,
       totalRequired: total,
       isComplete: completed === total,
       missingFields: missing,
     };
-  }, [formData, groupedFields]);
+  }, [formData, coreFields]);
 
-  // Compute check-in fields and profile fields based on selected form
+  // Compute check-in fields based on selected form
   const checkInFields = useMemo(() => {
     if (!selectedForm) return [];
     
     try {
-      // Create a map of form questions by label for quick lookup
-      const formQuestionsMap = (selectedForm.questions || []).reduce((acc: any, q: any) => {
-        if (q && q.label) {
-          acc[q.label] = q;
-        }
-        return acc;
-      }, {});
-      
       // Process ALL questions from the form (both from dropdown and custom)
       const allFormQuestions = (selectedForm.questions || []).map((q: any) => {
         if (!q || !q.label) return null;
         
-        // Check if this question exists in GROUPS
-        let groupField: any = null;
-        for (const group of groupedFields) {
-          for (const field of group.fields) {
-            if (field.label === q.label) {
-              groupField = field;
-              break;
-            }
+        // Check if this question exists in CORE_QUESTIONS
+        let coreField: any = null;
+        for (const field of coreFields) {
+          if (field.label === q.label) {
+            coreField = field;
+            break;
           }
-          if (groupField) break;
         }
         
-        if (groupField) {
-          // Question is from GROUPS - use form configuration but keep original key
+        if (coreField) {
+          // Question is from CORE_QUESTIONS - use form configuration but keep original key
           return {
-            ...groupField,
-            type: mapFormTypeToInputType(q.type || groupField.type),
-            options: q.options || groupField.options || [],
-            required: groupField.required,
+            ...coreField,
+            type: mapFormTypeToInputType(q.type || coreField.type),
+            options: q.options || coreField.options || [],
+            required: coreField.required,
             isCustom: false,
           };
         } else {
@@ -296,10 +285,11 @@ export default function CreateClientPage() {
       console.error('Error processing check-in fields:', error);
       return [];
     }
-  }, [selectedForm, groupedFields]);
+  }, [selectedForm, coreFields]);
 
-  const profileFieldsByGroup = useMemo(() => {
-    if (!selectedForm) return groupedFields;
+  // Core questions that are NOT in the check-in form
+  const coreFieldsNotInForm = useMemo(() => {
+    if (!selectedForm) return coreFields;
     
     try {
       // Get all question labels from the form
@@ -308,54 +298,22 @@ export default function CreateClientPage() {
         .map((q: any) => q.label);
       
       console.log('Form question labels:', formQuestionLabels);
-      console.log('Original grouped fields:', groupedFields);
+      console.log('Core fields:', coreFields);
       
-      // Create a mapping for label variations
-      const labelMapping: { [key: string]: string[] } = {
-        'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
-        'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
-        'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
-        'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
-        'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
-        'Equipment Availability': ['Equipment', 'Equipment Availability'],
-        'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
-        'Nutrition Goal': ['Goal', 'Nutrition Goal'],
-        'Diet Preference': ['Diet', 'Diet Preference'],
-        'Meal Count': ['Meal Frequency', 'Meal Count'],
-        'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
-      };
+      // Filter out core questions that are already in the form
+      const filteredCoreFields = coreFields.filter(field => {
+        const isInForm = formQuestionLabels.includes(field.label);
+        console.log(`Core field "${field.label}" in form: ${isInForm}`);
+        return !isInForm;
+      });
       
-      // Filter out questions that are in the form, and add pre-filled options for remaining questions
-      const filteredGroups = groupedFields.map(group => {
-        const filteredFields = group.fields.filter(field => {
-          // Check if the field label or any of its variations are in the form
-          const fieldVariations = labelMapping[field.label] || [field.label];
-          const isInForm = fieldVariations.some(variation => formQuestionLabels.includes(variation));
-          console.log(`Field "${field.label}" (variations: ${fieldVariations.join(', ')}) in form: ${isInForm}`);
-          return !isInForm;
-        });
-        
-        return {
-          ...group,
-          fields: filteredFields.map(field => {
-            // Add pre-filled options from QUESTION_CONFIGS for questions not in the form
-            const config = QUESTION_CONFIGS[field.label];
-            return {
-              ...field,
-              type: config ? mapFormTypeToInputType(config.type) : field.type,
-              options: config ? config.options : field.options || [],
-            };
-          }),
-        };
-      }).filter(group => group.fields.length > 0);
-      
-      console.log('Filtered profile fields:', filteredGroups);
-      return filteredGroups;
+      console.log('Core fields not in form:', filteredCoreFields);
+      return filteredCoreFields;
     } catch (error) {
-      console.error('Error processing profile fields:', error);
-      return groupedFields;
+      console.error('Error processing core fields:', error);
+      return coreFields;
     }
-  }, [selectedForm, groupedFields]);
+  }, [selectedForm, coreFields]);
 
   // Auto-calculate end date
   useEffect(() => {
@@ -374,9 +332,17 @@ export default function CreateClientPage() {
   }, [subscription.startDate, subscription.durationValue, subscription.durationUnit]);
 
   const handleChange = (key: string, value: any) => {
+    console.log(`handleChange called - key: ${key}, value:`, value, 'type:', typeof value);
     setFormData((prev: any) => ({ ...prev, [key]: value }));
   };
 
+  const handleMultiSelectChange = (key: string, value: string, checked: boolean) => {
+    const currentValues = formData[key] ? (Array.isArray(formData[key]) ? formData[key] : [formData[key]]) : [];
+    const updatedValues = checked
+      ? [...currentValues, value]
+      : currentValues.filter(v => v !== value);
+    setFormData(prev => ({ ...prev, [key]: updatedValues }));
+  };
 
 
   const handleSubscriptionChange = (key: string, value: any) => {
@@ -392,6 +358,8 @@ export default function CreateClientPage() {
       if (!user) throw new Error("Not authenticated");
       // Before sending, ensure correct types for injuriesHealthNotes and mealCount
       const formDataToSend = { ...formData };
+      console.log('Original formData before processing:', formData);
+      console.log('formDataToSend before processing:', formDataToSend);
       if (typeof formDataToSend.injuriesHealthNotes === 'string' && formDataToSend.injuriesHealthNotes.trim() !== '') {
         formDataToSend.injuriesHealthNotes = formDataToSend.injuriesHealthNotes.split(',').map((s: string) => s.trim()).filter(Boolean);
       } else if (!Array.isArray(formDataToSend.injuriesHealthNotes)) {
@@ -405,7 +373,31 @@ export default function CreateClientPage() {
       };
       Object.entries(formDataToSend).forEach(([key, value]) => {
         if (!isNaN(Number(key)) && idToField[key]) {
-          formDataToSend[idToField[key]] = value;
+          // Special handling for mealCount - treat as single select and parse number
+          if (idToField[key] === 'mealCount') {
+            let mealCountValue = null;
+            if (Array.isArray(value) && value.length > 0) {
+              mealCountValue = value[0]; // Take first element (e.g., "3 meals")
+            } else if (typeof value === 'string' && value.trim() !== '') {
+              mealCountValue = value; // Keep as string (e.g., "3 meals")
+            }
+
+            if (mealCountValue !== null) {
+              if (typeof mealCountValue === 'string' && mealCountValue.includes('+')) {
+                formDataToSend[idToField[key]] = 5; // For "5+ meals", save as 5
+              } else if (typeof mealCountValue === 'string') {
+                // Extract number from string (e.g., "3 meals" -> 3)
+                const parsedNumber = parseInt(mealCountValue.replace(/\D/g, ''), 10);
+                formDataToSend[idToField[key]] = isNaN(parsedNumber) ? null : parsedNumber;
+              } else {
+                formDataToSend[idToField[key]] = null; // Fallback if not string/array
+              }
+            } else {
+              formDataToSend[idToField[key]] = null;
+            }
+          } else {
+            formDataToSend[idToField[key]] = value;
+          }
           delete formDataToSend[key];
         }
       });
@@ -423,13 +415,26 @@ export default function CreateClientPage() {
         formDataToSend.mealCount = Number(formDataToSend.mealCount);
       }
       console.log('CreateClientPage formDataToSend:', formDataToSend);
+      // Collect custom question answers (those with numeric keys that are NOT core questions)
+      const customAnswers: Record<string, any> = {};
+      Object.entries(formData).forEach(([key, value]) => {
+        if (!isNaN(Number(key))) {
+          // Check if this is a core question by looking at the question ID
+          // Core questions are typically in GROUPS, custom questions have numeric IDs from the form
+          // For now, assume all numeric keys are custom questions
+          customAnswers[key] = value;
+        }
+      });
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           trainerId: user.id, 
-          client: { ...formDataToSend, registrationDate, selectedFormId }, 
-          subscription 
+          client: { ...formDataToSend, registrationDate, selectedFormId, labels: selectedLabels }, 
+          subscription,
+          installments: installments.filter(inst => inst.date && inst.amount), // Only send installments with valid data
+          notes: notes.map(note => ({ content: note.content })),
+          answers: customAnswers // <-- send answers
         }),
       });
       if (res.ok) {
@@ -523,6 +528,76 @@ export default function CreateClientPage() {
   // Handler to add/remove installment rows
   const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
+
+  // Labels handlers
+  const handleAddLabel = async () => {
+    setLabelError('');
+    const user = getStoredUser();
+    if (!user) return;
+    if (!newLabelName.trim()) {
+      setLabelError('Label name is required.');
+      return;
+    }
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trainerId: user.id, name: newLabelName.trim() }),
+      });
+      if (res.ok) {
+        const label = await res.json();
+        setLabels(prev => [...prev, label]);
+        setSelectedLabels(prev => [...prev, label.id]);
+        setNewLabelName('');
+        setShowAddLabel(false);
+      } else {
+        const data = await res.json();
+        setLabelError(data.error || 'Failed to create label.');
+      }
+    } catch (err) {
+      setLabelError('Network error.');
+    }
+  };
+
+  const handleLabelToggle = (labelId: number) => {
+    setSelectedLabels(prev => 
+      prev.includes(labelId) 
+        ? prev.filter(id => id !== labelId)
+        : [...prev, labelId]
+    );
+  };
+
+  // Notes handlers (for Create Client - store locally until client is created)
+  const handleAddNote = () => {
+    if (!newNote.trim()) return;
+    
+    // Create a temporary note object with a temporary ID
+    const tempNote = {
+      id: Date.now(), // Temporary ID for local management
+      content: newNote.trim(),
+      createdAt: new Date().toISOString(),
+      isTemp: true // Flag to identify temporary notes
+    };
+    
+    setNotes(prev => [tempNote, ...prev]);
+    setNewNote('');
+  };
+
+  const handleEditNote = (noteId: number) => {
+    if (!editingNoteContent.trim()) return;
+    
+    setNotes(prev => prev.map(note => 
+      note.id === noteId 
+        ? { ...note, content: editingNoteContent.trim() }
+        : note
+    ));
+    setEditingNoteId(null);
+    setEditingNoteContent('');
+  };
+
+  const handleDeleteNote = (noteId: number) => {
+    setNotes(prev => prev.filter(note => note.id !== noteId));
+  };
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
@@ -701,12 +776,12 @@ export default function CreateClientPage() {
               </div>
             </div>
           )}
-          {/* Profile Data Sections */}
-          {profileFieldsByGroup.map(group => (
-            <div key={group.label} className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
+          {/* Core Questions Section */}
+          {coreFieldsNotInForm.length > 0 && (
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Core Questions</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {group.fields.map(field => {
+                {coreFieldsNotInForm.map(field => {
                   const isMissing = missingFields.includes(field.label);
                   return (
                     <div key={field.key} className="flex flex-col">
@@ -768,7 +843,7 @@ export default function CreateClientPage() {
                 })}
               </div>
             </div>
-          ))}
+          )}
           {/* Subscription Details Section */}
           <div className="mb-6 bg-white rounded-xl shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
@@ -968,58 +1043,221 @@ export default function CreateClientPage() {
             </div>
           </div>
 
-          {/* Installments Management section (separate, full width) */}
-          {subscription.paymentStatus === 'installments' && (
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Installments Management</h2>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableHeader>Installment Date</TableHeader>
-                      <TableHeader>Amount</TableHeader>
-                      <TableHeader>Remaining</TableHeader>
-                      <TableHeader>Transaction Image</TableHeader>
-                      <TableHeader>Next Installment Date</TableHeader>
-                      <TableHeader>Actions</TableHeader>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {installments.map((inst, idx) => (
-                      <TableRow key={inst.id || idx}>
-                        <TableCell>
-                          <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
-                        </TableCell>
-                        <TableCell>
-                          <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
-                        </TableCell>
-                        <TableCell>
-                          <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
-                        </TableCell>
-                        <TableCell>
-                          <input type="file" accept="image/*" onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" />
-                          {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
-                        </TableCell>
-                        <TableCell>
-                          <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
-                        </TableCell>
-                        <TableCell className="flex gap-2 items-center">
-                          <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>
-                          <button type="button" onClick={addInstallment} className="text-green-600"><PlusIcon className="w-5 h-5" /></button>
-                        </TableCell>
+            {/* Installments Management section (separate, full width) */}
+            {subscription.paymentStatus === 'installments' && (
+              <div className="mb-6 bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">Installments Management</h2>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeader>Installment Date</TableHeader>
+                        <TableHeader>Amount</TableHeader>
+                        <TableHeader>Remaining</TableHeader>
+                        <TableHeader>Transaction Image</TableHeader>
+                        <TableHeader>Next Installment Date</TableHeader>
+                        <TableHeader>Actions</TableHeader>
                       </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {installments.map((inst, idx) => (
+                        <TableRow key={inst.id || idx}>
+                          <TableCell>
+                            <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
+                          </TableCell>
+                          <TableCell>
+                            <input type="file" accept="image/*" onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" />
+                            {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
+                          </TableCell>
+                          <TableCell>
+                            <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
+                          </TableCell>
+                          <TableCell className="flex gap-2 items-center">
+                            <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>
+                            <button type="button" onClick={addInstallment} className="text-green-600"><PlusIcon className="w-5 h-5" /></button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {/* Extras Section */}
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Extras</h2>
+              
+              {/* Labels Subsection */}
+              <div className="mb-6">
+                <h3 className="text-md font-medium mb-3">Labels/Tags</h3>
+                <div className="space-y-3">
+                  {/* Existing Labels */}
+                  <div className="flex flex-wrap gap-2">
+                    {labels.map((label) => (
+                      <button
+                        key={label.id}
+                        type="button"
+                        onClick={() => handleLabelToggle(label.id)}
+                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                          selectedLabels.includes(label.id)
+                            ? 'bg-blue-500 text-white border-blue-500'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-300'
+                        }`}
+                      >
+                        {label.name}
+                      </button>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                  
+                  {/* Add New Label */}
+                  <div className="flex gap-2 items-center">
+                    <Button
+                      type="button"
+                      outline
+                      className="text-xs"
+                      onClick={() => setShowAddLabel(v => !v)}
+                    >
+                      Add New Label
+                    </Button>
+                  </div>
+                  
+                  {showAddLabel && (
+                    <div className="flex gap-2 items-center rounded p-2 bg-zinc-50">
+                      <Input
+                        type="text"
+                        value={newLabelName}
+                        onChange={e => setNewLabelName(e.target.value)}
+                        placeholder="Label Name"
+                        className="w-1/2"
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleAddLabel}
+                        className="px-3"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        outline
+                        onClick={() => {
+                          setShowAddLabel(false);
+                          setNewLabelName('');
+                          setLabelError('');
+                        }}
+                        className="px-3"
+                      >
+                        Cancel
+                      </Button>
+                      {labelError && <span className="text-red-500 text-xs ml-2">{labelError}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes Subsection */}
+              <div>
+                <h3 className="text-md font-medium mb-3">Notes</h3>
+                <div className="space-y-3">
+                  {/* Add New Note */}
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={newNote}
+                      onChange={e => setNewNote(e.target.value)}
+                      placeholder="Add a note about this client..."
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleAddNote}
+                      disabled={!newNote.trim()}
+                      className="px-4"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  
+                  {/* Existing Notes */}
+                  <div className="space-y-2">
+                    {notes.map((note) => (
+                      <div key={note.id} className="border rounded-lg p-3 bg-yellow-50">
+                        {editingNoteId === note.id ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={editingNoteContent}
+                              onChange={e => setEditingNoteContent(e.target.value)}
+                              className="w-full"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                onClick={() => handleEditNote(note.id)}
+                                className="px-3 text-xs"
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                outline
+                                onClick={() => {
+                                  setEditingNoteId(null);
+                                  setEditingNoteContent('');
+                                }}
+                                className="px-3 text-xs"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex justify-between items-start mb-2">
+                              <p className="text-sm text-gray-600">
+                                {new Date(note.createdAt).toLocaleString()}
+                              </p>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingNoteId(note.id);
+                                    setEditingNoteContent(note.content);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteNote(note.id)}
+                                  className="text-red-600 hover:text-red-800 text-xs"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-sm">{note.content}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-          <div className="flex gap-4 justify-end mt-8">
-            <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
-            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Create Client'}</Button>
-          </div>
-        </form>
-      )}
+
+            <div className="flex gap-4 justify-end mt-8">
+              <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
+              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Create Client'}</Button>
+            </div>
+          </form>
+        )}
     </div>
   );
 } 

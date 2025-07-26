@@ -376,7 +376,7 @@ function QuestionCard({
                   ✓ Auto-populated with default options for "{question}". You can edit these options.
                 </div>
               )}
-              <AnswerOptions options={answerOptions} setOptions={setAnswerOptions} />
+            <AnswerOptions options={answerOptions} setOptions={setAnswerOptions} />
             </div>
           )}
           {/* Advanced/conditional logic section */}
