@@ -15,6 +15,38 @@ import { useRouter } from 'next/navigation';
 import { getStoredUser } from '@/lib/auth';
 import React from 'react';
 
+// Define question configurations with default answer types and options
+type QuestionConfig = {
+  type: 'short' | 'long' | 'single' | 'multi' | 'file' | 'date' | 'time';
+  options: string[];
+};
+
+const QUESTION_CONFIGS: Record<string, QuestionConfig> = {
+  'Full Name': { type: 'short', options: [] },
+  'Email': { type: 'short', options: [] },
+  'Mobile Number': { type: 'short', options: [] },
+  'Gender': { type: 'single', options: ['Male', 'Female'] },
+  'Age': { type: 'short', options: [] },
+  'Source': { type: 'single', options: ['Facebook Ads', 'Instagram', 'Website', 'WhatsApp', 'Referral', 'Walk-in', 'Google Ads', 'Other'] },
+  'Goal': { type: 'multi', options: ['Fat Loss', 'Muscle Gain', 'Tone & Shape', 'General Fitness', 'Strength', 'Posture Correction', 'Injury Rehab', 'Event Prep', 'Other'] },
+  'Level': { type: 'single', options: ['Beginner', 'Intermediate', 'Advanced', 'Athlete'] },
+  'Injuries': { type: 'multi', options: ['Knee Pain', 'Shoulder Pain', 'Lower Back Pain', 'Herniated Disc', 'Sciatica', 'Elbow Pain', 'Hip Pain', 'Neck Pain', 'Plantar Fasciitis', 'Post-surgery', 'Arthritis', 'Headaches', 'Other'] },
+  'Workout Place': { type: 'single', options: ['Gym', 'Home'] },
+  'Height': { type: 'short', options: [] },
+  'Weight': { type: 'short', options: [] },
+  'Preferred Training Days': { type: 'multi', options: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] },
+  'Preferred Training Time': { type: 'single', options: ['Early Morning (5-8 AM)', 'Morning (8-12 PM)', 'Afternoon (12-5 PM)', 'Evening (5-9 PM)', 'Late Night (9 PM+)'] },
+  'Equipment Availability': { type: 'multi', options: ['Gym Access', 'Dumbbells', 'Barbell', 'Resistance Bands', 'Machines', 'TRX', 'Pull-up Bar', 'Stepper', 'Treadmill', 'Stationary Bike', 'Cable Machine', 'Bodyweight Only', 'Other'] },
+  'Favorite Training Style': { type: 'multi', options: ['Strength', 'HIIT', 'Cardio', 'Pilates', 'Yoga', 'Functional', 'CrossFit', 'Circuit', 'Mobility', 'Bodybuilding', 'Other'] },
+  'Weak Areas (Focus)': { type: 'multi', options: ['Core', 'Lower Back', 'Glutes', 'Hamstrings', 'Shoulders', 'Arms', 'Inner Thigh', 'Calves', 'Neck', 'Grip Strength', 'Other'] },
+  'Nutrition Goal': { type: 'single', options: ['Fat Loss', 'Muscle Gain', 'Maintenance', 'Improve Energy', 'Improve Digestion', 'Medical (e.g. PCOS, Diabetes)', 'Other'] },
+  'Diet Preference': { type: 'single', options: ['Regular', 'Low Carb', 'Low Fat', 'Keto', 'Intermittent Fasting', 'Vegetarian', 'Vegan', 'Pescatarian', 'Mediterranean', 'Gluten-Free', 'Lactose-Free', 'Other'] },
+  'Meal Count': { type: 'single', options: ['2 meals', '3 meals', '4 meals', '5+ meals'] },
+  'Food Allergies / Restrictions': { type: 'multi', options: ['Lactose', 'Gluten', 'Eggs', 'Nuts', 'Shellfish', 'Soy', 'Corn', 'Citrus', 'Legumes', 'Artificial Sweeteners', 'Other'] },
+  'Disliked Ingredients': { type: 'long', options: [] },
+  'Current Nutrition Plan Followed': { type: 'long', options: [] },
+};
+
 const STATIC_QUESTION_GROUPS = [
   {
     label: 'Basic Data',
@@ -267,7 +299,17 @@ function QuestionCard({
             <div className="flex items-center w-56 flex-shrink-0">
               <Select
                 value={question}
-                onChange={(e) => setQuestion(e.target.value)}
+                onChange={(e) => {
+                  const selectedQuestion = e.target.value;
+                  setQuestion(selectedQuestion);
+                  
+                  // Auto-configure answer type and options based on selected question
+                  if (selectedQuestion && QUESTION_CONFIGS[selectedQuestion]) {
+                    const config = QUESTION_CONFIGS[selectedQuestion];
+                    setAnswerType(config.type);
+                    setAnswerOptions([...config.options]); // Copy options to allow editing
+                  }
+                }}
                 className="w-full"
               >
                 <option value="" disabled>Select a question</option>
@@ -290,7 +332,12 @@ function QuestionCard({
                 <button
                   type="button"
                   className="ml-1 p-1 rounded hover:bg-zinc-100"
-                  onClick={() => setQuestion("")}
+                  onClick={() => {
+                    setQuestion("");
+                    setAnswerType("");
+                    setAnswerOptions([]);
+                    setCustomQuestion("");
+                  }}
                   tabIndex={-1}
                   aria-label="Clear selected question"
                 >
@@ -323,7 +370,14 @@ function QuestionCard({
           </div>
           {/* Answer options inline */}
           {(answerType === 'single' || answerType === 'multi') && (
-            <AnswerOptions options={answerOptions} setOptions={setAnswerOptions} />
+            <div>
+              {question && QUESTION_CONFIGS[question] && (
+                <div className="mb-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  ✓ Auto-populated with default options for "{question}". You can edit these options.
+                </div>
+              )}
+              <AnswerOptions options={answerOptions} setOptions={setAnswerOptions} />
+            </div>
           )}
           {/* Advanced/conditional logic section */}
           <div>
