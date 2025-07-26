@@ -124,6 +124,7 @@ export default function CreateClientPage() {
     discount: "",
     priceBeforeDisc: "",
   });
+  const [registrationDate, setRegistrationDate] = useState<string>("");
   const [transactionImage, setTransactionImage] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
@@ -389,10 +390,47 @@ export default function CreateClientPage() {
     try {
       const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
+      // Before sending, ensure correct types for injuriesHealthNotes and mealCount
+      const formDataToSend = { ...formData };
+      if (typeof formDataToSend.injuriesHealthNotes === 'string' && formDataToSend.injuriesHealthNotes.trim() !== '') {
+        formDataToSend.injuriesHealthNotes = formDataToSend.injuriesHealthNotes.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } else if (!Array.isArray(formDataToSend.injuriesHealthNotes)) {
+        formDataToSend.injuriesHealthNotes = [];
+      }
+      // Map numeric keys (question IDs) to client field names
+      const idToField = {
+        65: 'injuriesHealthNotes',
+        76: 'mealCount',
+        // Add other mappings as needed
+      };
+      Object.entries(formDataToSend).forEach(([key, value]) => {
+        if (!isNaN(Number(key)) && idToField[key]) {
+          formDataToSend[idToField[key]] = value;
+          delete formDataToSend[key];
+        }
+      });
+      // Ensure mealCount is a valid number or null
+      if (Array.isArray(formDataToSend.mealCount)) {
+        formDataToSend.mealCount = formDataToSend.mealCount[0];
+      }
+      if (
+        formDataToSend.mealCount === '' ||
+        formDataToSend.mealCount === undefined ||
+        isNaN(Number(formDataToSend.mealCount))
+      ) {
+        formDataToSend.mealCount = null;
+      } else {
+        formDataToSend.mealCount = Number(formDataToSend.mealCount);
+      }
+      console.log('CreateClientPage formDataToSend:', formDataToSend);
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trainerId: user.id, client: formData, subscription }),
+        body: JSON.stringify({ 
+          trainerId: user.id, 
+          client: { ...formDataToSend, registrationDate, selectedFormId }, 
+          subscription 
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -735,6 +773,10 @@ export default function CreateClientPage() {
           <div className="mb-6 bg-white rounded-xl shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Registration Date</label>
+                <Input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} />
+              </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Start Date</label>
                 <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />

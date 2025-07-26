@@ -140,6 +140,7 @@ export default function EditClientPage() {
       .then(res => res.json())
       .then(data => {
         setFormData(data || {});
+        console.log('EditClientPage formData:', data);
       })
       .catch(() => setError("Failed to load client data."))
       .finally(() => setLoading(false));
@@ -185,6 +186,7 @@ export default function EditClientPage() {
         // Question is from GROUPS - use form configuration but keep original key
         return {
           ...groupField,
+          id: q.id, // Ensure id is set
           type: mapFormTypeToInputType(q.type || groupField.type),
           options: q.options || groupField.options || [],
           required: groupField.required,
@@ -194,6 +196,7 @@ export default function EditClientPage() {
         // Custom question - use form configuration
         return {
           key: q.id || q.label,
+          id: q.id, // Ensure id is set
           label: q.label,
           type: mapFormTypeToInputType(q.type || 'text'),
           required: !!q.required,
@@ -271,9 +274,11 @@ export default function EditClientPage() {
     setAnswers((prev: any) => ({ ...merged, ...prev })); // preserve any manual edits
   }, [submissionForm, submissionAnswers]);
 
-  // Fetch the latest check-in submission for this client
+  // Fetch the latest check-in submission for this client OR the selected form
   useEffect(() => {
     if (!clientId || !user?.id) return;
+    
+    // First try to get check-in submission
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/responses?clientId=${clientId}&trainerId=${user.id}&page=1&pageSize=1`)
       .then(res => res.json())
       .then(data => {
@@ -281,9 +286,24 @@ export default function EditClientPage() {
           setSubmission(data.submissions[0]);
           setSubmissionForm(data.submissions[0].form);
           setSubmissionAnswers(data.submissions[0].answers || {});
+        } else {
+          // If no submission, check if client has a selected form
+          if (formData.selectedFormId) {
+            fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/${formData.selectedFormId}`)
+              .then(res => res.json())
+              .then(formData => {
+                if (formData) {
+                  setSubmissionForm(formData);
+                  // Set empty answers since there's no submission
+                  setSubmissionAnswers({});
+                }
+              })
+              .catch(err => console.error('Error fetching selected form:', err));
+          }
         }
-      });
-  }, [clientId, user?.id]);
+      })
+      .catch(err => console.error('Error fetching submissions:', err));
+  }, [clientId, user?.id, formData.selectedFormId]);
 
   // Add debug logs for submission, submissionForm, and submissionAnswers
   useEffect(() => {
@@ -291,8 +311,6 @@ export default function EditClientPage() {
     console.log('EditClientPage submissionForm:', submissionForm);
     console.log('EditClientPage submissionAnswers:', submissionAnswers);
   }, [submission, submissionForm, submissionAnswers]);
-
-
 
   // Add state for subscription
   const [subscription, setSubscription] = useState<any>({
@@ -306,6 +324,11 @@ export default function EditClientPage() {
     priceBeforeDisc: "",
     installments: "",
   });
+  const [registrationDate, setRegistrationDate] = useState<string>("");
+  
+  // Array fields that need special handling
+  const arrayFields = ['injuriesHealthNotes', 'goals', 'preferredTrainingDays', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas', 'foodAllergies'];
+  
   // Auto-calculate end date
   useEffect(() => {
     if (subscription.startDate && subscription.durationValue && subscription.durationUnit) {
@@ -323,6 +346,13 @@ export default function EditClientPage() {
   }, [subscription.startDate, subscription.durationValue, subscription.durationUnit]);
   // When client data is loaded, set subscription from latest subscription
   useEffect(() => {
+    // Set registration date from client data or submission date
+    if (formData.registrationDate) {
+      setRegistrationDate(formData.registrationDate.slice(0, 10));
+    } else if (submission && submission.createdAt) {
+      setRegistrationDate(submission.createdAt.slice(0, 10));
+    }
+    
     if (formData && formData.subscriptions && formData.subscriptions.length > 0) {
       const latest = formData.subscriptions[0];
       setSubscription({
@@ -358,7 +388,7 @@ export default function EditClientPage() {
         installments: '',
       });
     }
-  }, [formData]);
+  }, [formData, submission]);
   useEffect(() => {
     if (!subscription) return;
     setShowPaymentMethod(['paid', 'installments'].includes(subscription.paymentStatus));
@@ -420,7 +450,27 @@ export default function EditClientPage() {
   }, [submissionForm, groupedFields]);
   // Compute profile fields by group (fields not in the form)
   const profileFieldsByGroup = React.useMemo(() => {
-    if (!submissionForm) return GROUPS;
+    console.log('Edit page - submissionForm:', submissionForm);
+    console.log('Edit page - submissionForm is null/undefined:', !submissionForm);
+    console.log('Edit page - formData:', formData);
+    
+    // If no submissionForm, return all GROUPS with QUESTION_CONFIGS
+    if (!submissionForm) {
+      console.log('Edit page - No submissionForm, returning all GROUPS with QUESTION_CONFIGS');
+      const result = GROUPS.map(group => ({
+        ...group,
+        fields: group.fields.map(field => {
+          const config = QUESTION_CONFIGS[field.label];
+          return {
+            ...field,
+            type: config ? mapFormTypeToInputType(config.type) : field.type,
+            options: config ? config.options : field.options || [],
+          };
+        }),
+      }));
+      console.log('Edit page - profileFieldsByGroup result:', result);
+      return result;
+    }
     
     try {
       // Get all question labels from the form
@@ -490,7 +540,6 @@ export default function EditClientPage() {
 
 
   // On save, send answers as part of the client update
-  const arrayFields = ['goals', 'injuriesHealthNotes'];
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -538,7 +587,7 @@ export default function EditClientPage() {
     try {
       const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
-      const formDataToSend = { ...formData };
+      const formDataToSend = { ...formData, registrationDate, selectedFormId: formData.selectedFormId };
       arrayFields.forEach(field => {
         if (typeof formDataToSend[field] === 'string') {
           formDataToSend[field] = formDataToSend[field].split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -731,6 +780,163 @@ export default function EditClientPage() {
   console.log('Edit page - profileFieldsByGroup.length:', profileFieldsByGroup.length);
   console.log('Edit page - submissionForm:', submissionForm);
 
+  // Add after other useEffects, before return
+  useEffect(() => {
+    // Only run if there is a selected form, no check-in submission, and formData is loaded
+    if (submissionForm && !submission && formData && Object.keys(formData).length > 0) {
+      // Robust label-to-key mapping
+      const labelToKey: Record<string, string> = {
+        'Full Name': 'fullName',
+        'Email': 'email',
+        'Mobile Number': 'phone',
+        'Gender': 'gender',
+        'Age': 'age',
+        'Source': 'source',
+        'Goal': 'goal',
+        'Level': 'level',
+        'Injuries': 'injuriesHealthNotes',
+        'Injuries / Health Notes': 'injuriesHealthNotes',
+        'Workout Place': 'workoutPlace',
+        'Height': 'height',
+        'Weight': 'weight',
+        'Preferred Training Days': 'preferredTrainingDays',
+        'Preferred Training Time': 'preferredTrainingTime',
+        'Equipment Availability': 'equipmentAvailability',
+        'Favorite Training Style': 'favoriteTrainingStyle',
+        'Weak Areas (Focus)': 'weakAreas',
+        'Nutrition Goal': 'nutritionGoal',
+        'Diet Preference': 'dietPreference',
+        'Meal Count': 'mealCount',
+        'Food Allergies / Restrictions': 'foodAllergies',
+        'Disliked Ingredients': 'dislikedIngredients',
+        'Current Nutrition Plan Followed': 'currentNutritionPlan',
+      };
+      const initialAnswers: Record<string, any> = {};
+      (submissionForm.questions || []).forEach((q: any) => {
+        const key = labelToKey[q.label] || q.key || q.label;
+        if (formData.hasOwnProperty(key)) {
+          let value = formData[key];
+          // Handle multi-select fields
+          if (q.type === 'multi' || q.type === 'multiselect') {
+            if (typeof value === 'string') {
+              value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+            }
+            // If value is not an array, make it an array
+            if (!Array.isArray(value)) {
+              value = value ? [value] : [];
+            }
+          }
+          // Handle single-select fields (trim whitespace)
+          if ((q.type === 'single' || q.type === 'select') && typeof value === 'string') {
+            value = value.trim();
+          }
+          initialAnswers[key] = value;
+        }
+      });
+      setAnswers(initialAnswers);
+    }
+  }, [submissionForm, formData, submission]);
+
+  // Populate answers from formData when client has selectedFormId but no submission
+  useEffect(() => {
+    if (submissionForm && !submission && formData && Object.keys(formData).length > 0) {
+      console.log('Populating answers from formData for client with selectedFormId');
+      const initialAnswers: any = {};
+      
+      // Map formData values to question IDs using label mapping
+      const labelToKey: { [key: string]: string } = {
+        'Full Name': 'fullName',
+        'Email': 'email',
+        'Mobile Number': 'phone',
+        'Gender': 'gender',
+        'Age': 'age',
+        'Source': 'source',
+        'Goal': 'goal',
+        'Level': 'level',
+        'Injuries': 'injuriesHealthNotes',
+        'Injuries / Health Notes': 'injuriesHealthNotes',
+        'Workout Place': 'workoutPlace',
+        'Height': 'height',
+        'Weight': 'weight',
+        'Preferred Training Days': 'preferredTrainingDays',
+        'Preferred Training Time': 'preferredTrainingTime',
+        'Equipment Availability': 'equipmentAvailability',
+        'Favorite Training Style': 'favoriteTrainingStyle',
+        'Weak Areas (Focus)': 'weakAreas',
+        'Weak Areas': 'weakAreas',
+        'Nutrition Goal': 'nutritionGoal',
+        'Diet Preference': 'dietPreference',
+        'Meal Count': 'mealCount',
+        'Food Allergies / Restrictions': 'foodAllergies',
+        'Food Allergies': 'foodAllergies',
+        'Disliked Ingredients': 'dislikedIngredients',
+        'Current Nutrition Plan Followed': 'currentNutritionPlan',
+      };
+      
+      submissionForm.questions.forEach((q: any) => {
+        const formDataKey = labelToKey[q.label];
+        if (formDataKey && formData[formDataKey] !== undefined) {
+          let value = formData[formDataKey];
+
+          // Handle different data types
+          if (q.type === 'multi' || q.type === 'multiselect') {
+            if (typeof value === 'string') {
+              value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+            } else if (!Array.isArray(value)) {
+              value = value ? [value] : [];
+            }
+          } else if (q.type === 'single' || q.type === 'select') {
+            if (Array.isArray(value)) {
+              value = value.join(', ');
+            } else if (value !== null && value !== undefined) {
+              value = String(value).trim();
+            }
+          } else if (q.type === 'number' || q.label === 'Meal Count') {
+            // Special handling for Meal Count: allow 0
+            value = value === undefined || value === null ? '' : String(value);
+          }
+
+          initialAnswers[q.id] = value;
+        }
+      });
+      
+      console.log('Initial answers populated:', initialAnswers);
+      setAnswers(initialAnswers);
+    }
+  }, [submissionForm, submission, formData]);
+
+  // Add debug logs after formData is loaded
+  useEffect(() => {
+    console.log('DEBUG: formData loaded:', formData);
+  }, [formData]);
+
+  // Add debug logs after profileFieldsByGroup is computed
+  useEffect(() => {
+    console.log('DEBUG: profileFieldsByGroup:', profileFieldsByGroup);
+  }, [profileFieldsByGroup]);
+
+  // Add debug logs after checkinQuestions is computed
+  useEffect(() => {
+    console.log('DEBUG: checkinQuestions:', checkinQuestions);
+  }, [checkinQuestions]);
+
+  // Add debug logs after submissionForm is loaded
+  useEffect(() => {
+    console.log('DEBUG: submissionForm:', submissionForm);
+  }, [submissionForm]);
+
+  // Add debug logs after answers is computed
+  useEffect(() => {
+    console.log('DEBUG: answers:', answers);
+  }, [answers]);
+
+  // Add debug logs before rendering (log only once on mount to avoid React error)
+  useEffect(() => {
+    console.log('checkinQuestions:', checkinQuestions);
+    console.log('answers:', answers);
+    console.log('formData:', formData);
+  }, []);
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
@@ -740,61 +946,59 @@ export default function EditClientPage() {
           {error}
         </Alert>
       )}
-      {/* Show message and hide form if no check-in form is associated */}
-      {!submissionForm ? (
-        <div className="text-center text-zinc-500 py-12">
-          <div className="mb-4">This client does not have a check-in submission.<br />
-            Editing check-in questions is not available for this client.<br />
-            (This client was not created via a check-in form, or the data is missing.)
-            </div>
-            </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Check-In Data Section (always, if checkinQuestions exist) */}
-          {checkinQuestions.length > 0 && (
+      {/* Always show the form, but conditionally show check-in data */}
+              <form onSubmit={handleSubmit} className="space-y-8">
+
+          
+          {/* Check-In Data Section (only if checkinQuestions exist) */}
+          {checkinQuestions.length > 0 ? (
             <div className="mb-6 bg-white rounded-xl shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {checkinQuestions.map(field => {
+                {checkinQuestions.map((field, fieldIndex) => {
+                  // Use a unique key for each field
+                  const checkinFieldKey = `${field.key || field.label || `checkin-field-${fieldIndex}`}-checkin`;
+                  // Use field.id (question ID) to get the value from answers
+                  const value = answers[field.id] !== undefined ? answers[field.id] : '';
                   // Render custom questions
                   if (field.isCustom) {
                     if (field.type === 'select' && field.options.length > 0) {
                       return (
-                        <div key={field.key} className="flex flex-col">
+                        <div key={checkinFieldKey} className="flex flex-col">
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             {field.label}
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Select
-                            value={answers[field.key] || ''}
-                            onChange={e => handleChange(field.key, e.target.value, true)}
+                            value={value || ''}
+                            onChange={e => handleChange(field.id, e.target.value, true)}
                             required={field.required}
                             className="w-full"
                           >
                             <option value="">Select...</option>
                             {field.options.map((opt: string) => (
-                              <option key={opt} value={opt}>{opt}</option>
+                              <option key={`${checkinFieldKey}-${opt}`} value={opt}>{opt}</option>
                             ))}
-              </Select>
-            </div>
+                          </Select>
+                        </div>
                       );
                     }
                     if (field.type === 'multiselect' && field.options.length > 0) {
-                      const currentValues = answers[field.key] ? (Array.isArray(answers[field.key]) ? answers[field.key] : [answers[field.key]]) : [];
+                      const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
                       return (
-                        <div key={field.key} className="flex flex-col">
+                        <div key={checkinFieldKey} className="flex flex-col">
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             {field.label}
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <MultiSelect
                             value={currentValues}
-                            onChange={(value) => setAnswers(prev => ({ ...prev, [field.key]: value }))}
+                            onChange={(value) => setAnswers(prev => ({ ...prev, [field.id]: value }))}
                             placeholder={`Select ${field.label}...`}
                             className="w-full"
                           >
                             {field.options.map((opt: string) => (
-                              <MultiSelectOption key={opt} value={opt}>
+                              <MultiSelectOption key={`${checkinFieldKey}-${opt}`} value={opt}>
                                 {opt}
                               </MultiSelectOption>
                             ))}
@@ -804,68 +1008,68 @@ export default function EditClientPage() {
                     }
                     if (field.type === 'textarea') {
                       return (
-                        <div key={field.key} className="flex flex-col">
+                        <div key={checkinFieldKey} className="flex flex-col">
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             {field.label}
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Textarea
-                            value={answers[field.key] || ''}
-                            onChange={e => handleChange(field.key, e.target.value, true)}
+                            value={value || ''}
+                            onChange={e => handleChange(field.id, e.target.value, true)}
                             placeholder={field.label}
                             required={field.required}
                           />
-            </div>
+                        </div>
                       );
                     }
                     // Default to text input
                     return (
-                      <div key={field.key} className="flex flex-col">
+                      <div key={checkinFieldKey} className="flex flex-col">
                         <label className="text-sm font-medium mb-1 flex items-center gap-1">
                           {field.label}
                           {field.required && <span className="text-red-500">*</span>}
                         </label>
                         <Input
                           type={field.type || 'text'}
-                          value={answers[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value, true)}
+                          value={value || ''}
+                          onChange={e => handleChange(field.id, e.target.value, true)}
                           placeholder={field.label}
                           required={field.required}
-              />
-            </div>
+                        />
+                      </div>
                     );
                   }
-                                    // Render normal fields (GROUPS fields that are in the check-in form)
+                  // Render normal fields (GROUPS fields that are in the check-in form)
                   return (
-                    <div key={field.key} className="flex flex-col">
+                    <div key={checkinFieldKey} className="flex flex-col">
                       <label className="text-sm font-medium mb-1 flex items-center gap-1">
                         {field.label}
                         {field.required && <span className="text-red-500">*</span>}
                       </label>
                       {field.type === 'select' ? (
                         <Select
-                          value={answers[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value, true)}
+                          value={value || ''}
+                          onChange={e => handleChange(field.id, e.target.value, true)}
                           required={field.required}
-                className="w-full"
+                          className="w-full"
                         >
                           <option value="">Select...</option>
                           {field.options && field.options.map((opt: string) => (
-                            <option key={opt} value={opt}>{opt}</option>
+                            <option key={`${checkinFieldKey}-${opt}`} value={opt}>{opt}</option>
                           ))}
                         </Select>
                       ) : field.type === 'multiselect' ? (
                         (() => {
-                          const currentValues = answers[field.key] ? (Array.isArray(answers[field.key]) ? answers[field.key] : [answers[field.key]]) : [];
+                          const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
                           return (
                             <MultiSelect
                               value={currentValues}
-                              onChange={(value) => setAnswers(prev => ({ ...prev, [field.key]: value }))}
+                              onChange={(value) => handleChange(field.id, value, true)}
                               placeholder={`Select ${field.label}...`}
                               className="w-full"
                             >
                               {field.options && field.options.map((opt: string) => (
-                                <MultiSelectOption key={opt} value={opt}>
+                                <MultiSelectOption key={`${checkinFieldKey}-${opt}`} value={opt}>
                                   {opt}
                                 </MultiSelectOption>
                               ))}
@@ -874,16 +1078,31 @@ export default function EditClientPage() {
                         })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
-                          value={answers[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value, true)}
+                          value={value}
+                          onChange={e => {
+                            if (field.id === 'injuriesHealthNotes') {
+                              // Split textarea value into array on change
+                              handleChange(field.id, e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean), true);
+                            } else {
+                              handleChange(field.id, e.target.value, true);
+                            }
+                          }}
                           placeholder={field.label}
                           required={field.required}
                         />
                       ) : (
                         <Input
                           type={field.type}
-                          value={answers[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value, true)}
+                          value={value}
+                          onChange={e => {
+                            if (field.id === 'mealCount') {
+                              // Convert to number on change
+                              const val = e.target.value;
+                              handleChange(field.id, val === '' ? null : Number(val), true);
+                            } else {
+                              handleChange(field.id, e.target.value, true);
+                            }
+                          }}
                           placeholder={field.label}
                           required={field.required}
                         />
@@ -891,75 +1110,133 @@ export default function EditClientPage() {
                     </div>
                   );
                 })}
-          </div>
-            </div>
-          )}
-          {/* Profile Data Sections (always) */}
-          {profileFieldsByGroup.map(group => (
-            <div key={group.label} className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {group.fields.map(field => (
-                  <div key={field.key} className="flex flex-col">
-                    <label className="text-sm font-medium mb-1 flex items-center gap-1">
-                      {field.label}
-                      {field.required && <span className="text-red-500">*</span>}
-                    </label>
-                                          {field.type === 'select' ? (
-                        <Select
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
-                          required={field.required}
-                          className="w-full"
-                        >
-                          <option value="">Select...</option>
-                          {field.options && field.options.map((opt: string) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </Select>
-                      ) : field.type === 'multiselect' ? (
-                        (() => {
-                          const currentValues = formData[field.key] ? (Array.isArray(formData[field.key]) ? formData[field.key] : [formData[field.key]]) : [];
-                          return (
-                            <MultiSelect
-                              value={currentValues}
-                              onChange={(value) => setFormData(prev => ({ ...prev, [field.key]: value }))}
-                              placeholder={`Select ${field.label}...`}
-                              className="w-full"
-                            >
-                              {field.options && field.options.map((opt: string) => (
-                                <MultiSelectOption key={opt} value={opt}>
-                                  {opt}
-                                </MultiSelectOption>
-                              ))}
-                            </MultiSelect>
-                          );
-                        })()
-                    ) : field.type === 'textarea' ? (
-                      <Textarea
-                        value={formData[field.key] || ''}
-                        onChange={e => handleChange(field.key, e.target.value)}
-                        placeholder={field.label}
-                        required={field.required}
-                      />
-                    ) : (
-                      <Input
-                        type={field.type}
-                        value={formData[field.key] || ''}
-                        onChange={e => handleChange(field.key, e.target.value)}
-                        placeholder={field.label}
-                        required={field.required}
-                      />
-                    )}
-                  </div>
-                ))}
               </div>
             </div>
-          ))}
+          ) : (
+            // Show message when no check-in data is available
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <div className="text-center text-zinc-500 py-4">
+                <div className="mb-2">No check-in submission data available for this client.</div>
+                <div className="text-sm">(This client was not created via a check-in form, or the data is missing.)</div>
+              </div>
+            </div>
+          )}
+
+          {/* Render GROUPS sections for fields not in the check-in form */}
+          {profileFieldsByGroup.map((group: any) => {
+            // Use group.label as key (should be unique)
+            console.log(`DEBUG: Rendering group: ${group.label} with ${group.fields.length} fields`);
+            return (
+              <div key={group.label} className="mb-6 bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">{group.label}</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {group.fields.map((field: any) => {
+                    let value = formData[field.key];
+                    // For multi-selects, ensure value is always an array
+                    if ((field.type === 'multiselect' || field.type === 'multi') && typeof value === 'string') {
+                      value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+                    }
+                    if ((field.type === 'multiselect' || field.type === 'multi') && !Array.isArray(value)) {
+                      value = value ? [value] : [];
+                    }
+                    if (value === null || value === undefined) {
+                      value = (field.type === 'multiselect' || field.type === 'multi') ? [] : '';
+                    }
+                    // Special handling for injuriesHealthNotes (array) and mealCount (number)
+                    if (field.key === 'injuriesHealthNotes') {
+                      // Display as comma-separated string in textarea
+                      value = Array.isArray(value) ? value.join(', ') : (value || '');
+                    }
+                    if (field.key === 'mealCount') {
+                      // Always display as string for input
+                      value = value !== null && value !== undefined ? String(value) : '';
+                    }
+                    console.log(`DEBUG: Rendering profile field: ${field.label} (key: ${field.key}) with value:`, value);
+                    // Use a combination of group and field for uniqueness
+                    const fieldKey = `${group.label}-${field.key || field.label}`;
+                    return (
+                      <div key={fieldKey} className="flex flex-col">
+                        <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                          {field.label}
+                          {field.required && <span className="text-red-500">*</span>}
+                        </label>
+                        {field.type === 'select' ? (
+                          <Select
+                            value={value || ''}
+                            onChange={e => handleChange(field.key, e.target.value, false)}
+                            required={field.required}
+                            className="w-full"
+                          >
+                            <option value="">Select...</option>
+                            {field.options && field.options.map((opt: string) => (
+                              <option key={`${fieldKey}-${opt}`} value={opt}>{opt}</option>
+                            ))}
+                          </Select>
+                        ) : field.type === 'multiselect' ? (
+                          (() => {
+                            const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
+                            return (
+                              <MultiSelect
+                                value={currentValues}
+                                onChange={(value) => handleChange(field.key, value, false)}
+                                placeholder={`Select ${field.label}...`}
+                                className="w-full"
+                              >
+                                {field.options && field.options.map((opt: string) => (
+                                  <MultiSelectOption key={`${fieldKey}-${opt}`} value={opt}>
+                                    {opt}
+                                  </MultiSelectOption>
+                                ))}
+                              </MultiSelect>
+                            );
+                          })()
+                        ) : field.type === 'textarea' ? (
+                          <Textarea
+                            value={value}
+                            onChange={e => {
+                              if (field.key === 'injuriesHealthNotes') {
+                                // Split textarea value into array on change
+                                handleChange(field.key, e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean), false);
+                              } else {
+                                handleChange(field.key, e.target.value, false);
+                              }
+                            }}
+                            placeholder={field.label}
+                            required={field.required}
+                          />
+                        ) : (
+                          <Input
+                            type={field.type}
+                            value={value}
+                            onChange={e => {
+                              if (field.key === 'mealCount') {
+                                // Convert to number on change
+                                const val = e.target.value;
+                                handleChange(field.key, val === '' ? null : Number(val), false);
+                              } else {
+                                handleChange(field.key, e.target.value, false);
+                              }
+                            }}
+                            placeholder={field.label}
+                            required={field.required}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
           {/* Subscription Details Section */}
           <div className="mb-6 bg-white rounded-xl shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Registration Date</label>
+                <Input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} />
+              </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Start Date</label>
                 <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
@@ -1167,7 +1444,7 @@ export default function EditClientPage() {
                   </TableHead>
                   <TableBody>
                     {installments.map((inst, idx) => (
-                      <TableRow key={inst.id || idx}>
+                      <TableRow key={inst.id || `installment-${idx}`}>
                         <TableCell>
                           <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
                         </TableCell>
@@ -1200,7 +1477,6 @@ export default function EditClientPage() {
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
         </div>
       </form>
-      )}
     </div>
   );
 } 
