@@ -86,26 +86,6 @@ const GROUPS = [
 ];
 
 export default function CreateClientPage() {
-  // Helper function to map check-in form types to client form types
-  const mapFormTypeToInputType = (formType: string): string => {
-    switch (formType) {
-      case 'single':
-        return 'select';
-      case 'multi':
-        return 'multiselect';
-      case 'long':
-        return 'textarea';
-      case 'short':
-        return 'text';
-      case 'date':
-        return 'date';
-      case 'time':
-        return 'time';
-      default:
-        return formType;
-    }
-  };
-
   const [forms, setForms] = useState<any[]>([]);
   const [selectedFormId, setSelectedFormId] = useState<string>("");
   const [selectedForm, setSelectedForm] = useState<any>(null);
@@ -150,40 +130,11 @@ export default function CreateClientPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Refresh forms when selected form changes to get latest data
-  useEffect(() => {
-    if (selectedFormId) {
-      const user = getStoredUser();
-      if (!user) return;
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins?trainerId=${user.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setForms(data || []);
-          // Update selected form with latest data
-          const updatedForm = data.find((f: any) => String(f.id) === selectedFormId);
-          if (updatedForm) {
-            setSelectedForm(updatedForm);
-          }
-        })
-        .catch(() => console.error("Failed to refresh forms."));
-    }
-  }, [selectedFormId]);
-
   // Set selected form object when selectedFormId changes
   useEffect(() => {
-    console.log('Selected form ID:', selectedFormId);
-    console.log('Available forms:', forms);
     if (!selectedFormId) setSelectedForm(null);
     else setSelectedForm(forms.find(f => String(f.id) === selectedFormId) || null);
   }, [selectedFormId, forms]);
-
-  // Debug: Log selected form data
-  useEffect(() => {
-    if (selectedForm) {
-      console.log('Selected form:', selectedForm);
-      console.log('Form questions:', selectedForm.questions);
-    }
-  }, [selectedForm]);
 
   // Merge selected form questions with all grouped fields for profile completion
   const groupedFields = useMemo(() => {
@@ -240,119 +191,30 @@ export default function CreateClientPage() {
   // Compute check-in fields and profile fields based on selected form
   const checkInFields = useMemo(() => {
     if (!selectedForm) return [];
-    
-    try {
-      // Create a map of form questions by label for quick lookup
-      const formQuestionsMap = (selectedForm.questions || []).reduce((acc: any, q: any) => {
-        if (q && q.label) {
-          acc[q.label] = q;
-        }
-        return acc;
-      }, {});
-      
-      // Process ALL questions from the form (both from dropdown and custom)
-      const allFormQuestions = (selectedForm.questions || []).map((q: any) => {
-        if (!q || !q.label) return null;
-        
-        // Check if this question exists in GROUPS
-        let groupField: any = null;
-        for (const group of groupedFields) {
-          for (const field of group.fields) {
-            if (field.label === q.label) {
-              groupField = field;
-              break;
-            }
-          }
-          if (groupField) break;
-        }
-        
-        if (groupField) {
-          // Question is from GROUPS - use form configuration but keep original key
-          return {
-            ...groupField,
-            type: mapFormTypeToInputType(q.type || groupField.type),
-            options: q.options || groupField.options || [],
-            required: groupField.required,
-            isCustom: false,
-          };
-        } else {
-          // Custom question - use form configuration
-          return {
-            key: q.id || q.label,
-            label: q.label,
-            type: mapFormTypeToInputType(q.type || 'text'),
-            required: !!q.required,
-            options: q.options || [],
-            isCustom: true,
-          };
-        }
-      }).filter(Boolean); // Remove null entries
-      
-      console.log('Check-in fields:', allFormQuestions);
-      return allFormQuestions;
-    } catch (error) {
-      console.error('Error processing check-in fields:', error);
-      return [];
-    }
+    const formQuestions = (selectedForm.questions || []).map((q: any) => q.label);
+    // All fields from GROUPS that match a form question label
+    const matchedFields = groupedFields.flatMap(group =>
+      group.fields.filter(field => formQuestions.includes(field.label))
+    );
+    // Find custom questions (those in the form but not in GROUPS)
+    const customQuestions = (selectedForm.questions || []).filter((q: any) => !matchedFields.some(f => f.label === q.label));
+    return [...matchedFields, ...customQuestions.map((q: any) => ({
+      key: q.id || q.label,
+      label: q.label,
+      type: q.type || 'text',
+      required: !!q.required,
+      options: q.options || [],
+      isCustom: true,
+    }))];
   }, [selectedForm, groupedFields]);
 
   const profileFieldsByGroup = useMemo(() => {
     if (!selectedForm) return groupedFields;
-    
-    try {
-      // Get all question labels from the form
-      const formQuestionLabels = (selectedForm.questions || [])
-        .filter((q: any) => q && q.label)
-        .map((q: any) => q.label);
-      
-      console.log('Form question labels:', formQuestionLabels);
-      console.log('Original grouped fields:', groupedFields);
-      
-      // Create a mapping for label variations
-      const labelMapping: { [key: string]: string[] } = {
-        'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
-        'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
-        'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
-        'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
-        'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
-        'Equipment Availability': ['Equipment', 'Equipment Availability'],
-        'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
-        'Nutrition Goal': ['Goal', 'Nutrition Goal'],
-        'Diet Preference': ['Diet', 'Diet Preference'],
-        'Meal Count': ['Meal Frequency', 'Meal Count'],
-        'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
-      };
-      
-      // Filter out questions that are in the form, and add pre-filled options for remaining questions
-      const filteredGroups = groupedFields.map(group => {
-        const filteredFields = group.fields.filter(field => {
-          // Check if the field label or any of its variations are in the form
-          const fieldVariations = labelMapping[field.label] || [field.label];
-          const isInForm = fieldVariations.some(variation => formQuestionLabels.includes(variation));
-          console.log(`Field "${field.label}" (variations: ${fieldVariations.join(', ')}) in form: ${isInForm}`);
-          return !isInForm;
-        });
-        
-        return {
-          ...group,
-          fields: filteredFields.map(field => {
-            // Add pre-filled options from QUESTION_CONFIGS for questions not in the form
-            const config = QUESTION_CONFIGS[field.label];
-            return {
-              ...field,
-              type: config ? mapFormTypeToInputType(config.type) : field.type,
-              options: config ? config.options : field.options || [],
-            };
-          }),
-        };
-      }).filter(group => group.fields.length > 0);
-      
-      console.log('Filtered profile fields:', filteredGroups);
-      return filteredGroups;
-    } catch (error) {
-      console.error('Error processing profile fields:', error);
-      return groupedFields;
-    }
+    const formQuestions = (selectedForm.questions || []).map((q: any) => q.label);
+    return groupedFields.map(group => ({
+      ...group,
+      fields: group.fields.filter(field => !formQuestions.includes(field.label)),
+    })).filter(group => group.fields.length > 0);
   }, [selectedForm, groupedFields]);
 
   // Auto-calculate end date
@@ -520,7 +382,7 @@ export default function CreateClientPage() {
                     // Render custom questions
                     if (field.isCustom) {
                       // Render based on type
-                      if (field.type === 'select' && field.options && field.options.length > 0) {
+                      if (field.type === 'select' && field.options.length > 0) {
                         return (
                           <div key={field.key} className="flex flex-col">
                             <label className="text-sm font-medium mb-1 flex items-center gap-1">
@@ -583,7 +445,7 @@ export default function CreateClientPage() {
                           {field.label}
                           {field.required && <span className="text-red-500">*</span>}
                         </label>
-                        {field.type === 'select' && field.options && field.options.length > 0 ? (
+                        {field.type === 'select' ? (
                           <Select
                             value={formData[field.key] || ''}
                             onChange={e => handleChange(field.key, e.target.value)}
@@ -591,7 +453,7 @@ export default function CreateClientPage() {
                             className={`w-full ${isMissing ? 'border-yellow-400' : ''}`}
                           >
                             <option value="">Select...</option>
-                            {field.options.map((opt: string) => (
+                            {field.options && field.options.map((opt: string) => (
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </Select>
@@ -863,57 +725,58 @@ export default function CreateClientPage() {
             </div>
           </div>
 
-          {/* Installments Management section (separate, full width) */}
-          {subscription.paymentStatus === 'installments' && (
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Installments Management</h2>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableHeader>Installment Date</TableHeader>
-                      <TableHeader>Amount</TableHeader>
-                      <TableHeader>Remaining</TableHeader>
-                      <TableHeader>Transaction Image</TableHeader>
-                      <TableHeader>Next Installment Date</TableHeader>
-                      <TableHeader>Actions</TableHeader>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {installments.map((inst, idx) => (
-                      <TableRow key={inst.id || idx}>
-                        <TableCell>
-                          <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
-                        </TableCell>
-                        <TableCell>
-                          <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
-                        </TableCell>
-                        <TableCell>
-                          <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
-                        </TableCell>
-                        <TableCell>
-                          <input type="file" accept="image/*" onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" />
-                          {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
-                        </TableCell>
-                        <TableCell>
-                          <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
-                        </TableCell>
-                        <TableCell className="flex gap-2 items-center">
-                          <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>
-                          <button type="button" onClick={addInstallment} className="text-green-600"><PlusIcon className="w-5 h-5" /></button>
-                        </TableCell>
+            {/* Installments Management section (separate, full width) */}
+            {subscription.paymentStatus === 'installments' && (
+              <div className="mb-6 bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">Installments Management</h2>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeader>Installment Date</TableHeader>
+                        <TableHeader>Amount</TableHeader>
+                        <TableHeader>Remaining</TableHeader>
+                        <TableHeader>Transaction Image</TableHeader>
+                        <TableHeader>Next Installment Date</TableHeader>
+                        <TableHeader>Actions</TableHeader>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHead>
+                    <TableBody>
+                      {installments.map((inst, idx) => (
+                        <TableRow key={inst.id || idx}>
+                          <TableCell>
+                            <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
+                          </TableCell>
+                          <TableCell>
+                            <input type="file" accept="image/*" onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" />
+                            {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
+                          </TableCell>
+                          <TableCell>
+                            <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
+                          </TableCell>
+                          <TableCell className="flex gap-2 items-center">
+                            <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>
+                            <button type="button" onClick={addInstallment} className="text-green-600"><PlusIcon className="w-5 h-5" /></button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
+            )}
+            <div className="flex gap-4 justify-end mt-8">
+              <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
+              <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Create Client'}</Button>
             </div>
-          )}
-          <div className="flex gap-4 justify-end mt-8">
-            <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
-            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Create Client'}</Button>
-          </div>
-        </form>
+          </form>
+        )}
       )}
     </div>
   );

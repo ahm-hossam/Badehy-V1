@@ -12,6 +12,33 @@ import dayjs from "dayjs";
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/table';
 import { TrashIcon, PlusIcon } from '@heroicons/react/20/solid';
 
+// Import the same QUESTION_CONFIGS from check-in create page
+const QUESTION_CONFIGS: Record<string, { type: string; options: string[] }> = {
+  'Full Name': { type: 'short', options: [] },
+  'Email': { type: 'short', options: [] },
+  'Mobile Number': { type: 'short', options: [] },
+  'Gender': { type: 'single', options: ['Male', 'Female'] },
+  'Age': { type: 'short', options: [] },
+  'Source': { type: 'single', options: ['Facebook Ads', 'Instagram', 'Website', 'WhatsApp', 'Referral', 'Walk-in', 'Google Ads', 'Other'] },
+  'Goal': { type: 'multi', options: ['Fat Loss', 'Muscle Gain', 'Tone & Shape', 'General Fitness', 'Strength', 'Posture Correction', 'Injury Rehab', 'Event Prep', 'Other'] },
+  'Level': { type: 'single', options: ['Beginner', 'Intermediate', 'Advanced', 'Athlete'] },
+  'Injuries': { type: 'multi', options: ['Knee Pain', 'Shoulder Pain', 'Lower Back Pain', 'Herniated Disc', 'Sciatica', 'Elbow Pain', 'Hip Pain', 'Neck Pain', 'Plantar Fasciitis', 'Post-surgery', 'Arthritis', 'Headaches', 'Other'] },
+  'Workout Place': { type: 'single', options: ['Gym', 'Home'] },
+  'Height': { type: 'short', options: [] },
+  'Weight': { type: 'short', options: [] },
+  'Preferred Training Days': { type: 'multi', options: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] },
+  'Preferred Training Time': { type: 'single', options: ['Early Morning (5-8 AM)', 'Morning (8-12 PM)', 'Afternoon (12-5 PM)', 'Evening (5-9 PM)', 'Late Night (9 PM+)'] },
+  'Equipment Availability': { type: 'multi', options: ['Gym Access', 'Dumbbells', 'Barbell', 'Resistance Bands', 'Machines', 'TRX', 'Pull-up Bar', 'Stepper', 'Treadmill', 'Stationary Bike', 'Cable Machine', 'Bodyweight Only', 'Other'] },
+  'Favorite Training Style': { type: 'multi', options: ['Strength', 'HIIT', 'Cardio', 'Pilates', 'Yoga', 'Functional', 'CrossFit', 'Circuit', 'Mobility', 'Bodybuilding', 'Other'] },
+  'Weak Areas (Focus)': { type: 'multi', options: ['Core', 'Lower Back', 'Glutes', 'Hamstrings', 'Shoulders', 'Arms', 'Inner Thigh', 'Calves', 'Neck', 'Grip Strength', 'Other'] },
+  'Nutrition Goal': { type: 'single', options: ['Fat Loss', 'Muscle Gain', 'Maintenance', 'Improve Energy', 'Improve Digestion', 'Medical (e.g. PCOS, Diabetes)', 'Other'] },
+  'Diet Preference': { type: 'single', options: ['Regular', 'Low Carb', 'Low Fat', 'Keto', 'Intermittent Fasting', 'Vegetarian', 'Vegan', 'Pescatarian', 'Mediterranean', 'Gluten-Free', 'Lactose-Free', 'Other'] },
+  'Meal Count': { type: 'single', options: ['2 meals', '3 meals', '4 meals', '5+ meals'] },
+  'Food Allergies / Restrictions': { type: 'multi', options: ['Lactose', 'Gluten', 'Eggs', 'Nuts', 'Shellfish', 'Soy', 'Corn', 'Citrus', 'Legumes', 'Artificial Sweeteners', 'Other'] },
+  'Disliked Ingredients': { type: 'long', options: [] },
+  'Current Nutrition Plan Followed': { type: 'long', options: [] },
+};
+
 // Grouped fields (should match backend and create page)
 const GROUPS = [
   {
@@ -60,6 +87,25 @@ const GROUPS = [
 ];
 
 export default function EditClientPage() {
+  // Helper function to map check-in form types to client form types
+  const mapFormTypeToInputType = (formType: string): string => {
+    switch (formType) {
+      case 'single':
+      case 'multi':
+        return 'select';
+      case 'long':
+        return 'textarea';
+      case 'short':
+        return 'text';
+      case 'date':
+        return 'date';
+      case 'time':
+        return 'time';
+      default:
+        return formType;
+    }
+  };
+
   const router = useRouter();
   const params = useParams();
   const clientId = params?.id as string;
@@ -104,7 +150,45 @@ export default function EditClientPage() {
       .then(res => res.json())
       .then(data => {
         setSelectedForm(data);
-        setCheckinQuestions(data.questions || []);
+        // Process the questions to match the create page logic
+        const processedQuestions = (data.questions || []).map((q: any) => {
+          if (!q || !q.label) return null;
+          
+          // Check if this question exists in GROUPS
+          let groupField: any = null;
+          for (const group of GROUPS) {
+            for (const field of group.fields) {
+              if (field.label === q.label) {
+                groupField = field;
+                break;
+              }
+            }
+            if (groupField) break;
+          }
+          
+          if (groupField) {
+            // Question is from GROUPS - use form configuration but keep original key
+            return {
+              ...groupField,
+              type: mapFormTypeToInputType(q.type || groupField.type),
+              options: q.options || groupField.options || [],
+              required: groupField.required,
+              isCustom: false,
+            };
+          } else {
+            // Custom question - use form configuration
+            return {
+              key: q.id || q.label,
+              label: q.label,
+              type: mapFormTypeToInputType(q.type || 'text'),
+              required: !!q.required,
+              options: q.options || [],
+              isCustom: true,
+            };
+          }
+        }).filter(Boolean);
+        
+        setCheckinQuestions(processedQuestions);
       });
   }, [formData.checkInFormId]);
 
@@ -299,11 +383,61 @@ export default function EditClientPage() {
   // Compute profile fields by group (fields not in the form)
   const profileFieldsByGroup = React.useMemo(() => {
     if (!submissionForm) return groupedFields;
-    const formQuestions = (submissionForm.questions || []).map((q: any) => q.label);
-    return groupedFields.map(group => ({
-      ...group,
-      fields: group.fields.filter(field => !formQuestions.includes(field.label)),
-    })).filter(group => group.fields.length > 0);
+    
+    try {
+      // Get all question labels from the form
+      const formQuestionLabels = (submissionForm.questions || [])
+        .filter((q: any) => q && q.label)
+        .map((q: any) => q.label);
+      
+      console.log('Edit page - Form question labels:', formQuestionLabels);
+      console.log('Edit page - Original grouped fields:', groupedFields);
+      
+      // Create a mapping for label variations
+      const labelMapping: { [key: string]: string[] } = {
+        'Injuries / Health Notes': ['Injuries', 'Injuries / Health Notes'],
+        'Weak Areas (Focus)': ['Weak Areas', 'Weak Areas (Focus)'],
+        'Food Allergies / Restrictions': ['Food Allergies', 'Food Allergies / Restrictions'],
+        'Current Nutrition Plan Followed': ['Current Nutrition Plan', 'Current Nutrition Plan Followed'],
+        'Preferred Training Days': ['Training Days', 'Preferred Training Days'],
+        'Equipment Availability': ['Equipment', 'Equipment Availability'],
+        'Favorite Training Style': ['Training Style', 'Favorite Training Style'],
+        'Nutrition Goal': ['Goal', 'Nutrition Goal'],
+        'Diet Preference': ['Diet', 'Diet Preference'],
+        'Meal Count': ['Meal Frequency', 'Meal Count'],
+        'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
+      };
+      
+      // Filter out questions that are in the form, and add pre-filled options for remaining questions
+      const filteredGroups = groupedFields.map(group => {
+        const filteredFields = group.fields.filter(field => {
+          // Check if the field label or any of its variations are in the form
+          const fieldVariations = labelMapping[field.label] || [field.label];
+          const isInForm = fieldVariations.some(variation => formQuestionLabels.includes(variation));
+          console.log(`Edit page - Field "${field.label}" (variations: ${fieldVariations.join(', ')}) in form: ${isInForm}`);
+          return !isInForm;
+        });
+        
+        return {
+          ...group,
+          fields: filteredFields.map(field => {
+            // Add pre-filled options from QUESTION_CONFIGS for questions not in the form
+            const config = QUESTION_CONFIGS[field.label];
+            return {
+              ...field,
+              type: config ? mapFormTypeToInputType(config.type) : field.type,
+              options: config ? config.options : field.options || [],
+            };
+          }),
+        };
+      }).filter(group => group.fields.length > 0);
+      
+      console.log('Edit page - Filtered profile fields:', filteredGroups);
+      return filteredGroups;
+    } catch (error) {
+      console.error('Error processing profile fields:', error);
+      return groupedFields;
+    }
   }, [submissionForm, groupedFields]);
 
   // Update handleChange to update formData for profile fields and answers for check-in questions
@@ -449,10 +583,12 @@ export default function EditClientPage() {
   const [showDiscountValue, setShowDiscountValue] = useState(false);
   const [showPriceFields, setShowPriceFields] = useState(false);
   type InstallmentRow = {
+    id?: string;
     date: string;
     amount: string;
     image: File | null;
     nextDate: string;
+    remaining?: string;
   };
   const [installments, setInstallments] = useState<InstallmentRow[]>([
     { date: '', amount: '', image: null, nextDate: '' }
@@ -629,7 +765,7 @@ export default function EditClientPage() {
             </div>
                     );
                   }
-                  // Render normal fields
+                                    // Render normal fields (GROUPS fields that are in the check-in form)
                   return (
                     <div key={field.key} className="flex flex-col">
                       <label className="text-sm font-medium mb-1 flex items-center gap-1">
@@ -638,8 +774,8 @@ export default function EditClientPage() {
                       </label>
                       {field.type === 'select' ? (
                         <Select
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          value={answers[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value, true)}
                           required={field.required}
                 className="w-full"
                         >
@@ -650,21 +786,21 @@ export default function EditClientPage() {
                         </Select>
                       ) : field.type === 'textarea' ? (
                         <Textarea
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          value={answers[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value, true)}
                           placeholder={field.label}
                           required={field.required}
                         />
                       ) : (
                         <Input
                           type={field.type}
-                          value={formData[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          value={answers[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value, true)}
                           placeholder={field.label}
                           required={field.required}
-                      />
-                    )}
-            </div>
+                        />
+                      )}
+                    </div>
                   );
                 })}
           </div>
