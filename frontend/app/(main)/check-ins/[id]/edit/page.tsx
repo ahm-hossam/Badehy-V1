@@ -418,14 +418,14 @@ export default function CheckInEditPage() {
         setQuestions((data.questions || []).map((q: any) => {
           const isStatic = q.label && QUESTION_CONFIGS[q.label];
           return {
-            id: q.id?.toString() || Math.random().toString(36).slice(2),
+          id: q.id?.toString() || Math.random().toString(36).slice(2),
             question: isStatic ? q.label : "",
             customQuestion: !isStatic ? q.label || "" : "",
-            answerType: q.type || "",
-            required: !!q.required,
-            answerOptions: Array.isArray(q.options) ? q.options : [],
-            collapsed: false,
-            conditionGroup: q.conditionGroup || undefined,
+          answerType: q.type || "",
+          required: !!q.required,
+          answerOptions: Array.isArray(q.options) ? q.options : [],
+          collapsed: false,
+          conditionGroup: q.conditionGroup || undefined,
           };
         }));
       })

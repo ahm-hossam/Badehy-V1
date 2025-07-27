@@ -199,16 +199,16 @@ export default function CreateClientPage() {
     
     // Process core questions and mark if they're present in the form
     return CORE_QUESTIONS.map(field => {
-      const q = formQuestions[field.label];
-      // Use form question configuration if available, otherwise fall back to QUESTION_CONFIGS
-      const config = q ? { type: q.type, options: q.options || [] } : QUESTION_CONFIGS[field.label];
-      return {
-        ...field,
-        presentInForm: !!q,
+        const q = formQuestions[field.label];
+        // Use form question configuration if available, otherwise fall back to QUESTION_CONFIGS
+        const config = q ? { type: q.type, options: q.options || [] } : QUESTION_CONFIGS[field.label];
+        return {
+          ...field,
+          presentInForm: !!q,
         type: q ? mapFormTypeToInputType(q.type) : (config ? mapFormTypeToInputType(config.type) : field.type),
-        options: q && q.options ? q.options : (config ? config.options : field.options),
+          options: q && q.options ? q.options : (config ? config.options : field.options),
         required: field.required, // always required for core questions
-      };
+        };
     });
   }, [selectedForm]);
 
@@ -220,16 +220,16 @@ export default function CreateClientPage() {
     
     // Check core fields
     coreFields.forEach(field => {
-      if (field.required) {
-        total++;
-        const value = formData[field.key];
-        if (value !== undefined && value !== null && String(value).trim() !== "") {
-          completed++;
-        } else {
-          missing.push(field.label);
+        if (field.required) {
+          total++;
+          const value = formData[field.key];
+          if (value !== undefined && value !== null && String(value).trim() !== "") {
+            completed++;
+          } else {
+            missing.push(field.label);
+          }
         }
-      }
-    });
+      });
     
     return {
       completedCount: completed,
@@ -251,10 +251,10 @@ export default function CreateClientPage() {
         // Check if this question exists in CORE_QUESTIONS
         let coreField: any = null;
         for (const field of coreFields) {
-          if (field.label === q.label) {
+            if (field.label === q.label) {
             coreField = field;
-            break;
-          }
+              break;
+            }
         }
         
         if (coreField) {
@@ -269,12 +269,12 @@ export default function CreateClientPage() {
         } else {
           // Custom question - use form configuration
           return {
-            key: q.id || q.label,
-            label: q.label,
+      key: q.id || q.label,
+      label: q.label,
             type: mapFormTypeToInputType(q.type || 'text'),
-            required: !!q.required,
-            options: q.options || [],
-            isCustom: true,
+      required: !!q.required,
+      options: q.options || [],
+      isCustom: true,
           };
         }
       }).filter(Boolean); // Remove null entries
@@ -304,9 +304,9 @@ export default function CreateClientPage() {
       const filteredCoreFields = coreFields.filter(field => {
         const isInForm = formQuestionLabels.includes(field.label);
         console.log(`Core field "${field.label}" in form: ${isInForm}`);
-        return !isInForm;
-      });
-      
+          return !isInForm;
+        });
+        
       console.log('Core fields not in form:', filteredCoreFields);
       return filteredCoreFields;
     } catch (error) {

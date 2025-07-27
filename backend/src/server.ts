@@ -14,6 +14,8 @@ import checkinsRoute from './routes/checkins';
 import notesRoute from './routes/notes';
 import exercisesRoute from './routes/exercises';
 import programsRoute from './routes/programs';
+import brandingRoute from './routes/branding';
+import templatesRoute from './routes/templates';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -48,6 +50,8 @@ app.use('/api/checkins', checkinsRoute);
 app.use('/api/notes', notesRoute);
 app.use('/api/exercises', exercisesRoute);
 app.use('/api/programs', programsRoute);
+app.use('/api/branding', brandingRoute);
+app.use('/api/templates', templatesRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');

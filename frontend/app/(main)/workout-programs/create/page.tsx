@@ -15,7 +15,9 @@ import {
   FireIcon,
   ClockIcon,
   Squares2X2Icon,
-  ArrowsPointingOutIcon
+  ArrowsPointingOutIcon,
+  DocumentArrowDownIcon,
+  DocumentTextIcon
 } from '@heroicons/react/20/solid';
 import { useRouter } from 'next/navigation';
 
@@ -51,6 +53,14 @@ interface ProgramWeek {
   days: ProgramDay[];
 }
 
+interface PDFTemplate {
+  id: string;
+  name: string;
+  category: string;
+  fileUrl: string;
+  uploadedAt: string;
+}
+
 type BuilderMode = 'calendar' | 'table';
 
 export default function CreateProgramPage() {
@@ -71,12 +81,16 @@ export default function CreateProgramPage() {
   const [weeks, setWeeks] = useState<ProgramWeek[]>([]);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+  const [templates, setTemplates] = useState<PDFTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const storedUser = getStoredUser();
     if (storedUser) {
       setUser(storedUser);
       fetchExercises(storedUser.id);
+      fetchTemplates(storedUser.id);
     }
   }, []);
 
@@ -91,6 +105,18 @@ export default function CreateProgramPage() {
       console.error('Error fetching exercises:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTemplates = async (trainerId: number) => {
+    try {
+      const response = await fetch(`/api/templates?trainerId=${trainerId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data);
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error);
     }
   };
 
@@ -183,6 +209,69 @@ export default function CreateProgramPage() {
       alert('Error saving program');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleExport = async () => {
+    if (!selectedTemplate) {
+      alert('Please select a PDF template for export');
+      return;
+    }
+
+    if (!programData.name.trim()) {
+      alert('Please enter a program name');
+      return;
+    }
+
+    if (weeks.length === 0) {
+      alert('Please add at least one week to your program');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const user = getStoredUser();
+      if (!user || !user.id) {
+        alert('No user ID found. Please log in again.');
+        return;
+      }
+
+      const exportPayload = {
+        trainerId: user.id,
+        templateId: selectedTemplate,
+        programName: programData.name,
+        programDescription: programData.description,
+        weeks: weeks
+      };
+
+      const response = await fetch('/api/programs/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(exportPayload)
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${programData.name.replace(/\s+/g, '_')}_workout_program.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        alert('Program exported successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`Error exporting program: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error exporting program:', error);
+      alert('Error exporting program');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -317,6 +406,53 @@ export default function CreateProgramPage() {
               rows={2}
               className="text-sm"
             />
+          </div>
+        </div>
+
+        {/* Template Selection and Export */}
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 mb-2">
+                PDF Template for Export
+              </label>
+              <select
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="">Select a template...</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} ({template.category})
+                  </option>
+                ))}
+              </select>
+              {templates.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  No templates available. Upload templates in Branding & Templates.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center space-x-3 ml-4">
+              <Button
+                onClick={handleExport}
+                disabled={exporting || !selectedTemplate || !programData.name.trim() || weeks.length === 0}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700"
+              >
+                {exporting ? (
+                  <>
+                    <DocumentArrowDownIcon className="w-4 h-4 mr-2 animate-pulse" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
+                    Export PDF
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

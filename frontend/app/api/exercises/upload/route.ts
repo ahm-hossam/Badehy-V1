@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     
     // Forward the request to the backend
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3001';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:4000';
     const response = await fetch(`${backendUrl}/api/exercises/upload`, {
       method: 'POST',
       body: formData,

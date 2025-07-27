@@ -1,0 +1,30 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { templateId: string } }
+) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const trainerId = searchParams.get('trainerId');
+
+    if (!trainerId) {
+      return NextResponse.json({ error: 'Trainer ID is required' }, { status: 400 });
+    }
+
+    const response = await fetch(`http://localhost:4000/api/templates/${params.templateId}?trainerId=${trainerId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return NextResponse.json({ error: errorData.error || 'Failed to delete template' }, { status: response.status });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+} 
