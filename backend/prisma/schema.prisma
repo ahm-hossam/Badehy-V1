@@ -25,6 +25,8 @@ model Registered {
   checkInForms   CheckInForm[]
   exercises      Exercise[]
   programs       Program[]
+  brandingSettings BrandingSettings[]
+  pdfTemplates   PDFTemplate[]
 }
 
 model TrainerClient {
@@ -248,6 +250,14 @@ model Exercise {
   videoUrl    String?
   description String?
   category    String?
+  // Additional fields from ExerciseDB
+  bodyPart    String?
+  equipment   String?
+  target      String?
+  secondaryMuscles String[] @default([])
+  instructions String[] @default([])
+  gifUrl      String?
+  source      String?  // 'ExerciseDB' or null for custom exercises
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   trainer     Registered @relation(fields: [trainerId], references: [id])
@@ -316,4 +326,52 @@ model ProgramExercise {
 
   @@index([dayId])
   @@index([exerciseId])
+}
+
+model BrandingSettings {
+  id            Int       @id @default(autoincrement())
+  trainerId     Int
+  companyName   String
+  logoUrl       String?
+  contactEmail  String
+  contactPhone  String
+  website       String?
+  address       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  trainer       Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
+  @@unique([trainerId])
+  @@index([trainerId])
+}
+
+model PDFTemplate {
+  id            Int       @id @default(autoincrement())
+  trainerId     Int
+  name          String
+  description   String?
+  fileUrl       String?   // For complete template uploads
+  category      String    @default("general")
+  isActive      Boolean   @default(true)
+  uploadType    String    @default("complete") // "complete" or "page-by-page"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  trainer       Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  pages         PDFTemplatePage[]
+
+  @@index([trainerId])
+}
+
+model PDFTemplatePage {
+  id            Int       @id @default(autoincrement())
+  templateId    Int
+  pageName      String    // Custom page name (e.g., "Intro", "Program", "Nutrition", "Outro")
+  pageOrder     Int       // Order of pages in the template
+  fileUrl       String    // PDF file for this specific page
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  template      PDFTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([pageOrder])
 }

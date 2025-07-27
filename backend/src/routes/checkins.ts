@@ -233,8 +233,8 @@ router.put('/:id', async (req: Request, res: Response) => {
         formId: id,
         version: latestVersion ? latestVersion.version + 1 : 1,
         data: {
-          name: form.name,
-          questions: form.questions,
+        name: form.name,
+        questions: form.questions,
         },
       },
     });

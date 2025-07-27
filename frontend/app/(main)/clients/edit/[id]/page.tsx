@@ -469,12 +469,12 @@ export default function EditClientPage() {
         } else {
           // Custom question - use form configuration
           return {
-            key: q.id || q.label,
-            label: q.label,
+      key: q.id || q.label,
+      label: q.label,
             type: mapFormTypeToInputType(q.type || 'text'),
-            required: !!q.required,
-            options: q.options || [],
-            isCustom: true,
+      required: !!q.required,
+      options: q.options || [],
+      isCustom: true,
           };
         }
       }).filter(Boolean); // Remove null entries
@@ -511,9 +511,9 @@ export default function EditClientPage() {
       const filteredCoreFields = CORE_QUESTIONS.filter(field => {
         const isInForm = formQuestionLabels.includes(field.label);
         console.log(`Edit page - Core field "${field.label}" in form: ${isInForm}`);
-        return !isInForm;
-      });
-      
+          return !isInForm;
+        });
+        
       console.log('Edit page - Core fields not in form:', filteredCoreFields);
       return filteredCoreFields;
     } catch (error) {
@@ -1329,73 +1329,73 @@ export default function EditClientPage() {
               <h2 className="text-lg font-semibold mb-4">Core Questions</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {coreFieldsNotInForm.map((field: any) => {
-                  let value = formData[field.key];
-                  // For multi-selects, ensure value is always an array
-                  if ((field.type === 'multiselect' || field.type === 'multi') && typeof value === 'string') {
-                    value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
-                  }
-                  if ((field.type === 'multiselect' || field.type === 'multi') && !Array.isArray(value)) {
-                    value = value ? [value] : [];
-                  }
-                  if (value === null || value === undefined) {
-                    value = (field.type === 'multiselect' || field.type === 'multi') ? [] : '';
-                  }
+                    let value = formData[field.key];
+                    // For multi-selects, ensure value is always an array
+                    if ((field.type === 'multiselect' || field.type === 'multi') && typeof value === 'string') {
+                      value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
+                    }
+                    if ((field.type === 'multiselect' || field.type === 'multi') && !Array.isArray(value)) {
+                      value = value ? [value] : [];
+                    }
+                    if (value === null || value === undefined) {
+                      value = (field.type === 'multiselect' || field.type === 'multi') ? [] : '';
+                    }
                   console.log(`DEBUG: Rendering core field: ${field.label} (key: ${field.key}) with value:`, value);
-                  return (
+                    return (
                     <div key={field.key} className="flex flex-col">
-                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
-                        {field.label}
-                        {field.required && <span className="text-red-500">*</span>}
-                      </label>
-                      {field.type === 'select' ? (
-                        <Select
-                          value={value || ''}
-                          onChange={e => handleChange(field.key, e.target.value, false)}
-                          required={field.required}
-                          className="w-full"
-                        >
-                          <option value="">Select...</option>
-                          {field.options && field.options.map((opt: string) => (
+                    <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                      {field.label}
+                      {field.required && <span className="text-red-500">*</span>}
+                    </label>
+                    {field.type === 'select' ? (
+              <Select
+                            value={value || ''}
+                            onChange={e => handleChange(field.key, e.target.value, false)}
+                        required={field.required}
+                        className="w-full"
+                      >
+                        <option value="">Select...</option>
+                        {field.options && field.options.map((opt: string) => (
                             <option key={`${field.key}-${opt}`} value={opt}>{opt}</option>
-                          ))}
-                        </Select>
-                      ) : field.type === 'multiselect' ? (
-                        (() => {
-                          const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
-                          return (
-                            <MultiSelect
-                              value={currentValues}
-                              onChange={(value) => handleChange(field.key, value, false)}
-                              placeholder={`Select ${field.label}...`}
-                              className="w-full"
-                            >
-                              {field.options && field.options.map((opt: string) => (
+                        ))}
+                      </Select>
+                        ) : field.type === 'multiselect' ? (
+                          (() => {
+                            const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
+                            return (
+                              <MultiSelect
+                                value={currentValues}
+                                onChange={(value) => handleChange(field.key, value, false)}
+                                placeholder={`Select ${field.label}...`}
+                                className="w-full"
+                              >
+                                {field.options && field.options.map((opt: string) => (
                                 <MultiSelectOption key={`${field.key}-${opt}`} value={opt}>
-                                  {opt}
-                                </MultiSelectOption>
-                              ))}
-                            </MultiSelect>
-                          );
-                        })()
-                      ) : field.type === 'textarea' ? (
-                        <Textarea
-                          value={value || ''}
+                                    {opt}
+                                  </MultiSelectOption>
+                                ))}
+                              </MultiSelect>
+                            );
+                          })()
+                    ) : field.type === 'textarea' ? (
+                      <Textarea
+                            value={value || ''}
                           onChange={e => handleChange(field.key, e.target.value, false)}
-                          placeholder={field.label}
-                          required={field.required}
-                        />
-                      ) : (
-                        <Input
-                          type={field.type}
-                          value={value || ''}
+                        placeholder={field.label}
+                        required={field.required}
+                      />
+                    ) : (
+                      <Input
+                        type={field.type}
+                            value={value || ''}
                           onChange={e => handleChange(field.key, e.target.value, false)}
-                          placeholder={field.label}
-                          required={field.required}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+                        placeholder={field.label}
+                        required={field.required}
+                      />
+                    )}
+                  </div>
+                    );
+                  })}
               </div>
             </div>
           )}

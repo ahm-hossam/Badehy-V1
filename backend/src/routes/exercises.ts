@@ -69,7 +69,20 @@ router.get('/', async (req: Request, res: Response) => {
 
 // POST /api/exercises - Create a new exercise
 router.post('/', async (req: Request, res: Response) => {
-  const { trainerId, name, videoUrl, description, category } = req.body;
+  const { 
+    trainerId, 
+    name, 
+    videoUrl, 
+    description, 
+    category,
+    bodyPart,
+    equipment,
+    target,
+    secondaryMuscles,
+    instructions,
+    gifUrl,
+    source
+  } = req.body;
   
   if (!trainerId || !name) {
     return res.status(400).json({ error: 'Missing trainerId or name' });
@@ -83,6 +96,13 @@ router.post('/', async (req: Request, res: Response) => {
         videoUrl: videoUrl ? String(videoUrl).trim() : null,
         description: description ? String(description).trim() : null,
         category: category ? String(category).trim() : null,
+        bodyPart: bodyPart ? String(bodyPart).trim() : null,
+        equipment: equipment ? String(equipment).trim() : null,
+        target: target ? String(target).trim() : null,
+        secondaryMuscles: secondaryMuscles ? secondaryMuscles : [],
+        instructions: instructions ? instructions : [],
+        gifUrl: gifUrl ? String(gifUrl).trim() : null,
+        source: source ? String(source).trim() : null,
       },
     });
     res.status(201).json(exercise);
@@ -129,7 +149,19 @@ router.post('/upload', upload.single('video'), async (req: Request, res: Respons
 // PUT /api/exercises/:id - Update an exercise
 router.put('/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const { name, videoUrl, description, category } = req.body;
+  const { 
+    name, 
+    videoUrl, 
+    description, 
+    category,
+    bodyPart,
+    equipment,
+    target,
+    secondaryMuscles,
+    instructions,
+    gifUrl,
+    source
+  } = req.body;
   
   if (!id || !name) {
     return res.status(400).json({ error: 'Missing id or name' });
@@ -143,6 +175,13 @@ router.put('/:id', async (req: Request, res: Response) => {
         videoUrl: videoUrl ? String(videoUrl).trim() : null,
         description: description ? String(description).trim() : null,
         category: category ? String(category).trim() : null,
+        bodyPart: bodyPart ? String(bodyPart).trim() : null,
+        equipment: equipment ? String(equipment).trim() : null,
+        target: target ? String(target).trim() : null,
+        secondaryMuscles: secondaryMuscles ? secondaryMuscles : undefined,
+        instructions: instructions ? instructions : undefined,
+        gifUrl: gifUrl ? String(gifUrl).trim() : null,
+        source: source ? String(source).trim() : null,
       },
     });
     res.json(exercise);
