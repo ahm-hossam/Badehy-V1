@@ -368,8 +368,8 @@ export default function ExercisesPage() {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No exercises found</h3>
               <p className="text-gray-600 mb-4">
-                {searchTerm || sourceFilter !== 'all' 
-                  ? 'Try adjusting your search or filters.'
+                {searchTerm
+                  ? 'Try adjusting your search.'
                   : 'Create your first exercise to start building workout programs.'
                 }
               </p>
