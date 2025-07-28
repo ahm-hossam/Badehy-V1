@@ -19,7 +19,8 @@ import {
   DocumentTextIcon,
   Bars3Icon,
   PencilIcon,
-  PlayIcon
+  PlayIcon,
+  ChevronDownIcon
 } from '@heroicons/react/20/solid';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,6 +34,8 @@ import {
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Dialog } from '@/components/dialog';
+import { Dropdown, DropdownButton, DropdownMenu, DropdownItem } from '@/components/dropdown';
+import ProgramBuilder from '../ProgramBuilder';
 
 interface Exercise {
   id: number;
@@ -79,9 +82,97 @@ type BuilderMode = 'calendar' | 'spreadsheet';
 // Remove legacy builder modes and toggles
 // Only render the new WeekGridBuilder
 function WeekGridBuilderWithMeta() {
+  console.log('WeekGridBuilderWithMeta mounted');
+  const router = useRouter();
   const [programData, setProgramData] = useState({ name: '', description: '' });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showCreatedToast, setShowCreatedToast] = useState(false);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setProgramData({ ...programData, [e.target.name]: e.target.value });
+  };
+
+  // Save program function
+  const handleSaveProgram = async () => {
+    console.log('Save Program clicked');
+    if (!programData.name.trim()) {
+      setSaveError('Program name is required');
+      return;
+    }
+
+    if (days.length === 0) {
+      setSaveError('At least one day is required');
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      const user = getStoredUser();
+      if (!user) {
+        throw new Error('No user found');
+      }
+
+      // Transform frontend data structure to backend format
+      const transformedWeeks = days.map((day, dayIndex) => ({
+        weekNumber: dayIndex + 1,
+        name: `Week ${dayIndex + 1}`,
+        days: [{
+          dayNumber: 1,
+          name: day.name,
+          exercises: day.exercises.map((exercise, exerciseIndex) => {
+            // Extract week data from gridData for this specific week
+            const weekData = gridData[day.id]?.[exercise.id];
+            const weekValue = weekData?.[dayIndex + 1]?.value || '';
+            
+            // Parse the value string to extract sets, reps, duration
+            const setsMatch = weekValue.match(/^(\d+)/);
+            const repsMatch = weekValue.match(/x\s*(\d+)/);
+            const durationMatch = weekValue.match(/\((\d+)s\)/);
+            
+            return {
+              exerciseId: exercise.referenceId || 0,
+              order: exerciseIndex + 1,
+              sets: setsMatch ? parseInt(setsMatch[1]) : null,
+              reps: repsMatch ? parseInt(repsMatch[1]) : null,
+              duration: durationMatch ? parseInt(durationMatch[1]) : null,
+              restTime: null,
+              notes: exercise.exerciseType || 'sets-reps'
+            };
+          })
+        }]
+      }));
+
+      const programDataToSend = {
+        trainerId: user.id,
+        name: programData.name,
+        description: programData.description,
+        weeks: transformedWeeks
+      };
+
+      const response = await fetch('/api/programs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(programDataToSend),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save program');
+      }
+      // Remove alert and local toast, just redirect with query param
+      router.push('/workout-programs?created=1');
+      
+    } catch (error) {
+      console.error('Error saving program:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save program');
+    } finally {
+      setSaving(false);
+    }
   };
   
   // State for days and grid data
@@ -89,7 +180,13 @@ function WeekGridBuilderWithMeta() {
     { 
       name: 'Day 1', 
       id: 1, 
-      exercises: [],
+      exercises: [{
+        name: '',
+        id: Date.now() + Math.random(),
+        referenceId: 0,
+        videoUrl: undefined,
+        exerciseType: 'sets-reps'
+      }],
       weeks: [
         { name: 'Week 1', id: 1 },
         { name: 'Week 2', id: 2 },
@@ -134,7 +231,13 @@ function WeekGridBuilderWithMeta() {
     setDays([...days, { 
       name: `Day ${days.length + 1}`, 
       id: Date.now(), 
-      exercises: [],
+      exercises: [{
+        name: '',
+        id: Date.now() + Math.random(),
+        referenceId: 0,
+        videoUrl: undefined,
+        exerciseType: 'sets-reps'
+      }],
       weeks: [
         { name: 'Week 1', id: Date.now() + 1 },
         { name: 'Week 2', id: Date.now() + 2 },
@@ -199,7 +302,13 @@ function WeekGridBuilderWithMeta() {
       if (day.id === dayId) {
         return {
           ...day,
-          exercises: [...day.exercises, { name: '', id: Date.now() + Math.random() }] // Ensure unique ID
+          exercises: [...day.exercises, { 
+            name: '', 
+            id: Date.now() + Math.random(),
+            referenceId: 0,
+            videoUrl: undefined,
+            exerciseType: 'sets-reps'
+          }] // Ensure unique ID
         };
       }
       return day;
@@ -278,16 +387,49 @@ function WeekGridBuilderWithMeta() {
         </Button>
       </div>
       
+      {/* Error Display */}
+      {saveError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error saving program</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{saveError}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="flex gap-3 justify-end mt-10">
         <Button color="white" className="font-semibold border border-zinc-200">Cancel</Button>
-        <Button className="font-semibold bg-zinc-900 text-white hover:bg-zinc-800">Save Program</Button>
+        <Button 
+          onClick={handleSaveProgram}
+          disabled={saving}
+          className="font-semibold bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? 'Saving...' : 'Save Program'}
+        </Button>
       </div>
+      {showCreatedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Program created successfully!
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function CreateProgramPage() {
-  return <WeekGridBuilderWithMeta />;
+  return <ProgramBuilder mode="create" />;
 }
 
 // Calendar Builder Component
@@ -868,6 +1010,8 @@ interface Exercise {
   id: number; // This will be the unique instance ID
   referenceId?: number; // This will be the exercise type ID from allExercises
   videoUrl?: string;
+  exerciseType?: 'sets-reps' | 'sets-time' | 'time-only';
+  weekStyles?: { [weekId: number]: 'normal' | 'dropset' | 'superset' | 'giantset' | 'rest-pause' | 'pyramid' | 'circuit' };
 }
 
 // gridData[dayId][exerciseId][weekId] = { value: string }
@@ -902,6 +1046,36 @@ function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, 
       ...newDays[dayIdx].exercises[exerciseIndex],
       [field]: value
     };
+    setDays(newDays);
+  };
+  
+  // Get style color and icon
+  const getStyleInfo = (style: string | undefined) => {
+    switch (style) {
+      case 'dropset':
+        return { color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200', icon: '⬇️', label: 'Drop' };
+      case 'superset':
+        return { color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', icon: '⚡', label: 'Super' };
+      case 'giantset':
+        return { color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', icon: '🔥', label: 'Giant' };
+      case 'rest-pause':
+        return { color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', icon: '⏸️', label: 'Rest-Pause' };
+      case 'pyramid':
+        return { color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-200', icon: '🔺', label: 'Pyramid' };
+      case 'circuit':
+        return { color: 'text-indigo-600', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200', icon: '🔄', label: 'Circuit' };
+      default:
+        return { color: 'text-zinc-600', bgColor: 'bg-zinc-50', borderColor: 'border-zinc-200', icon: '💪', label: 'Normal' };
+    }
+  };
+
+  // Update exercise style for a specific week
+  const updateExerciseWeekStyle = (exerciseIndex: number, weekId: number, style: string) => {
+    const newDays = [...days];
+    if (!newDays[dayIdx].exercises[exerciseIndex].weekStyles) {
+      newDays[dayIdx].exercises[exerciseIndex].weekStyles = {};
+    }
+    newDays[dayIdx].exercises[exerciseIndex].weekStyles![weekId] = style as any;
     setDays(newDays);
   };
   
@@ -951,9 +1125,9 @@ function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, 
           <TableRow>
             <TableHeader className="bg-zinc-100 dark:bg-zinc-800 text-center font-semibold py-2 min-w-[240px]">Exercise</TableHeader>
             {weeks.map((week) => (
-              <TableHeader key={week.id} className="bg-zinc-100 dark:bg-zinc-800 text-center font-semibold py-2 min-w-[120px]">
+              <TableHeader key={week.id} className="bg-zinc-100 dark:bg-zinc-800 text-center font-semibold py-2 min-w-[160px]">
                 <div className="flex items-center gap-2 justify-center">
-                  {week.name}
+                  <span>{week.name}</span>
                   <Button plain onClick={() => deleteWeek(day.id, week.id)} aria-label="Delete week">🗑️</Button>
                 </div>
               </TableHeader>
@@ -967,18 +1141,43 @@ function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, 
             return (
               <TableRow key={exercise.id}>
                 <TableCell className="flex items-center gap-2 min-w-[240px]">
-                  <Select value={exercise.referenceId || 0} onChange={(e) => {
-                    const selectedId = Number((e.target as HTMLSelectElement).value);
-                    const selected = allExercises.find(ex => ex.id === selectedId);
-                    updateExerciseInDay(exIdx, 'referenceId', selected ? selected.id : 0);
-                    updateExerciseInDay(exIdx, 'name', selected ? selected.name : '');
-                    updateExerciseInDay(exIdx, 'videoUrl', selected ? selected.videoUrl : undefined);
-                  }}>
-                    <option value={0}>Select exercise</option>
-                    {allExercises.map((ex: Exercise) => (
-                      <option key={ex.id} value={ex.id}>{ex.name}</option>
-                    ))}
-                  </Select>
+                  <div className="flex-1 min-w-[180px]">
+                    <Select value={exercise.referenceId || 0} onChange={(e) => {
+                      const selectedId = Number((e.target as HTMLSelectElement).value);
+                      const selected = allExercises.find(ex => ex.id === selectedId);
+                      updateExerciseInDay(exIdx, 'referenceId', selected ? selected.id : 0);
+                      updateExerciseInDay(exIdx, 'name', selected ? selected.name : '');
+                      updateExerciseInDay(exIdx, 'videoUrl', selected ? selected.videoUrl : undefined);
+                    }}>
+                      <option value={0}>Select exercise</option>
+                      {allExercises.map((ex: Exercise) => (
+                        <option key={ex.id} value={ex.id}>{ex.name}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  
+                  {/* Exercise Type Selector */}
+                  <Dropdown>
+                    <DropdownButton as="button" className="w-8 h-8 flex items-center justify-center hover:bg-zinc-50 text-zinc-700">
+                      <span className="text-sm">
+                        {exercise.exerciseType === 'sets-time' ? '⏱️' :
+                         exercise.exerciseType === 'time-only' ? '⏰' :
+                         '🔢'}
+                      </span>
+                    </DropdownButton>
+                    <DropdownMenu>
+                      <DropdownItem onClick={() => updateExerciseInDay(exIdx, 'exerciseType', 'sets-reps')}>
+                        🔢 Sets x Reps
+                      </DropdownItem>
+                      <DropdownItem onClick={() => updateExerciseInDay(exIdx, 'exerciseType', 'sets-time')}>
+                        ⏱️ Sets x Time
+                      </DropdownItem>
+                      <DropdownItem onClick={() => updateExerciseInDay(exIdx, 'exerciseType', 'time-only')}>
+                        ⏰ Time Only
+                      </DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
+                  
                   {/* Show play icon if videoUrl exists */}
                   {exercise.videoUrl && (
                     <button type="button" onClick={() => setVideoModal({ open: true, url: exercise.videoUrl || null })} className="p-1 rounded hover:bg-zinc-100" aria-label="Play video">
@@ -987,25 +1186,65 @@ function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, 
                   )}
                   <Button plain onClick={() => deleteExercise(day.id, exercise.id)} aria-label="Delete exercise">🗑️</Button>
                 </TableCell>
-                {weeks.map((week) => (
-                  <TableCell key={week.id}>
-                    <Input
-                      placeholder="Sets x Reps"
-                      value={
-                        (gridData?.[String(day.id)]?.[String(exercise.id)]?.[String(week.id)]?.value) || ''
-                      }
-                      onChange={e => {
-                        setGridData((prev) => {
-                          const next = { ...prev };
-                          if (!next[String(day.id)]) next[String(day.id)] = {};
-                          if (!next[String(day.id)][String(exercise.id)]) next[String(day.id)][String(exercise.id)] = {};
-                          next[String(day.id)][String(exercise.id)][String(week.id)] = { value: e.target.value };
-                          return next;
-                        });
-                      }}
-                    />
-                  </TableCell>
-                ))}
+                {weeks.map((week) => {
+                  const weekStyle = exercise.weekStyles?.[week.id] || 'normal';
+                  const styleInfo = getStyleInfo(weekStyle);
+                  return (
+                    <TableCell key={week.id} className={`${styleInfo.bgColor} ${styleInfo.borderColor} border-l-4`}>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder={
+                            exercise.exerciseType === 'sets-time' ? 'Sets x Time' :
+                            exercise.exerciseType === 'time-only' ? 'Time' :
+                            'Sets x Reps'
+                          }
+                          value={
+                            (gridData?.[String(day.id)]?.[String(exercise.id)]?.[String(week.id)]?.value) || ''
+                          }
+                          onChange={e => {
+                            setGridData((prev) => {
+                              const next = { ...prev };
+                              if (!next[String(day.id)]) next[String(day.id)] = {};
+                              if (!next[String(day.id)][String(exercise.id)]) next[String(day.id)][String(exercise.id)] = {};
+                              next[String(day.id)][String(exercise.id)][String(week.id)] = { value: e.target.value };
+                              return next;
+                            });
+                          }}
+                        />
+                        
+                        {/* Exercise Style Selector for this week */}
+                        <Dropdown>
+                          <DropdownButton as="button" className="w-8 h-8 flex items-center justify-center hover:bg-zinc-50 text-zinc-700">
+                            <span className="text-sm">{styleInfo.icon}</span>
+                          </DropdownButton>
+                          <DropdownMenu>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'normal')}>
+                              💪 Normal
+                            </DropdownItem>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'dropset')}>
+                              ⬇️ Dropset
+                            </DropdownItem>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'superset')}>
+                              ⚡ Superset
+                            </DropdownItem>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'giantset')}>
+                              🔥 Giantset
+                            </DropdownItem>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'rest-pause')}>
+                              ⏸️ Rest-Pause
+                            </DropdownItem>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'pyramid')}>
+                              🔺 Pyramid
+                            </DropdownItem>
+                            <DropdownItem onClick={() => updateExerciseWeekStyle(exIdx, week.id, 'circuit')}>
+                              🔄 Circuit
+                            </DropdownItem>
+                          </DropdownMenu>
+                        </Dropdown>
+                      </div>
+                    </TableCell>
+                  );
+                })}
               </TableRow>
             );
           })}
