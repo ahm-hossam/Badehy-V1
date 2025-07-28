@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
-import bcrypt from 'bcryptjs';
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,29 +12,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    // Find user by email
-    const user = await prisma.registered.findUnique({
-      where: { email },
+    // Forward the request to the backend
+    const backendUrl = `${BACKEND_URL}/api/login`;
+    const response = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
     });
-
-    if (!user) {
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return NextResponse.json(errorData, { status: response.status });
     }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-    if (!isPasswordValid) {
-      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-    }
-
-    // Return user data without password
-    const { passwordHash: _, ...userWithoutPassword } = user;
-    return NextResponse.json({ 
-      success: true,
-      message: 'Login successful!',
-      user: userWithoutPassword 
-    });
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error logging in user:', error);
     return NextResponse.json({ error: 'Failed to login' }, { status: 500 });
