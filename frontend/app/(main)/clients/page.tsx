@@ -219,7 +219,14 @@ export default function ClientsPage() {
               ) : clients.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
-                  <TableCell className="font-medium">{client.fullName}</TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => router.push(`/clients/${client.id}`)}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      {client.fullName}
+                    </button>
+                  </TableCell>
                   <TableCell>
                     {client.profileCompletion === 'Completed' ? (
                       <span className="inline-block px-2 py-1 text-xs rounded bg-green-100 text-green-700 font-semibold">Completed</span>
