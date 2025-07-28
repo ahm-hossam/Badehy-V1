@@ -600,9 +600,10 @@ export default function CreateClientPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-2">Create Client</h1>
-      <p className="mb-6 text-zinc-600">Select a check-in form to fill out and add a new client. You can complete any missing profile fields after selecting a form.</p>
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Create Client</h1>
+        <p className="mb-6 text-zinc-600">Select a check-in form to fill out and add a new client. You can complete any missing profile fields after selecting a form.</p>
       {/* Select Check-in Form */}
       <div className="mb-6">
         <label className="block text-sm font-medium mb-1">Select Check-in Form</label>
@@ -1278,6 +1279,7 @@ export default function CreateClientPage() {
             </div>
           </form>
         )}
+      </div>
     </div>
   );
 } 

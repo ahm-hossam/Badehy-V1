@@ -56,9 +56,9 @@ function CheckInsCollapsible({ pathname }: { pathname: string }) {
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5"
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5 group"
       >
-        <Square2StackIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5" />
+        <Square2StackIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5 group-hover:fill-zinc-950" />
         <span className="flex-1">Check-ins</span>
         <span className="ml-auto transition-transform duration-200 ease-in-out">
           <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
@@ -95,9 +95,9 @@ function WorkoutProgramsCollapsible({ pathname }: { pathname: string }) {
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5"
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5 group"
       >
-        <FireIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5" />
+        <FireIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5 group-hover:fill-zinc-950" />
         <span className="flex-1">Workout Programs</span>
         <span className="ml-auto transition-transform duration-200 ease-in-out">
           <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
@@ -134,9 +134,9 @@ function BrandingCollapsible({ pathname }: { pathname: string }) {
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5"
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5 group"
       >
-        <Cog6ToothIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5" />
+        <Cog6ToothIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5 group-hover:fill-zinc-950" />
         <span className="flex-1">Branding & Templates</span>
         <span className="ml-auto transition-transform duration-200 ease-in-out">
           <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
@@ -280,13 +280,9 @@ export function ApplicationLayout({
             <SidebarSpacer />
 
             <SidebarSection>
-              <SidebarItem href="#">
+              <SidebarItem href="/support">
                 <QuestionMarkCircleIcon />
                 <SidebarLabel>Support</SidebarLabel>
-              </SidebarItem>
-              <SidebarItem href="#">
-                <SparklesIcon />
-                <SidebarLabel>Changelog</SidebarLabel>
               </SidebarItem>
             </SidebarSection>
           </SidebarBody>

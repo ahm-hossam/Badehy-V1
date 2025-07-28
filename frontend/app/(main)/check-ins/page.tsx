@@ -84,9 +84,10 @@ export default function CheckInsPage() {
   const paginatedCheckIns = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-2">Check-ins</h1>
-      <p className="mb-6 text-zinc-600">Create and manage your custom check-in forms to send to your clients. Each check-in generates a unique link you can share.</p>
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Check-ins</h1>
+        <p className="mb-6 text-zinc-600">Create and manage your custom check-in forms to send to your clients. Each check-in generates a unique link you can share.</p>
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
         <Input
           placeholder="Filter by check-in name..."
@@ -159,6 +160,7 @@ export default function CheckInsPage() {
         onCancel={() => setShowDeleteDialog(false)}
         onConfirm={handleDelete}
       />
+      </div>
     </div>
   );
 } 

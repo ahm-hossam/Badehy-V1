@@ -94,9 +94,10 @@ export default function ResponsesPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-2">Responses</h1>
-      <p className="mb-6 text-zinc-600">View and manage all client submissions to your check-in forms. Use the filters to find responses for a specific form or client.</p>
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Responses</h1>
+        <p className="mb-6 text-zinc-600">View and manage all client submissions to your check-in forms. Use the filters to find responses for a specific form or client.</p>
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
         <div className="flex gap-2 w-full sm:w-auto">
           <Select value={formId} onChange={e => { setFormId(e.target.value); setPage(1); }} className="w-48">
@@ -243,5 +244,6 @@ export default function ResponsesPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 } 

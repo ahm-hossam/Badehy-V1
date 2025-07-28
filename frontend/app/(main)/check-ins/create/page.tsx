@@ -640,13 +640,14 @@ export default function CheckInCreatePage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold">Create New Check-in</h1>
-        <Button outline type="button" onClick={() => handlePreview(checkinName, questions.map(migrateCondition))}>
-          Preview
-        </Button>
-      </div>
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold">Create New Check-in</h1>
+          <Button outline type="button" onClick={() => handlePreview(checkinName, questions.map(migrateCondition))}>
+            Preview
+          </Button>
+        </div>
       <div className="mb-6 flex flex-col gap-2">
         <label className="block text-sm font-medium mb-1">Check-in Name <span className="text-red-500">*</span></label>
         <Input
@@ -730,6 +731,7 @@ export default function CheckInCreatePage() {
           {loading ? 'Saving...' : 'Save & Publish'}
         </Button>
       </div>
+    </div>
     </div>
   );
 } 
