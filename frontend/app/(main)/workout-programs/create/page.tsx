@@ -407,7 +407,7 @@ function WeekGridBuilderWithMeta() {
       )}
       
       <div className="flex gap-3 justify-end mt-10">
-        <Button color="white" className="font-semibold border border-zinc-200">Cancel</Button>
+        <Button color="white" className="font-semibold border border-zinc-200" onClick={() => router.push('/workout-programs')}>Cancel</Button>
         <Button 
           onClick={handleSaveProgram}
           disabled={saving}
