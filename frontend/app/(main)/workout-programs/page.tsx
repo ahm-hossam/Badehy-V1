@@ -23,6 +23,7 @@ import {
 } from '@heroicons/react/20/solid';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 interface Program {
   id: number;
@@ -78,6 +79,8 @@ export default function ProgramsPage() {
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showCreatedToast, setShowCreatedToast] = useState(false);
 
   useEffect(() => {
     const storedUser = getStoredUser();
@@ -97,6 +100,14 @@ export default function ProgramsPage() {
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm, user]);
+
+  useEffect(() => {
+    if (searchParams.get('created') === '1') {
+      setShowCreatedToast(true);
+      const timer = setTimeout(() => setShowCreatedToast(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
 
   const fetchPrograms = async (trainerId: number) => {
     try {
@@ -343,6 +354,15 @@ export default function ProgramsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
             {errorMessage}
+          </div>
+        </div>
+      )}
+
+      {showCreatedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Program created successfully!
           </div>
         </div>
       )}
