@@ -40,6 +40,41 @@ type GridData = {
   }
 };
 
+// Stable input component that doesn't re-render - moved outside main component
+const StableInput = React.memo(({ dayId, exerciseId, weekId, placeholder, value, onChange }: { dayId: string; exerciseId: string; weekId: string; placeholder: string; value: string; onChange: (dayId: string, exerciseId: string, weekId: string, value: string) => void }) => {
+  return (
+    <input
+      type="text"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(dayId, exerciseId, weekId, e.target.value)}
+      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    />
+  );
+});
+
+StableInput.displayName = 'StableInput';
+
+// Get style color and icon - moved outside main component
+const getStyleInfo = (style: string | undefined) => {
+  switch (style) {
+    case 'dropset':
+      return { color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200', icon: '⬇️', label: 'Drop' };
+    case 'superset':
+      return { color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', icon: '⚡', label: 'Super' };
+    case 'giantset':
+      return { color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', icon: '🔥', label: 'Giant' };
+    case 'rest-pause':
+      return { color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', icon: '⏸️', label: 'Rest-Pause' };
+    case 'pyramid':
+      return { color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-200', icon: '🔺', label: 'Pyramid' };
+    case 'circuit':
+      return { color: 'text-indigo-600', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200', icon: '🔄', label: 'Circuit' };
+    default:
+      return { color: 'text-zinc-600', bgColor: 'bg-zinc-50', borderColor: 'border-zinc-200', icon: '💪', label: 'Normal' };
+  }
+};
+
 export default function ProgramBuilder({ mode, initialData }: { mode: 'create' | 'edit', initialData?: any }) {
   const router = useRouter();
   const [programData, setProgramData] = useState({ name: '', description: '' });
@@ -66,7 +101,7 @@ export default function ProgramBuilder({ mode, initialData }: { mode: 'create' |
   const [editingDayId, setEditingDayId] = useState<number | null>(null);
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
 
-  // Memoized onChange handler to prevent input focus loss
+  // Memoized onChange handler to prevent re-renders
   const handleGridInputChange = useCallback((dayId: string, exerciseId: string, weekId: string, value: string) => {
     setGridData((prev) => {
       const next = { ...prev };
@@ -510,12 +545,107 @@ export default function ProgramBuilder({ mode, initialData }: { mode: 'create' |
     }
   };
 
-  // Add DraggableDay and getYouTubeVideoId below the main ProgramBuilder component
+  // UI identical to create page
 
-const DraggableDay = React.memo(function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, weeks, exercises, gridData, setGridData, editingDayId, setEditingDayId, allExercises, addExerciseToDay, addWeekToDay, handleGridInputChange }: { day: Day; dayIdx: number; days: Day[]; setDays: (days: Day[]) => void; deleteWeek: (dayId: number, weekId: number) => void; deleteExercise: (dayId: number, exerciseId: number) => void; weeks: Week[]; exercises: Exercise[]; gridData: GridData; setGridData: React.Dispatch<React.SetStateAction<GridData>>; editingDayId: number | null; setEditingDayId: (id: number | null) => void; allExercises: Exercise[]; addExerciseToDay: (dayId: number) => void; addWeekToDay: (dayId: number) => void; handleGridInputChange: (dayId: string, exerciseId: string, weekId: string, value: string) => void; }) {
+  return (
+    <div className="max-w-4xl mx-auto py-8 px-4">
+      <h1 className="text-2xl font-bold text-zinc-900 mb-1">{mode === 'edit' ? 'Edit Workout Program' : 'Create Workout Program'}</h1>
+      <p className="text-zinc-500 mb-8">{mode === 'edit' ? 'Edit your program structure, days, weeks, and exercises. All changes are saved to the backend.' : 'Build a custom program for your clients. Add days, weeks, and exercises as needed.'}</p>
+      <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-8">
+        <h2 className="text-lg font-semibold text-zinc-900 mb-3">Program Details</h2>
+        <div className="mb-4">
+          <label htmlFor="program-name" className="block text-sm font-medium text-zinc-700 mb-1">Program Name</label>
+          <Input
+            id="program-name"
+            name="name"
+            placeholder="Program Name"
+            value={programData.name}
+            onChange={handleChange}
+            className="text-base"
+          />
+        </div>
+        <div>
+          <label htmlFor="program-description" className="block text-sm font-medium text-zinc-700 mb-1">Program Description</label>
+          <Textarea
+            id="program-description"
+            name="description"
+            placeholder="Program Description"
+            value={programData.description}
+            onChange={handleChange}
+            className="text-base"
+          />
+        </div>
+      </div>
+      <h2 className="text-lg font-semibold text-zinc-900 mb-3">Program Structure</h2>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={days.map(d => d.id)} strategy={verticalListSortingStrategy}>
+          {days.map((day, dayIdx) => (
+            <DraggableDay
+              key={day.id}
+              day={day}
+              dayIdx={dayIdx}
+              days={days}
+              setDays={setDays}
+              deleteWeek={deleteWeek}
+              deleteExercise={deleteExercise}
+              weeks={day.weeks.filter((week, index, self) => 
+                index === self.findIndex(w => w.id === week.id)
+              )}
+              exercises={day.exercises}
+              gridData={gridData}
+              setGridData={setGridData}
+              editingDayId={editingDayId}
+              setEditingDayId={setEditingDayId}
+              allExercises={allExercises}
+              addExerciseToDay={addExerciseToDay}
+              addWeekToDay={addWeekToDay}
+              handleGridInputChange={handleGridInputChange}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
+      <div className="flex justify-start mt-8">
+        <Button color="white" onClick={addDay} className="font-semibold border border-zinc-200">
+          + Add Day
+        </Button>
+      </div>
+      {saveError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">Error saving program</h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>{saveError}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-3 justify-end mt-10">
+        <Button color="white" className="font-semibold border border-zinc-200" onClick={() => router.push('/workout-programs')}>Cancel</Button>
+        <Button 
+          onClick={handleSave}
+          disabled={saving}
+          className="font-semibold bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? 'Saving...' : 'Save Program'}
+        </Button>
+      </div>
+    </div>
+  );
+} 
+
+const DraggableDay = function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, weeks, exercises, gridData, setGridData, editingDayId, setEditingDayId, allExercises, addExerciseToDay, addWeekToDay, handleGridInputChange }: { day: Day; dayIdx: number; days: Day[]; setDays: (days: Day[]) => void; deleteWeek: (dayId: number, weekId: number) => void; deleteExercise: (dayId: number, exerciseId: number) => void; weeks: Week[]; exercises: Exercise[]; gridData: GridData; setGridData: React.Dispatch<React.SetStateAction<GridData>>; editingDayId: number | null; setEditingDayId: (id: number | null) => void; allExercises: Exercise[]; addExerciseToDay: (dayId: number) => void; addWeekToDay: (dayId: number) => void; handleGridInputChange: (dayId: string, exerciseId: string, weekId: string, value: string) => void; }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: day.id });
-  const [tempName, setTempName] = React.useState(day.name);
+  const [tempName, setTempName] = useState(day.name);
+  
   React.useEffect(() => { if (editingDayId !== day.id) setTempName(day.name); }, [editingDayId, day.name, day.id]);
+
   const handleEdit = () => setEditingDayId(day.id);
   const handleBlur = () => {
     const newDays = [...days];
@@ -537,25 +667,6 @@ const DraggableDay = React.memo(function DraggableDay({ day, dayIdx, days, setDa
     };
     setDays(newDays);
   };
-  // Get style color and icon
-  const getStyleInfo = (style: string | undefined) => {
-    switch (style) {
-      case 'dropset':
-        return { color: 'text-red-600', bgColor: 'bg-red-50', borderColor: 'border-red-200', icon: '⬇️', label: 'Drop' };
-      case 'superset':
-        return { color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', icon: '⚡', label: 'Super' };
-      case 'giantset':
-        return { color: 'text-purple-600', bgColor: 'bg-purple-50', borderColor: 'border-purple-200', icon: '🔥', label: 'Giant' };
-      case 'rest-pause':
-        return { color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200', icon: '⏸️', label: 'Rest-Pause' };
-      case 'pyramid':
-        return { color: 'text-green-600', bgColor: 'bg-green-50', borderColor: 'border-green-200', icon: '🔺', label: 'Pyramid' };
-      case 'circuit':
-        return { color: 'text-indigo-600', bgColor: 'bg-indigo-50', borderColor: 'border-indigo-200', icon: '🔄', label: 'Circuit' };
-      default:
-        return { color: 'text-zinc-600', bgColor: 'bg-zinc-50', borderColor: 'border-zinc-200', icon: '💪', label: 'Normal' };
-    }
-  };
   // Update exercise style for a specific week
   const updateExerciseWeekStyle = (exerciseIndex: number, weekId: number, style: string) => {
     const newDays = [...days];
@@ -565,6 +676,7 @@ const DraggableDay = React.memo(function DraggableDay({ day, dayIdx, days, setDa
     newDays[dayIdx].exercises[exerciseIndex].weekStyles![weekId] = style as any;
     setDays(newDays);
   };
+
   return (
     <section
       ref={setNodeRef}
@@ -673,7 +785,11 @@ const DraggableDay = React.memo(function DraggableDay({ day, dayIdx, days, setDa
                   return (
                     <TableCell key={week.id} className={`${styleInfo.bgColor} ${styleInfo.borderColor} border-l-4`}>
                       <div className="flex items-center gap-2">
-                        <Input
+                        <StableInput
+                          key={`${day.id}-${exercise.id}-${week.id}`}
+                          dayId={String(day.id)}
+                          exerciseId={String(exercise.id)}
+                          weekId={String(week.id)}
                           placeholder={
                             exercise.exerciseType === 'sets-time' ? 'Sets x Time' :
                             exercise.exerciseType === 'time-only' ? 'Time' :
@@ -682,7 +798,7 @@ const DraggableDay = React.memo(function DraggableDay({ day, dayIdx, days, setDa
                           value={
                             (gridData?.[String(day.id)]?.[String(exercise.id)]?.[String(week.id)]?.value) || ''
                           }
-                          onChange={e => handleGridInputChange(String(day.id), String(exercise.id), String(week.id), e.target.value)}
+                          onChange={handleGridInputChange}
                         />
                         <Dropdown>
                           <DropdownButton as="button" className="w-8 h-8 flex items-center justify-center hover:bg-zinc-50 text-zinc-700">
@@ -745,7 +861,9 @@ const DraggableDay = React.memo(function DraggableDay({ day, dayIdx, days, setDa
       </Dialog>
     </section>
   );
-});
+}
+
+DraggableDay.displayName = 'DraggableDay';
 
 // Helper function to extract YouTube video ID
 const getYouTubeVideoId = (url: string): string | null => {
@@ -757,98 +875,4 @@ const getYouTubeVideoId = (url: string): string | null => {
     if (match) return match[1];
   }
   return null;
-};
-
-  // UI identical to create page
-  return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold text-zinc-900 mb-1">{mode === 'edit' ? 'Edit Workout Program' : 'Create Workout Program'}</h1>
-      <p className="text-zinc-500 mb-8">{mode === 'edit' ? 'Edit your program structure, days, weeks, and exercises. All changes are saved to the backend.' : 'Build a custom program for your clients. Add days, weeks, and exercises as needed.'}</p>
-      <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-8">
-        <h2 className="text-lg font-semibold text-zinc-900 mb-3">Program Details</h2>
-        <div className="mb-4">
-          <label htmlFor="program-name" className="block text-sm font-medium text-zinc-700 mb-1">Program Name</label>
-          <Input
-            id="program-name"
-            name="name"
-            placeholder="Program Name"
-            value={programData.name}
-            onChange={handleChange}
-            className="text-base"
-          />
-        </div>
-        <div>
-          <label htmlFor="program-description" className="block text-sm font-medium text-zinc-700 mb-1">Program Description</label>
-          <Textarea
-            id="program-description"
-            name="description"
-            placeholder="Program Description"
-            value={programData.description}
-            onChange={handleChange}
-            className="text-base"
-          />
-        </div>
-      </div>
-      <h2 className="text-lg font-semibold text-zinc-900 mb-3">Program Structure</h2>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={days.map(d => d.id)} strategy={verticalListSortingStrategy}>
-          {days.map((day, dayIdx) => (
-            <DraggableDay
-              key={day.id}
-              day={day}
-              dayIdx={dayIdx}
-              days={days}
-              setDays={setDays}
-              deleteWeek={deleteWeek}
-              deleteExercise={deleteExercise}
-              weeks={day.weeks.filter((week, index, self) => 
-                index === self.findIndex(w => w.id === week.id)
-              )}
-              exercises={day.exercises}
-              gridData={gridData}
-              setGridData={setGridData}
-              editingDayId={editingDayId}
-              setEditingDayId={setEditingDayId}
-              allExercises={allExercises}
-              addExerciseToDay={addExerciseToDay}
-              addWeekToDay={addWeekToDay}
-              handleGridInputChange={handleGridInputChange}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
-      <div className="flex justify-start mt-8">
-        <Button color="white" onClick={addDay} className="font-semibold border border-zinc-200">
-          + Add Day
-        </Button>
-      </div>
-      {saveError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error saving program</h3>
-              <div className="mt-2 text-sm text-red-700">
-                <p>{saveError}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="flex gap-3 justify-end mt-10">
-        <Button color="white" className="font-semibold border border-zinc-200" onClick={() => router.push('/workout-programs')}>Cancel</Button>
-        <Button 
-          onClick={handleSave}
-          disabled={saving}
-          className="font-semibold bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Saving...' : 'Save Program'}
-        </Button>
-      </div>
-    </div>
-  );
-} 
+}; 

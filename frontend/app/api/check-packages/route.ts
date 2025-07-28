@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function GET() {
   try {
-    const packages = await prisma.package.findMany();
+    // Forward the request to the backend
+    const backendUrl = `${BACKEND_URL}/api/packages`;
+    const response = await fetch(backendUrl);
     
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+
+    const packages = await response.json();
     return NextResponse.json({
       success: true,
       packages: packages,

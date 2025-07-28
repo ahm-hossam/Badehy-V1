@@ -1,26 +1,19 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function GET() {
   try {
-    const users = await prisma.registered.findMany({
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phoneNumber: true,
-        createdAt: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    // Forward the request to the backend
+    const backendUrl = `${BACKEND_URL}/api/check-users`;
+    const response = await fetch(backendUrl);
     
-    return NextResponse.json({
-      success: true,
-      users: users,
-      count: users.length
-    });
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json({ 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,17 +12,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Trainer ID is required' }, { status: 400 });
     }
 
-    const packages = await prisma.package.findMany({
-      where: {
-        trainerId: parseInt(trainerId),
-        name: {
-          contains: search,
-          mode: 'insensitive',
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+    // Forward the request to the backend
+    const backendUrl = `${BACKEND_URL}/api/packages?trainerId=${trainerId}&search=${encodeURIComponent(search)}`;
+    const response = await fetch(backendUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
 
+    const packages = await response.json();
     return NextResponse.json(packages);
   } catch (error) {
     console.error('Error fetching packages:', error);
@@ -38,25 +37,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Trainer ID and name are required' }, { status: 400 });
     }
 
-    // Check if package already exists for this trainer
-    const existingPackage = await prisma.package.findFirst({
-      where: {
-        trainerId: parseInt(trainerId),
-        name: name.trim(),
+    // Forward the request to the backend
+    const backendUrl = `${BACKEND_URL}/api/packages`;
+    const response = await fetch(backendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ trainerId, name }),
     });
-
-    if (existingPackage) {
-      return NextResponse.json({ error: 'Package already exists' }, { status: 400 });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return NextResponse.json(errorData, { status: response.status });
     }
 
-    const newPackage = await prisma.package.create({
-      data: {
-        trainerId: parseInt(trainerId),
-        name: name.trim(),
-      },
-    });
-
+    const newPackage = await response.json();
     return NextResponse.json(newPackage);
   } catch (error) {
     console.error('Error creating package:', error);
