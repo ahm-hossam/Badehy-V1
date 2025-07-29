@@ -166,7 +166,7 @@ export default function ClientDetailsPage() {
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [holdDuration, setHoldDuration] = useState('');
   const [holdDurationUnit, setHoldDurationUnit] = useState('days');
-  const [holdFromDate, setHoldFromDate] = useState('');
+
   const [selectedSubscription, setSelectedSubscription] = useState<any>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelDate, setCancelDate] = useState('');
@@ -245,6 +245,8 @@ export default function ClientDetailsPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('Frontend received client data:', data);
+        console.log('Frontend - submissions:', data.submissions);
+        console.log('Frontend - submissions length:', data.submissions?.length);
         if (data.error) {
           console.error('Backend returned error:', data.error);
           setError(data.error);
@@ -419,15 +421,14 @@ export default function ClientDetailsPage() {
     
     if (latestSubscription) {
       setSelectedSubscription(latestSubscription);
-      // Set default hold from date to the subscription's current end date
-      setHoldFromDate(new Date(latestSubscription.endDate).toISOString().split('T')[0]);
+
       setShowHoldModal(true);
-      setDropdownOpen(false);
+    setDropdownOpen(false);
     }
   };
 
   const handleConfirmHold = async () => {
-    if (!selectedSubscription || !holdDuration || !holdFromDate) return;
+    if (!selectedSubscription || !holdDuration) return;
     
     try {
       const response = await fetch(`/api/subscriptions/${selectedSubscription.id}/hold`, {
@@ -435,8 +436,7 @@ export default function ClientDetailsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           holdDuration: parseInt(holdDuration), 
-          holdDurationUnit,
-          holdFromDate
+          holdDurationUnit
         }),
       });
       
@@ -446,7 +446,7 @@ export default function ClientDetailsPage() {
         setShowHoldModal(false);
         setHoldDuration('');
         setHoldDurationUnit('days');
-        setHoldFromDate('');
+
         setSelectedSubscription(null);
         
         // Show success toast
@@ -462,20 +462,21 @@ export default function ClientDetailsPage() {
   };
 
   const calculateNewEndDate = () => {
-    if (!selectedSubscription || !holdDuration || !holdFromDate) return null;
+    if (!selectedSubscription || !holdDuration) return null;
     
-    const holdFrom = new Date(holdFromDate);
+    // Use the current end date of the subscription as the base
+    const currentEndDate = new Date(selectedSubscription.endDate);
     const duration = parseInt(holdDuration);
     
     switch (holdDurationUnit) {
       case 'days':
-        return new Date(holdFrom.getTime() + (duration * 24 * 60 * 60 * 1000));
+        return new Date(currentEndDate.getTime() + (duration * 24 * 60 * 60 * 1000));
       case 'weeks':
-        return new Date(holdFrom.getTime() + (duration * 7 * 24 * 60 * 60 * 1000));
+        return new Date(currentEndDate.getTime() + (duration * 7 * 24 * 60 * 60 * 1000));
       case 'months':
-        return new Date(holdFrom.getTime() + (duration * 30 * 24 * 60 * 60 * 1000));
+        return new Date(currentEndDate.getTime() + (duration * 30 * 24 * 60 * 60 * 1000));
       default:
-        return holdFrom;
+        return currentEndDate;
     }
   };
 
@@ -489,8 +490,8 @@ export default function ClientDetailsPage() {
     
     if (latestSubscription) {
       setSelectedSubscription(latestSubscription);
-      // Set default cancel date to current end date
-      setCancelDate(new Date(latestSubscription.endDate).toISOString().split('T')[0]);
+      // Set default cancel date to today
+      setCancelDate(new Date().toISOString().split('T')[0]);
       // Reset refund fields
       setRefundType('none');
       setRefundAmount('');
@@ -567,7 +568,7 @@ export default function ClientDetailsPage() {
         const dropdownElement = document.querySelector('[data-dropdown="subscription-actions"]');
         
         if (dropdownElement && !dropdownElement.contains(target)) {
-          setDropdownOpen(false);
+        setDropdownOpen(false);
         }
       }
     };
@@ -810,18 +811,7 @@ export default function ClientDetailsPage() {
                 </p>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hold From Date
-                </label>
-                <input
-                  type="date"
-                  value={holdFromDate}
-                  onChange={(e) => setHoldFromDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  min={new Date().toISOString().split('T')[0]}
-                />
-              </div>
+
               
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="sm:col-span-2">
@@ -853,7 +843,7 @@ export default function ClientDetailsPage() {
                 </div>
               </div>
               
-              {holdDuration && holdFromDate && (
+              {holdDuration && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <label className="block text-sm font-medium text-green-700 mb-2">
                     New End Date
@@ -872,7 +862,7 @@ export default function ClientDetailsPage() {
             </Button>
             <Button 
               onClick={handleConfirmHold}
-              disabled={!holdDuration || !holdFromDate}
+              disabled={!holdDuration}
             >
               Hold Subscription
             </Button>
@@ -1539,6 +1529,12 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 
 // Check-ins Tab Component
 function CheckinsTab({ client }: { client: Client }) {
+  console.log('CheckinsTab - client:', client);
+  console.log('CheckinsTab - submissions:', client.submissions);
+  console.log('CheckinsTab - submissions length:', client.submissions?.length);
+  
+
+  
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -1548,8 +1544,8 @@ function CheckinsTab({ client }: { client: Client }) {
       {client.submissions && client.submissions.length > 0 ? (
         <div className="space-y-6">
           {client.submissions.map((submission, index) => (
-            <div key={submission.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
+              <div key={submission.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
                 <div>
                   <h4 className="text-lg font-medium text-gray-900">
                     {submission.form?.name || `Form #${submission.formId}`}
@@ -1591,12 +1587,78 @@ function CheckinsTab({ client }: { client: Client }) {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Responses</h3>
-          <p className="text-gray-500">This client hasn't submitted any check-in responses yet.</p>
+      <div className="text-center py-12">
+        <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Responses</h3>
+        <p className="text-gray-500">This client hasn't submitted any check-in responses yet.</p>
         </div>
       )}
+      
+      {/* Core Questions Section */}
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-4">Core Questions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.email ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 mb-1">Email</p>
+                <p className={`${client.email ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                  {client.email || 'Not provided'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.gender ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 mb-1">Gender</p>
+                <p className={`${client.gender ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                  {client.gender || 'Not provided'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.age ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 mb-1">Age</p>
+                <p className={`${client.age ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                  {client.age || 'Not provided'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.source ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 mb-1">Source</p>
+                <p className={`${client.source ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                  {client.source || 'Not provided'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.registrationDate ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-900 mb-1">Registration Date</p>
+                <p className={`${client.registrationDate ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                  {client.registrationDate ? new Date(client.registrationDate).toLocaleDateString() : 'Not provided'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1651,9 +1713,9 @@ function NotesTab({ client, onNotesChange }: { client: Client; onNotesChange: ()
       // Update the client's notes directly
       if (client.notes) {
         client.notes = client.notes.map(note => 
-          note.id === noteId 
-            ? { ...note, content: editingNoteContent.trim(), updatedAt: new Date().toISOString() }
-            : note
+        note.id === noteId 
+          ? { ...note, content: editingNoteContent.trim(), updatedAt: new Date().toISOString() }
+          : note
         );
       }
       setEditingNoteId(null);
