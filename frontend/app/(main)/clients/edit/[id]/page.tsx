@@ -129,10 +129,29 @@ export default function EditClientPage() {
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`)
       .then(res => res.json())
       .then(data => {
+        console.log('EditClientPage - Received client data:', data);
+        console.log('EditClientPage - fullName from API:', data?.fullName);
         setFormData(data || {});
         // Initialize selected labels from client data
         if (data?.labels && Array.isArray(data.labels)) {
           setSelectedLabels(data.labels.map((label: any) => label.id));
+        }
+        // Load subscription data
+        if (data?.subscriptions && data.subscriptions.length > 0) {
+          const latestSubscription = data.subscriptions[0];
+          setSubscription(latestSubscription);
+          // Load installments
+          if (latestSubscription.installments && latestSubscription.installments.length > 0) {
+            const installmentRows = latestSubscription.installments.map((inst: any) => ({
+              id: inst.id,
+              date: inst.paidDate ? new Date(inst.paidDate).toISOString().split('T')[0] : '',
+              amount: String(inst.amount || ''),
+              image: null,
+              nextDate: inst.nextInstallment ? new Date(inst.nextInstallment).toISOString().split('T')[0] : '',
+              remaining: String(inst.remaining || ''),
+            }));
+            setInstallments(installmentRows);
+          }
         }
         console.log('EditClientPage formData:', data);
       })
@@ -338,6 +357,20 @@ export default function EditClientPage() {
   });
   const [registrationDate, setRegistrationDate] = useState<string>("");
   
+  // Add missing state variables that are used but not defined
+  const [transactionImage, setTransactionImage] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [showTransactionImage, setShowTransactionImage] = useState(false);
+  const [showDiscountValue, setShowDiscountValue] = useState(false);
+  const [showPriceFields, setShowPriceFields] = useState(false);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [newPackageName, setNewPackageName] = useState('');
+  const [showAddPackage, setShowAddPackage] = useState(false);
+  const [packageError, setPackageError] = useState('');
+  
   // Array fields that need special handling
   const arrayFields = ['injuriesHealthNotes', 'goals', 'preferredTrainingDays', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas', 'foodAllergies'];
   
@@ -461,6 +494,7 @@ export default function EditClientPage() {
           // Question is from CORE_QUESTIONS - use form configuration but keep original key
           return {
             ...coreField,
+            id: q.id, // Ensure question ID is preserved
             type: mapFormTypeToInputType(q.type || coreField.type),
             options: q.options || coreField.options || [],
             required: coreField.required,
@@ -469,12 +503,13 @@ export default function EditClientPage() {
         } else {
           // Custom question - use form configuration
           return {
-      key: q.id || q.label,
-      label: q.label,
+            key: q.id || q.label,
+            id: q.id, // Ensure question ID is preserved
+            label: q.label,
             type: mapFormTypeToInputType(q.type || 'text'),
-      required: !!q.required,
-      options: q.options || [],
-      isCustom: true,
+            required: !!q.required,
+            options: q.options || [],
+            isCustom: true,
           };
         }
       }).filter(Boolean); // Remove null entries
@@ -492,44 +527,39 @@ export default function EditClientPage() {
     console.log('Edit page - submissionForm is null/undefined:', !submissionForm);
     console.log('Edit page - formData:', formData);
     
-    // If no submissionForm, return all CORE_QUESTIONS
     if (!submissionForm) {
+      // If no check-in form, show all core questions
       console.log('Edit page - No submissionForm, returning all CORE_QUESTIONS');
       return CORE_QUESTIONS;
     }
     
-    try {
-      // Get all question labels from the form
-      const formQuestionLabels = (submissionForm.questions || [])
-        .filter((q: any) => q && q.label)
-        .map((q: any) => q.label);
-      
-      console.log('Edit page - Form question labels:', formQuestionLabels);
-      console.log('Edit page - Core questions:', CORE_QUESTIONS);
-      
-      // Filter out core questions that are already in the form
-      const filteredCoreFields = CORE_QUESTIONS.filter(field => {
-        const isInForm = formQuestionLabels.includes(field.label);
-        console.log(`Edit page - Core field "${field.label}" in form: ${isInForm}`);
-          return !isInForm;
-        });
-        
-      console.log('Edit page - Core fields not in form:', filteredCoreFields);
-      return filteredCoreFields;
-    } catch (error) {
-      console.error('Error processing core fields:', error);
-      return CORE_QUESTIONS;
-    }
+    // Get all question labels from the check-in form
+    const formQuestionLabels = (submissionForm.questions || [])
+      .filter((q: any) => q && q.label)
+      .map((q: any) => q.label);
+    
+    console.log('Edit page - Form question labels:', formQuestionLabels);
+    console.log('Edit page - Core questions:', CORE_QUESTIONS);
+    
+    // Filter out core questions that are already in the check-in form
+    const filteredCoreFields = CORE_QUESTIONS.filter(field => {
+      const isInForm = formQuestionLabels.includes(field.label);
+      console.log(`Core field "${field.label}" in form: ${isInForm}`);
+      return !isInForm;
+    });
+    
+    console.log('Edit page - Core fields not in form:', filteredCoreFields);
+    return filteredCoreFields;
   }, [submissionForm, formData]);
 
   // Update handleChange to update formData for profile fields and answers for check-in questions
-  const handleChange = (key: string, value: any, isCheckInQuestion: boolean = false) => {
+  const handleChange = React.useCallback((key: string, value: any, isCheckInQuestion: boolean = false) => {
     if (isCheckInQuestion) {
       setAnswers((prev: any) => ({ ...prev, [key]: value }));
     } else {
       setFormData((prev: any) => ({ ...prev, [key]: value }));
     }
-  };
+  }, []);
 
 
 
@@ -609,6 +639,8 @@ export default function EditClientPage() {
           customAnswers[key] = value;
         }
       });
+      console.log('EditClientPage - formData before sending:', formDataToSend);
+      console.log('EditClientPage - fullName in formData:', formDataToSend.fullName);
       console.log('Payload sent to backend:', {
         client: { ...formDataToSend, answers: customAnswers, labels: selectedLabels },
         subscription: subscriptionToSend,
@@ -663,20 +695,7 @@ export default function EditClientPage() {
     }
   };
 
-  const [transactionImage, setTransactionImage] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Add after other useState declarations in EditClientPage:
-  const [packages, setPackages] = useState<any[]>([]);
-  const [newPackageName, setNewPackageName] = useState('');
-  const [showAddPackage, setShowAddPackage] = useState(false);
-  const [packageError, setPackageError] = useState('');
-  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
-  const [showDiscountFields, setShowDiscountFields] = useState(false);
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  const [showTransactionImage, setShowTransactionImage] = useState(false);
-  const [showDiscountValue, setShowDiscountValue] = useState(false);
-  const [showPriceFields, setShowPriceFields] = useState(false);
   type InstallmentRow = {
     id?: string;
     date: string;
@@ -795,8 +814,8 @@ export default function EditClientPage() {
       });
       if (res.ok) {
         const label = await res.json();
-        setLabels(prev => [...prev, label]);
-        setSelectedLabels(prev => [...prev, label.id]);
+        setLabels((prev: any[]) => [...prev, label]);
+        setSelectedLabels((prev: number[]) => [...prev, label.id]);
         setNewLabelName('');
         setShowAddLabel(false);
       } else {
@@ -809,7 +828,7 @@ export default function EditClientPage() {
   };
 
   const handleLabelToggle = (labelId: number) => {
-    setSelectedLabels(prev => 
+    setSelectedLabels((prev: number[]) => 
       prev.includes(labelId) 
         ? prev.filter(id => id !== labelId)
         : [...prev, labelId]
@@ -1134,6 +1153,9 @@ export default function EditClientPage() {
     console.log('checkinQuestions:', checkinQuestions);
     console.log('answers:', answers);
     console.log('formData:', formData);
+    console.log('coreKeys:', Array.from(coreKeys));
+    console.log('submissionForm:', submissionForm);
+    console.log('coreFieldsNotInForm:', coreFieldsNotInForm);
   }, []);
 
   return (
@@ -1149,18 +1171,30 @@ export default function EditClientPage() {
         <form onSubmit={handleSubmit} className="space-y-8">
 
           
-          {/* Check-In Data Section (only if checkinQuestions exist) */}
-          {checkinQuestions.length > 0 ? (
+          {/* Check-In Data Section (only if checkInFields exist) */}
+          {checkInFields.length > 0 ? (
             <div className="mb-6 bg-white rounded-xl shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {checkinQuestions.map((field, fieldIndex) => {
+                {checkInFields.map((field, fieldIndex) => {
                   // Use a unique key for each field
                   const checkinFieldKey = `${field.key || field.label || `checkin-field-${fieldIndex}`}-checkin`;
-                  // Use field.id (question ID) to get the value from answers
-                  const value = coreKeys.has(field.key)
-                    ? formData[field.key] ?? ''
-                    : answers[field.id] ?? '';
+                  // Determine the correct value and update handler for each field
+                  const isCoreField = coreKeys.has(field.key);
+                  const value = isCoreField ? (formData[field.key] ?? '') : (answers[field.id] ?? '');
+                  
+                  // Debug: log the field categorization
+                  console.log(`Field: ${field.label}, Key: ${field.key}, IsCore: ${isCoreField}, Value:`, value);
+                  
+                  // Create a unified change handler
+                  const handleFieldChange = (newValue: any) => {
+                    if (isCoreField) {
+                      setFormData((prev: any) => ({ ...prev, [field.key]: newValue }));
+                    } else {
+                      setAnswers((prev: any) => ({ ...prev, [field.id]: newValue }));
+                    }
+                  };
+                  
                   // Render custom questions
                   if (field.isCustom) {
                     if (field.type === 'select' && field.options.length > 0) {
@@ -1172,7 +1206,7 @@ export default function EditClientPage() {
                           </label>
                           <Select
                             value={value || ''}
-                            onChange={e => handleChange(field.id, e.target.value, true)}
+                            onChange={e => handleFieldChange(e.target.value)}
                             required={field.required}
                             className="w-full"
                           >
@@ -1180,8 +1214,8 @@ export default function EditClientPage() {
                             {field.options.map((opt: string) => (
                               <option key={`${checkinFieldKey}-${opt}`} value={opt}>{opt}</option>
                             ))}
-              </Select>
-            </div>
+                          </Select>
+                        </div>
                       );
                     }
                     if (field.type === 'multiselect' && field.options.length > 0) {
@@ -1194,7 +1228,7 @@ export default function EditClientPage() {
                           </label>
                           <MultiSelect
                             value={currentValues}
-                            onChange={(value) => setAnswers(prev => ({ ...prev, [field.id]: value }))}
+                            onChange={handleFieldChange}
                             placeholder={`Select ${field.label}...`}
                             className="w-full"
                           >
@@ -1204,7 +1238,7 @@ export default function EditClientPage() {
                               </MultiSelectOption>
                             ))}
                           </MultiSelect>
-            </div>
+                        </div>
                       );
                     }
                     if (field.type === 'textarea') {
@@ -1216,11 +1250,11 @@ export default function EditClientPage() {
                           </label>
                           <Textarea
                             value={value || ''}
-                            onChange={e => handleChange(field.id, e.target.value, true)}
+                            onChange={e => handleFieldChange(e.target.value)}
                             placeholder={field.label}
                             required={field.required}
                           />
-            </div>
+                        </div>
                       );
                     }
                     // Default to text input
@@ -1233,11 +1267,11 @@ export default function EditClientPage() {
                         <Input
                           type={field.type || 'text'}
                           value={value || ''}
-                          onChange={e => handleChange(field.id, e.target.value, true)}
+                          onChange={e => handleFieldChange(e.target.value)}
                           placeholder={field.label}
                           required={field.required}
-              />
-            </div>
+                        />
+                      </div>
                     );
                   }
                   // Render normal fields (GROUPS fields that are in the check-in form)
@@ -1250,9 +1284,9 @@ export default function EditClientPage() {
                       {field.type === 'select' ? (
                         <Select
                           value={value || ''}
-                          onChange={e => handleChange(field.id, e.target.value, true)}
+                          onChange={e => handleFieldChange(e.target.value)}
                           required={field.required}
-                className="w-full"
+                          className="w-full"
                         >
                           <option value="">Select...</option>
                           {field.options && field.options.map((opt: string) => (
@@ -1265,7 +1299,7 @@ export default function EditClientPage() {
                           return (
                             <MultiSelect
                               value={currentValues}
-                              onChange={(value) => handleChange(field.id, value, true)}
+                              onChange={handleFieldChange}
                               placeholder={`Select ${field.label}...`}
                               className="w-full"
                             >
@@ -1279,15 +1313,8 @@ export default function EditClientPage() {
                         })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
-                          value={value}
-                          onChange={e => {
-                            if (field.id === 'injuriesHealthNotes') {
-                              // Split textarea value into array on change
-                              handleChange(field.id, e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean), true);
-                            } else {
-                              handleChange(field.id, e.target.value, true);
-                            }
-                          }}
+                          value={value || ''}
+                          onChange={e => handleFieldChange(e.target.value)}
                           placeholder={field.label}
                           required={field.required}
                         />
@@ -1295,20 +1322,12 @@ export default function EditClientPage() {
                         <Input
                           type={field.type}
                           value={value || ''}
-                          onChange={e => {
-                            if (field.id === 'mealCount') {
-                              // Convert to number on change
-                              const val = e.target.value;
-                              handleChange(field.id, val === '' ? null : Number(val), true);
-                            } else {
-                              handleChange(field.id, e.target.value, true);
-                            }
-                          }}
+                          onChange={e => handleFieldChange(e.target.value)}
                           placeholder={field.label}
                           required={field.required}
-                      />
-                    )}
-            </div>
+                        />
+                      )}
+                    </div>
                   );
                 })}
           </div>
@@ -1324,81 +1343,41 @@ export default function EditClientPage() {
           )}
 
           {/* Core Questions Section */}
-          {coreFieldsNotInForm.length > 0 && (
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Core Questions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {coreFieldsNotInForm.map((field: any) => {
-                    let value = formData[field.key];
-                    // For multi-selects, ensure value is always an array
-                    if ((field.type === 'multiselect' || field.type === 'multi') && typeof value === 'string') {
-                      value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
-                    }
-                    if ((field.type === 'multiselect' || field.type === 'multi') && !Array.isArray(value)) {
-                      value = value ? [value] : [];
-                    }
-                    if (value === null || value === undefined) {
-                      value = (field.type === 'multiselect' || field.type === 'multi') ? [] : '';
-                    }
-                  console.log(`DEBUG: Rendering core field: ${field.label} (key: ${field.key}) with value:`, value);
-                    return (
-                    <div key={field.key} className="flex flex-col">
-                    <label className="text-sm font-medium mb-1 flex items-center gap-1">
-                      {field.label}
-                      {field.required && <span className="text-red-500">*</span>}
-                    </label>
-                    {field.type === 'select' ? (
-              <Select
-                            value={value || ''}
-                            onChange={e => handleChange(field.key, e.target.value, false)}
-                        required={field.required}
-                        className="w-full"
-                      >
-                        <option value="">Select...</option>
-                        {field.options && field.options.map((opt: string) => (
-                            <option key={`${field.key}-${opt}`} value={opt}>{opt}</option>
-                        ))}
-                      </Select>
-                        ) : field.type === 'multiselect' ? (
-                          (() => {
-                            const currentValues = value ? (Array.isArray(value) ? value : [value]) : [];
-                            return (
-                              <MultiSelect
-                                value={currentValues}
-                                onChange={(value) => handleChange(field.key, value, false)}
-                                placeholder={`Select ${field.label}...`}
-                                className="w-full"
-                              >
-                                {field.options && field.options.map((opt: string) => (
-                                <MultiSelectOption key={`${field.key}-${opt}`} value={opt}>
-                                    {opt}
-                                  </MultiSelectOption>
-                                ))}
-                              </MultiSelect>
-                            );
-                          })()
-                    ) : field.type === 'textarea' ? (
-                      <Textarea
-                            value={value || ''}
-                          onChange={e => handleChange(field.key, e.target.value, false)}
-                        placeholder={field.label}
-                        required={field.required}
-                      />
-                    ) : (
-                      <Input
-                        type={field.type}
-                            value={value || ''}
-                          onChange={e => handleChange(field.key, e.target.value, false)}
-                        placeholder={field.label}
-                        required={field.required}
-                      />
-                    )}
-                  </div>
-                    );
-                  })}
-              </div>
+          {/* Core Information Section - ALWAYS SHOW */}
+          <div className="mb-6 bg-white rounded-xl shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">Core Information</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {coreFieldsNotInForm.map((field) => (
+                <div key={field.key} className="flex flex-col">
+                  <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                    {field.label}
+                    {field.required && <span className="text-red-500">*</span>}
+                  </label>
+                  {field.type === 'select' ? (
+                    <Select
+                      value={formData[field.key] || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      required={field.required}
+                      className="w-full"
+                    >
+                      <option value="">Select...</option>
+                      {field.options && field.options.map((opt: string) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input
+                      type={field.type}
+                      value={formData[field.key] || ''}
+                      onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={field.label}
+                      required={field.required}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Subscription Details Section */}
           <div className="mb-6 bg-white rounded-xl shadow p-6">

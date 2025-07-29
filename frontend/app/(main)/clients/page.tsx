@@ -32,6 +32,9 @@ interface Client {
   source: string;
   createdAt: string;
   updatedAt: string;
+  latestSubmission?: {
+    answers: Record<string, any>;
+  };
   subscriptions: Array<{
     id: number;
     paymentStatus: string;
@@ -68,6 +71,31 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
+
+  // Helper function to get display name
+  const getDisplayName = (client: Client) => {
+    // If fullName is not "Unknown Client", use it
+    if (client.fullName && client.fullName !== "Unknown Client") {
+      return client.fullName;
+    }
+    
+    // Otherwise, try to get name from form answers
+    if (client.latestSubmission?.answers) {
+      const answers = client.latestSubmission.answers;
+      const nameKeys = Object.keys(answers).filter(key => 
+        key !== 'filledByTrainer' && 
+        answers[key] && 
+        answers[key] !== 'undefined' &&
+        answers[key] !== ''
+      );
+      
+      if (nameKeys.length > 0) {
+        return answers[nameKeys[0]];
+      }
+    }
+    
+    return "Unknown Client";
+  };
 
   // Load clients on component mount
   useEffect(() => {
@@ -219,7 +247,14 @@ export default function ClientsPage() {
               ) : clients.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
-                  <TableCell className="font-medium">{client.fullName}</TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => router.push(`/clients/${client.id}`)}
+                      className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      {getDisplayName(client)}
+                    </button>
+                  </TableCell>
                   <TableCell>
                     {client.profileCompletion === 'Completed' ? (
                       <span className="inline-block px-2 py-1 text-xs rounded bg-green-100 text-green-700 font-semibold">Completed</span>
@@ -232,7 +267,7 @@ export default function ClientsPage() {
                       <Button outline onClick={() => router.push(`/clients/edit/${client.id}`)} className="px-3 py-1">
                         <PencilIcon className="h-4 w-4 mr-1" />Edit
                       </Button>
-                      <Button outline onClick={() => handleDelete(client.id, client.fullName)} className="px-3 py-1 text-red-600 hover:text-red-700">
+                      <Button outline onClick={() => handleDelete(client.id, getDisplayName(client))} className="px-3 py-1 text-red-600 hover:text-red-700">
                         <TrashIcon className="h-4 w-4 mr-1" />Delete
                       </Button>
                     </div>

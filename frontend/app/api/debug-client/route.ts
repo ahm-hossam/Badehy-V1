@@ -1,37 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
-
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Get client 66 data from backend
+    const response = await fetch('http://localhost:3000/api/clients/66');
     
-    console.log('🔍 Debug: Starting client creation...');
-    console.log('🔍 Debug: Request body:', body);
-
-    // Forward the request to the backend
-    const backendUrl = `${BACKEND_URL}/api/debug-client`;
-    const response = await fetch(backendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      return NextResponse.json(errorData, { status: response.status });
+    if (response.ok) {
+      const data = await response.json();
+      console.log('=== DEBUG CLIENT 66 DATA ===');
+      console.log('Full client data:', JSON.stringify(data, null, 2));
+      console.log('selectedFormId:', data.selectedFormId);
+      console.log('submissions:', data.submissions);
+      console.log('latestSubmission:', data.latestSubmission);
+      console.log('answers:', data.latestSubmission?.answers);
+      console.log('form:', data.latestSubmission?.form);
+      console.log('=== END DEBUG ===');
+      
+      return NextResponse.json({
+        success: true,
+        data: data
+      });
+    } else {
+      console.error('Backend error:', response.status, response.statusText);
+      return NextResponse.json({
+        success: false,
+        error: `Backend returned ${response.status}`
+      });
     }
-
-    const result = await response.json();
-    return NextResponse.json(result);
   } catch (error) {
-    console.error('❌ Debug: Error occurred:', error);
-    return NextResponse.json({ 
-      error: 'Debug test failed', 
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    }, { status: 500 });
+    console.error('Debug error:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to fetch client data'
+    });
   }
 } 

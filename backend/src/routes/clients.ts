@@ -15,7 +15,8 @@ router.post('/', async (req: Request, res: Response) => {
     - Only uses fields that exist in the current Prisma schema
   */
   try {
-    const { trainerId, client, subscription, installments, notes } = req.body;
+    const { trainerId, client, subscription, installments, notes, answers } = req.body;
+    
     // Basic validation
     if (!trainerId || !client || !subscription) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -28,12 +29,47 @@ router.post('/', async (req: Request, res: Response) => {
     
     // Transaction: create client, subscription, and installments
     const result = await prisma.$transaction(async (tx) => {
+      // Get name and phone from form answers if not provided in client object
+      const answers = req.body.answers;
+      
+      // Find the name and phone from form answers
+      let clientName = client.fullName;
+      let clientPhone = client.phone;
+      
+      if (answers) {
+        // Look for name and phone in answers
+        Object.entries(answers).forEach(([key, value]) => {
+          if (value && value !== 'undefined' && value !== '') {
+            // Check if this is a name field (common patterns)
+            if (!clientName && (
+              typeof value === 'string' && 
+              value.length > 2 && 
+              !value.includes('@') && 
+              !value.includes('+') &&
+              !value.match(/^\d+$/)
+            )) {
+              clientName = value;
+            }
+            // Check if this is a phone field (contains numbers and possibly +)
+            if (!clientPhone && (
+              typeof value === 'string' && 
+              (value.includes('+') || value.match(/^\d+$/) || value.match(/^\d+[\d\s\-\(\)]+$/))
+            )) {
+              clientPhone = value;
+            }
+          }
+        });
+      }
+      
+      clientName = clientName || 'Unknown Client';
+      clientPhone = clientPhone || '';
+      
       // 1. Create TrainerClient
       const createdClient = await tx.trainerClient.create({
         data: {
           trainerId: parsedTrainerId,
-          fullName: String(client.fullName),
-          phone: String(client.phone),
+          fullName: String(clientName),
+          phone: clientPhone,
           email: client.email ? String(client.email) : '',
           gender: client.gender ? String(client.gender) : null,
           age: client.age ? Number(client.age) : null,
@@ -81,7 +117,7 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
       // After creating the client (in POST)
-      const answers = req.body.answers;
+      
       if (answers && client.selectedFormId) {
         await tx.checkInSubmission.create({
           data: {
@@ -97,6 +133,20 @@ router.post('/', async (req: Request, res: Response) => {
       if (!packageId) {
         throw new Error('Missing or invalid packageId for subscription');
       }
+
+      // Set discount applied flag and type based on whether discount values are provided
+      let discountApplied = Boolean(subscription.discountApplied);
+      let discountType = subscription.discountType ? String(subscription.discountType) : null;
+      
+      // If discount values are provided, mark as applied and set type
+      if (subscription.discountValue) {
+        discountApplied = true;
+        // If no discount type is provided but there's a discount value, assume percentage
+        if (!discountType) {
+          discountType = 'percentage';
+        }
+      }
+
       const createdSubscription = await tx.subscription.create({
         data: {
           clientId: createdClient.id,
@@ -108,10 +158,16 @@ router.post('/', async (req: Request, res: Response) => {
           paymentStatus: String(subscription.paymentStatus),
           paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
           priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
-          discountApplied: Boolean(subscription.discountApplied),
-          discountType: subscription.discountType ? String(subscription.discountType) : null,
+          discountApplied: discountApplied,
+          discountType: discountType,
           discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-          priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+          priceAfterDisc: null, // Temporarily set to null to fix TypeScript error
+          // Initialize hold fields
+          isOnHold: false,
+          holdStartDate: null,
+          holdEndDate: null,
+          holdDuration: null,
+          holdDurationUnit: null,
         },
       });
       // 3. Optionally create Installments
@@ -281,7 +337,6 @@ router.get('/:id', async (req: Request, res: Response) => {
         }, // Include notes
         submissions: {
           orderBy: { submittedAt: 'desc' },
-          take: 1,
           include: {
             form: { select: { id: true, name: true, questions: true } },
           },
@@ -301,7 +356,8 @@ router.get('/:id', async (req: Request, res: Response) => {
         },
       },
     });
-    console.log('Fetched client:', client);
+    console.log('Backend GET - Fetched client:', client);
+    console.log('Backend GET - fullName from database:', client?.fullName);
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -350,6 +406,8 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const updated = await prisma.$transaction(async (tx) => {
       // 1. Update client details
+      console.log('Backend - Received client data:', client);
+      console.log('Backend - fullName from request:', client.fullName);
       const updatedClient = await tx.trainerClient.update({
         where: { id: clientId },
         data: {
@@ -448,6 +506,12 @@ router.put('/:id', async (req: Request, res: Response) => {
               discountType: subscription.discountType,
               discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
               priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+              // Initialize hold fields
+              isOnHold: false,
+              holdStartDate: null,
+              holdEndDate: null,
+              holdDuration: null,
+              holdDurationUnit: null,
             },
           });
           console.log('Created subscription:', updatedSubscription);
@@ -586,6 +650,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
       // Find all subscriptions for this client
       const subscriptions = await tx.subscription.findMany({ where: { clientId } });
       for (const sub of subscriptions) {
+        // Delete subscription hold records first
+        await tx.subscriptionHold.deleteMany({ where: { subscriptionId: sub.id } });
         // Delete subscription transaction images
         await tx.subscriptionTransactionImage.deleteMany({ where: { subscriptionId: sub.id } });
         // Find all installments for this subscription
