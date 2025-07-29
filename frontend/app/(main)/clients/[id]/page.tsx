@@ -32,7 +32,9 @@ import {
   ClockIcon as ClockIconSolid,
   StarIcon,
   ArrowLeftIcon,
-  TrashIcon
+  TrashIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from '@heroicons/react/24/outline';
 
 interface Client {
@@ -619,7 +621,7 @@ export default function ClientDetailsPage() {
     { id: 'overview', name: 'Overview', icon: ChartBarIcon, count: null },
     { id: 'profile', name: 'Profile', icon: UserIcon, count: null },
     { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: client.subscriptions.length },
-    { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: 0 },
+    { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
 
@@ -1444,51 +1446,51 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
   getPaymentStatusColor: (status: string) => string;
 }) {
   // Helper functions for payment calculations
-  const calculateTotalPaidAmount = (subscription: any) => {
-    console.log('=== calculateTotalPaidAmount DEBUG ===');
-    console.log('Payment status:', subscription.paymentStatus);
-    console.log('Price after disc:', subscription.priceAfterDisc);
-    console.log('Price before disc:', subscription.priceBeforeDisc);
-    console.log('Discount applied:', subscription.discountApplied);
-    console.log('Discount type:', subscription.discountType);
-    console.log('Discount value:', subscription.discountValue);
-    
-    if (subscription.paymentStatus.toLowerCase() === 'paid') {
-      console.log('Processing PAID subscription...');
-      // For paid subscriptions, return the final amount (with discount if applied)
-      // If priceAfterDisc is null but discount is applied, calculate it
-      let amount = 0;
-      if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
-        amount = subscription.priceAfterDisc;
-        console.log('Using priceAfterDisc:', amount);
-      } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
-        console.log('Calculating discount...');
-        // Calculate the discounted amount
-        if (subscription.discountType === 'percentage') {
-          amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
-          console.log('Percentage discount calculation:', subscription.priceBeforeDisc, '-', (subscription.priceBeforeDisc * subscription.discountValue / 100), '=', amount);
-        } else {
-          amount = subscription.priceBeforeDisc - subscription.discountValue;
-          console.log('Fixed discount calculation:', subscription.priceBeforeDisc, '-', subscription.discountValue, '=', amount);
-        }
-      } else {
-        amount = subscription.priceBeforeDisc || 0;
-        console.log('Using priceBeforeDisc:', amount);
-      }
-      console.log('Final PAID amount:', amount);
-      return amount;
-    } else if (subscription.installments && subscription.installments.length > 0) {
-      console.log('Processing INSTALLMENT subscription...');
-      // For installment subscriptions, sum all paid installments
-      const amount = subscription.installments
-        .filter((inst: any) => inst.status.toLowerCase() === 'paid')
-        .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
-      console.log('INSTALLMENT amount:', amount);
-      return amount;
-    }
-    console.log('No conditions met, returning 0');
-    return 0;
-  };
+          const calculateTotalPaidAmount = (subscription: any) => {
+          console.log('=== calculateTotalPaidAmount DEBUG ===');
+          console.log('Payment status:', subscription.paymentStatus);
+          console.log('Price after disc:', subscription.priceAfterDisc);
+          console.log('Price before disc:', subscription.priceBeforeDisc);
+          console.log('Discount applied:', subscription.discountApplied);
+          console.log('Discount type:', subscription.discountType);
+          console.log('Discount value:', subscription.discountValue);
+          
+          if (subscription.paymentStatus?.toLowerCase() === 'paid') {
+            console.log('Processing PAID subscription...');
+            // For paid subscriptions, return the final amount (with discount if applied)
+            // If priceAfterDisc is null but discount is applied, calculate it
+            let amount = 0;
+            if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
+              amount = subscription.priceAfterDisc;
+              console.log('Using priceAfterDisc:', amount);
+            } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
+              console.log('Calculating discount...');
+              // Calculate the discounted amount
+              if (subscription.discountType === 'percentage') {
+                amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
+                console.log('Percentage discount calculation:', subscription.priceBeforeDisc, '-', (subscription.priceBeforeDisc * subscription.discountValue / 100), '=', amount);
+              } else {
+                amount = subscription.priceBeforeDisc - subscription.discountValue;
+                console.log('Fixed discount calculation:', subscription.priceBeforeDisc, '-', subscription.discountValue, '=', amount);
+              }
+            } else {
+              amount = subscription.priceBeforeDisc || 0;
+              console.log('Using priceBeforeDisc:', amount);
+            }
+            console.log('Final PAID amount:', amount);
+            return amount;
+          } else if (subscription.installments && subscription.installments.length > 0) {
+            console.log('Processing INSTALLMENT subscription...');
+            // For installment subscriptions, sum all paid installments
+            const amount = subscription.installments
+              .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
+              .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
+            console.log('INSTALLMENT amount:', amount);
+            return amount;
+          }
+          console.log('No conditions met, returning 0');
+          return 0;
+        };
 
   const getFinalAmount = (subscription: any) => {
     // Always return the price after discount if available, otherwise price before discount
@@ -1516,12 +1518,12 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 
   const calculateTotalInstallmentsPaid = (subscription: any) => {
     if (!subscription.installments) return 0;
-    return subscription.installments.filter((inst: any) => inst.status === 'PAID').length;
+    return subscription.installments.filter((inst: any) => inst.status?.toLowerCase() === 'paid').length;
   };
 
   const calculateRemainingInstallments = (subscription: any) => {
     if (!subscription.installments) return 0;
-    return subscription.installments.filter((inst: any) => inst.status !== 'PAID').length;
+    return subscription.installments.filter((inst: any) => inst.status?.toLowerCase() !== 'paid').length;
   };
 
   const getPaymentTimeline = (subscription: any) => {
@@ -1535,7 +1537,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       amount: getFinalAmount(subscription),
       status: subscription.paymentStatus,
       description: `Subscription #${subscription.id} created`,
-      isPaid: subscription.paymentStatus.toLowerCase() === 'paid'
+      isPaid: subscription.paymentStatus?.toLowerCase() === 'paid'
     });
 
     // Add installments
@@ -1548,7 +1550,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
           amount: inst.amount || 0,
           status: inst.status,
           description: `Installment payment`,
-          isPaid: inst.status.toLowerCase() === 'paid',
+          isPaid: inst.status?.toLowerCase() === 'paid',
           installmentId: inst.id
         } as any);
       });
@@ -1736,136 +1738,126 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 
 // Check-ins Tab Component
 function CheckinsTab({ client }: { client: Client }) {
-  console.log('CheckinsTab - client:', client);
-  console.log('CheckinsTab - submissions:', client.submissions);
-  console.log('CheckinsTab - submissions length:', client.submissions?.length);
-  
+  const [expandedForms, setExpandedForms] = useState<Set<number>>(new Set());
 
-  
+  const toggleForm = (formId: number) => {
+    const newExpanded = new Set(expandedForms);
+    if (newExpanded.has(formId)) {
+      newExpanded.delete(formId);
+    } else {
+      newExpanded.add(formId);
+    }
+    setExpandedForms(newExpanded);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString(),
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
+  const getFilledByText = (submission: any) => {
+    return submission.answers?.filledByTrainer ? 'Trainer' : 'Client';
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold">Check-in Responses</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Check-in Forms</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          All forms submitted by or for this client
+        </p>
       </div>
       
       {client.submissions && client.submissions.length > 0 ? (
-        <div className="space-y-6">
-          {client.submissions.map((submission, index) => (
-              <div key={submission.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900">
-                    {submission.form?.name || `Form #${submission.formId}`}
-                  </h4>
-                  <p className="text-sm text-gray-500">
-                    Submitted on {new Date(submission.submittedAt).toLocaleDateString()} at {new Date(submission.submittedAt).toLocaleTimeString()}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Completed
-                  </span>
-                </div>
-              </div>
-              
-              {submission.form?.questions && submission.answers && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {submission.form.questions.map((question) => {
-                    const answer = submission.answers[String(question.id)];
-                    const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
-                    
-                    return (
-                      <div key={question.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start">
-                          <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasAnswer ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 mb-1">{question.label}</p>
-                            <p className={`${hasAnswer ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                              {hasAnswer ? (Array.isArray(answer) ? answer.join(', ') : answer) : 'Answer not provided'}
-                            </p>
-                          </div>
+        <div className="space-y-4">
+          {client.submissions.map((submission, index) => {
+            const isExpanded = expandedForms.has(submission.id);
+            const { date, time } = formatDate(submission.submittedAt);
+            const filledBy = getFilledByText(submission);
+            
+            return (
+              <div key={submission.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                {/* Form Header - Always Visible */}
+                <div 
+                  className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+                  onClick={() => toggleForm(submission.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <ClipboardDocumentListIcon className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {submission.form?.name || `Form #${submission.formId}`}
+                        </h4>
+                        <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
+                          <span className="flex items-center">
+                            <CalendarIcon className="h-4 w-4 mr-1" />
+                            {date} at {time}
+                          </span>
+                          <span className="flex items-center">
+                            <UserIcon className="h-4 w-4 mr-1" />
+                            Filled by {filledBy}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Completed
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                      ) : (
+                        <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+                
+                {/* Form Content - Collapsible */}
+                {isExpanded && submission.form?.questions && submission.answers && (
+                  <div className="border-t border-gray-200 bg-gray-50">
+                    <div className="p-6">
+                      <h5 className="font-medium text-gray-900 mb-4">Form Responses</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {submission.form.questions.map((question) => {
+                          const answer = submission.answers[String(question.id)];
+                          const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
+                          
+                          return (
+                            <div key={question.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-start">
+                                <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasAnswer ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900 mb-1">{question.label}</p>
+                                  <p className={`${hasAnswer ? 'text-gray-600' : 'text-gray-400 italic'}`}>
+                                    {hasAnswer ? (Array.isArray(answer) ? answer.join(', ') : answer) : 'No response'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
-      <div className="text-center py-12">
-        <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Responses</h3>
-        <p className="text-gray-500">This client hasn't submitted any check-in responses yet.</p>
+        <div className="text-center py-12">
+          <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Forms</h3>
+          <p className="text-gray-500">This client hasn't submitted any check-in forms yet.</p>
         </div>
       )}
-      
-      {/* Core Questions Section */}
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Core Questions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.email ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Email</p>
-                <p className={`${client.email ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.email || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.gender ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Gender</p>
-                <p className={`${client.gender ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.gender || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.age ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Age</p>
-                <p className={`${client.age ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.age || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.source ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Source</p>
-                <p className={`${client.source ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.source || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.registrationDate ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Registration Date</p>
-                <p className={`${client.registrationDate ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.registrationDate ? new Date(client.registrationDate).toLocaleDateString() : 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

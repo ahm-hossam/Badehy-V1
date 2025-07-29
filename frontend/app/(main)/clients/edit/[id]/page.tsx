@@ -131,6 +131,9 @@ export default function EditClientPage() {
       .then(data => {
         console.log('EditClientPage - Received client data:', data);
         console.log('EditClientPage - fullName from API:', data?.fullName);
+        console.log('EditClientPage - submissions:', data?.submissions);
+        console.log('EditClientPage - latestSubmission:', data?.latestSubmission);
+        console.log('EditClientPage - latestSubmission answers:', data?.latestSubmission?.answers);
         setFormData(data || {});
         // Initialize selected labels from client data
         if (data?.labels && Array.isArray(data.labels)) {
@@ -154,6 +157,35 @@ export default function EditClientPage() {
           }
         }
         console.log('EditClientPage formData:', data);
+        
+                    // Try to extract real name from submissions if fullName is "Unknown Client"
+            if (data?.fullName === "Unknown Client" && data?.latestSubmission?.answers) {
+              const answers = data.latestSubmission.answers;
+              console.log('EditClientPage - Looking for name in answers:', answers);
+              
+              // Look for name-related fields or any field that might contain a name
+              const nameFields = Object.keys(answers).filter(key => 
+                key.toLowerCase().includes('name') || 
+                key.toLowerCase().includes('full') ||
+                answers[key]?.toLowerCase().includes('name') ||
+                // Check if the value looks like a name (not a phone number, not empty, etc.)
+                (answers[key] && 
+                 answers[key].length > 1 && 
+                 answers[key].length < 50 && 
+                 !answers[key].match(/^\d+$/) && // Not just numbers
+                 !answers[key].match(/^[0-9\s\-\(\)]+$/)) // Not a phone number
+              );
+              console.log('EditClientPage - Name-related fields found:', nameFields);
+              
+              if (nameFields.length > 0) {
+                const realName = answers[nameFields[0]];
+                console.log('EditClientPage - Found real name:', realName);
+                
+                // Update the formData with the real name
+                data.fullName = realName;
+                console.log('EditClientPage - Updated fullName to:', data.fullName);
+              }
+            }
       })
       .catch(() => setError("Failed to load client data."))
       .finally(() => setLoading(false));
@@ -294,6 +326,9 @@ export default function EditClientPage() {
 
   // When fetching the latest check-in submission, build a merged answers object
   useEffect(() => {
+    console.log('EditClientPage - submissionForm:', submissionForm);
+    console.log('EditClientPage - submissionAnswers:', submissionAnswers);
+    
     if (!submissionForm || !submissionAnswers) return;
     // Map answers by question ID (works for both standard and custom questions)
     const merged: Record<string, any> = { ...submissionAnswers };
