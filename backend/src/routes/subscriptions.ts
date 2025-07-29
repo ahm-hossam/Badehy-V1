@@ -11,10 +11,10 @@ router.post('/:id/hold', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid subscription ID' });
   }
 
-  const { holdDuration, holdDurationUnit, holdFromDate } = req.body;
+  const { holdDuration, holdDurationUnit } = req.body;
   
-  if (!holdDuration || !holdDurationUnit || !holdFromDate) {
-    return res.status(400).json({ error: 'Missing hold duration, unit, or from date' });
+  if (!holdDuration || !holdDurationUnit) {
+    return res.status(400).json({ error: 'Missing hold duration or unit' });
   }
 
   try {
@@ -26,19 +26,19 @@ router.post('/:id/hold', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Subscription not found' });
     }
 
-    // Calculate new end date from the hold from date
-    const holdFrom = new Date(holdFromDate);
+    // Calculate new end date by adding hold duration to current end date
+    const currentEndDate = new Date(subscription.endDate);
     let newEndDate: Date;
 
     switch (holdDurationUnit) {
       case 'days':
-        newEndDate = new Date(holdFrom.getTime() + (holdDuration * 24 * 60 * 60 * 1000));
+        newEndDate = new Date(currentEndDate.getTime() + (holdDuration * 24 * 60 * 60 * 1000));
         break;
       case 'weeks':
-        newEndDate = new Date(holdFrom.getTime() + (holdDuration * 7 * 24 * 60 * 60 * 1000));
+        newEndDate = new Date(currentEndDate.getTime() + (holdDuration * 7 * 24 * 60 * 60 * 1000));
         break;
       case 'months':
-        newEndDate = new Date(holdFrom.getTime() + (holdDuration * 30 * 24 * 60 * 60 * 1000));
+        newEndDate = new Date(currentEndDate.getTime() + (holdDuration * 30 * 24 * 60 * 60 * 1000));
         break;
       default:
         return res.status(400).json({ error: 'Invalid duration unit' });
@@ -50,7 +50,7 @@ router.post('/:id/hold', async (req: Request, res: Response) => {
       data: {
         endDate: newEndDate,
         isOnHold: true,
-        holdStartDate: holdFrom,
+        holdStartDate: currentEndDate,
         holdEndDate: newEndDate,
         holdDuration: holdDuration,
         holdDurationUnit: holdDurationUnit,
@@ -61,7 +61,7 @@ router.post('/:id/hold', async (req: Request, res: Response) => {
     await prisma.subscriptionHold.create({
       data: {
         subscriptionId: subscriptionId,
-        holdStartDate: holdFrom,
+        holdStartDate: currentEndDate,
         holdEndDate: newEndDate,
         holdDuration: holdDuration,
         holdDurationUnit: holdDurationUnit,
