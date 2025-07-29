@@ -75,6 +75,11 @@ interface Client {
     discountApplied: boolean;
     discountType: string;
     discountValue: number;
+    isOnHold?: boolean;
+    holdStartDate?: string;
+    holdEndDate?: string;
+    holdDuration?: number;
+    holdDurationUnit?: string;
     installments: Array<{
       id: number;
       amount: number;
@@ -132,6 +137,11 @@ interface Client {
     createdAt: string;
     updatedAt: string;
   }>;
+  labels: Array<{
+    id: number;
+    name: string;
+    color: string;
+  }>;
 }
 
 export default function ClientDetailsPage() {
@@ -147,6 +157,11 @@ export default function ClientDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [clientDataVersion, setClientDataVersion] = useState(0);
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [holdDuration, setHoldDuration] = useState('');
+  const [holdDurationUnit, setHoldDurationUnit] = useState('days');
+  const [holdFromDate, setHoldFromDate] = useState('');
+  const [selectedSubscription, setSelectedSubscription] = useState<any>(null);
 
   // Helper function to get display name
   const getDisplayName = (client: Client) => {
@@ -257,7 +272,7 @@ export default function ClientDetailsPage() {
 
   const getSubscriptionStatus = () => {
     if (!client || !client.subscriptions || client.subscriptions.length === 0) {
-      return { status: 'No Subscription', color: 'bg-gray-100 text-gray-700 border-gray-200' };
+      return { status: 'No Subscription', color: 'bg-gray-100 text-gray-700 border-gray-200', isActive: false };
     }
 
     // Find the most recent subscription
@@ -272,14 +287,19 @@ export default function ClientDetailsPage() {
     // Normalize payment status to uppercase for comparison
     const paymentStatus = latestSubscription.paymentStatus?.toUpperCase();
 
+    // Check if subscription is on hold
+    if (latestSubscription.isOnHold) {
+      return { status: 'On Hold', color: 'bg-orange-100 text-orange-700 border-orange-200', isActive: true };
+    }
+
     // Check if subscription is canceled first
     if (paymentStatus === 'CANCELED') {
-      return { status: 'Canceled', color: 'bg-gray-100 text-gray-700 border-gray-200' };
+      return { status: 'Canceled', color: 'bg-gray-100 text-gray-700 border-gray-200', isActive: false };
     }
 
     // Check if subscription is pending
     if (paymentStatus === 'PENDING') {
-      return { status: 'Pending', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+      return { status: 'Pending', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', isActive: true };
     }
 
     // For active/expired status, check the end date
@@ -290,7 +310,7 @@ export default function ClientDetailsPage() {
       // Check if the date is valid
       if (isNaN(endDate.getTime())) {
         console.log('Invalid end date:', latestSubscription.endDate);
-        return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
+        return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200', isActive: false };
       }
       
       const isActive = currentDate < endDate;
@@ -300,15 +320,15 @@ export default function ClientDetailsPage() {
       console.log('Is active:', isActive);
       
       if (isActive) {
-        return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' };
+        return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
       } else {
-        return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
+        return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200', isActive: false };
       }
     } else if (paymentStatus === 'OVERDUE') {
-      return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
+      return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200', isActive: false };
     } else if (paymentStatus === 'PAID' || paymentStatus === 'FREE') {
       // If paid/free but no end date, assume active
-      return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' };
+      return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
     } else {
       // For any other payment status, check if we have an end date to determine status
       if (latestSubscription.endDate) {
@@ -318,21 +338,88 @@ export default function ClientDetailsPage() {
         if (!isNaN(endDate.getTime())) {
           const isActive = currentDate < endDate;
           return isActive 
-            ? { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' }
-            : { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
+            ? { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true }
+            : { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200', isActive: false };
         }
       }
       
       // If we can't determine status from end date, use payment status as fallback
       console.log('Using payment status as fallback:', paymentStatus);
-      return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' };
+      return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
     }
   };
 
+  const isSubscriptionActionDisabled = () => {
+    const status = getSubscriptionStatus();
+    return !status.isActive;
+  };
+
   const handleHoldSubscription = () => {
-    // TODO: Implement hold subscription functionality
-    console.log('Hold subscription clicked');
-    setDropdownOpen(false);
+    if (!client) return;
+    
+    // Get the latest subscription
+    const latestSubscription = client.subscriptions && client.subscriptions.length > 0 
+      ? client.subscriptions[0] 
+      : null;
+    
+    if (latestSubscription) {
+      setSelectedSubscription(latestSubscription);
+      // Set default hold from date to the subscription's current end date
+      setHoldFromDate(new Date(latestSubscription.endDate).toISOString().split('T')[0]);
+      setShowHoldModal(true);
+      setDropdownOpen(false);
+    }
+  };
+
+  const handleConfirmHold = async () => {
+    if (!selectedSubscription || !holdDuration || !holdFromDate) return;
+    
+    try {
+      const response = await fetch(`/api/subscriptions/${selectedSubscription.id}/hold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          holdDuration: parseInt(holdDuration), 
+          holdDurationUnit,
+          holdFromDate
+        }),
+      });
+      
+      if (response.ok) {
+        // Refresh client data to show updated subscription
+        loadClientDetails();
+        setShowHoldModal(false);
+        setHoldDuration('');
+        setHoldDurationUnit('days');
+        setHoldFromDate('');
+        setSelectedSubscription(null);
+        
+        // Show success toast (you can implement this)
+        console.log('Subscription held successfully');
+      } else {
+        console.error('Failed to hold subscription');
+      }
+    } catch (error) {
+      console.error('Error holding subscription:', error);
+    }
+  };
+
+  const calculateNewEndDate = () => {
+    if (!selectedSubscription || !holdDuration || !holdFromDate) return null;
+    
+    const holdFrom = new Date(holdFromDate);
+    const duration = parseInt(holdDuration);
+    
+    switch (holdDurationUnit) {
+      case 'days':
+        return new Date(holdFrom.getTime() + (duration * 24 * 60 * 60 * 1000));
+      case 'weeks':
+        return new Date(holdFrom.getTime() + (duration * 7 * 24 * 60 * 60 * 1000));
+      case 'months':
+        return new Date(holdFrom.getTime() + (duration * 30 * 24 * 60 * 60 * 1000));
+      default:
+        return holdFrom;
+    }
   };
 
   const handleCancelSubscription = () => {
@@ -351,7 +438,13 @@ export default function ClientDetailsPage() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownOpen) {
-        setDropdownOpen(false);
+        // Check if the click is outside the dropdown
+        const target = event.target as Element;
+        const dropdownElement = document.querySelector('[data-dropdown="subscription-actions"]');
+        
+        if (dropdownElement && !dropdownElement.contains(target)) {
+          setDropdownOpen(false);
+        }
       }
     };
 
@@ -420,7 +513,23 @@ export default function ClientDetailsPage() {
                 <h1 className="text-2xl font-bold text-gray-900">
                   {getDisplayName(client)} <span className="text-sm font-normal text-gray-600">#{client.id}</span>
                 </h1>
-                <p className="text-gray-600">{client.email}</p>
+                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                  <span>{client.email}</span>
+                  <span>•</span>
+                  <span>{client.phone}</span>
+                </div>
+                {client.labels && client.labels.length > 0 && (
+                  <div className="flex items-center space-x-2 mt-2">
+                    {client.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getSubscriptionStatus().color}`}>
                 {getSubscriptionStatus().status}
@@ -429,7 +538,7 @@ export default function ClientDetailsPage() {
           </div>
           <div className="flex items-center space-x-3">
             {/* Subscription Actions Dropdown */}
-            <div className="relative">
+            <div className="relative" data-dropdown="subscription-actions">
               <Button 
                 outline 
                 className="flex items-center"
@@ -448,18 +557,35 @@ export default function ClientDetailsPage() {
               </Button>
               {/* Dropdown Menu */}
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                <div 
+                  className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="py-1">
                     <button
-                      onClick={handleHoldSubscription}
-                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-150"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleHoldSubscription();
+                      }}
+                      disabled={isSubscriptionActionDisabled()}
+                      className={`flex items-center w-full px-4 py-2 text-sm transition-colors duration-150 ${
+                        isSubscriptionActionDisabled() 
+                          ? 'text-gray-400 cursor-not-allowed' 
+                          : 'text-gray-700 hover:bg-gray-100'
+                      }`}
                     >
                       <ClockIcon className="h-4 w-4 mr-3" />
                       Hold Subscription
                     </button>
                     <button
                       onClick={handleCancelSubscription}
-                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"
+                      disabled={isSubscriptionActionDisabled()}
+                      className={`flex items-center w-full px-4 py-2 text-sm transition-colors duration-150 ${
+                        isSubscriptionActionDisabled() 
+                          ? 'text-gray-400 cursor-not-allowed' 
+                          : 'text-red-600 hover:bg-red-50'
+                      }`}
                     >
                       <XCircleIcon className="h-4 w-4 mr-3" />
                       Cancel Subscription
@@ -475,9 +601,9 @@ export default function ClientDetailsPage() {
                 </div>
               )}
             </div>
-            <Button onClick={() => setEditing(!editing)}>
+            <Button onClick={() => router.push(`/clients/edit/${client.id}`)}>
               <PencilIcon className="h-4 w-4 mr-2" />
-              {editing ? 'Cancel Edit' : 'Edit Client'}
+              Edit Client
             </Button>
           </div>
         </div>
@@ -528,6 +654,107 @@ export default function ClientDetailsPage() {
           {activeTab === 'notes' && <NotesTab client={client} onNotesChange={() => setClientDataVersion(prev => prev + 1)} />}
         </div>
       </div>
+
+      {/* Hold Subscription Modal */}
+      <Dialog open={showHoldModal} onClose={() => setShowHoldModal(false)}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Hold Subscription</h2>
+              <p className="text-gray-600 mt-1">
+                Extend the subscription end date by putting it on hold
+              </p>
+            </div>
+            <button
+              onClick={() => setShowHoldModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {selectedSubscription && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current End Date
+                </label>
+                <p className="text-gray-900 font-medium text-lg">
+                  {new Date(selectedSubscription.endDate).toLocaleDateString()}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hold From Date
+                </label>
+                <input
+                  type="date"
+                  value={holdFromDate}
+                  onChange={(e) => setHoldFromDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  min={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hold Duration
+                  </label>
+                  <input
+                    type="number"
+                    value={holdDuration}
+                    onChange={(e) => setHoldDuration(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter duration"
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unit
+                  </label>
+                  <select
+                    value={holdDurationUnit}
+                    onChange={(e) => setHoldDurationUnit(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="days">Days</option>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </select>
+                </div>
+              </div>
+              
+              {holdDuration && holdFromDate && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-green-700 mb-2">
+                    New End Date
+                  </label>
+                  <p className="text-green-800 font-semibold text-lg">
+                    {calculateNewEndDate()?.toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="flex justify-end gap-3 mt-8">
+            <Button outline onClick={() => setShowHoldModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmHold}
+              disabled={!holdDuration || !holdFromDate}
+            >
+              Hold Subscription
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
@@ -1019,12 +1246,8 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 function CheckinsTab({ client }: { client: Client }) {
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <h3 className="text-lg font-semibold">Check-in Responses</h3>
-        <Button outline>
-          <DocumentTextIcon className="h-4 w-4 mr-2" />
-          Create Check-in Form
-        </Button>
       </div>
       
       {client.submissions && client.submissions.length > 0 ? (

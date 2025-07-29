@@ -162,6 +162,12 @@ router.post('/', async (req: Request, res: Response) => {
           discountType: discountType,
           discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
           priceAfterDisc: null, // Temporarily set to null to fix TypeScript error
+          // Initialize hold fields
+          isOnHold: false,
+          holdStartDate: null,
+          holdEndDate: null,
+          holdDuration: null,
+          holdDurationUnit: null,
         },
       });
       // 3. Optionally create Installments
@@ -500,6 +506,12 @@ router.put('/:id', async (req: Request, res: Response) => {
               discountType: subscription.discountType,
               discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
               priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+              // Initialize hold fields
+              isOnHold: false,
+              holdStartDate: null,
+              holdEndDate: null,
+              holdDuration: null,
+              holdDurationUnit: null,
             },
           });
           console.log('Created subscription:', updatedSubscription);

@@ -71,6 +71,12 @@ router.post('/', async (req: Request, res: Response) => {
         priceBeforeDisc: parseFloat(subscription.priceBeforeDisc),
         discountApplied: subscription.discountApplied || false,
         priceAfterDisc: parseFloat(subscription.priceAfterDisc),
+        // Initialize hold fields
+        isOnHold: false,
+        holdStartDate: null,
+        holdEndDate: null,
+        holdDuration: null,
+        holdDurationUnit: null,
       },
     });
     console.log('🔍 Debug: Subscription created:', createdSubscription);

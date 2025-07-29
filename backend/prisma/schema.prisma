@@ -100,12 +100,19 @@ model Subscription {
   discountType    String?
   discountValue   Float?
   priceAfterDisc  Float?
+  // Hold subscription fields
+  isOnHold        Boolean       @default(false)
+  holdStartDate   DateTime?
+  holdEndDate     DateTime?
+  holdDuration    Int?
+  holdDurationUnit String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   installments    Installment[]
   client          TrainerClient @relation(fields: [clientId], references: [id])
   package         Package       @relation(fields: [packageId], references: [id])
   subscriptionTransactionImages SubscriptionTransactionImage[]
+  holdHistory     SubscriptionHold[]
 
   @@index([clientId])
   @@index([packageId])
@@ -151,6 +158,20 @@ model SubscriptionTransactionImage {
   uploadedAt     DateTime      @default(now())
   subscriptionId Int
   subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId])
+}
+
+model SubscriptionHold {
+  id              Int           @id @default(autoincrement())
+  subscriptionId  Int
+  holdStartDate   DateTime
+  holdEndDate     DateTime
+  holdDuration    Int
+  holdDurationUnit String
+  reason          String?
+  createdAt       DateTime      @default(now())
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id])
 
   @@index([subscriptionId])
 }
