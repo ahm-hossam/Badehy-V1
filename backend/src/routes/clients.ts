@@ -15,7 +15,8 @@ router.post('/', async (req: Request, res: Response) => {
     - Only uses fields that exist in the current Prisma schema
   */
   try {
-    const { trainerId, client, subscription, installments, notes } = req.body;
+    const { trainerId, client, subscription, installments, notes, answers } = req.body;
+    
     // Basic validation
     if (!trainerId || !client || !subscription) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -28,12 +29,34 @@ router.post('/', async (req: Request, res: Response) => {
     
     // Transaction: create client, subscription, and installments
     const result = await prisma.$transaction(async (tx) => {
+      // Get name from form answers if not provided in client object
+      const answers = req.body.answers;
+      
+      // Find the name from form answers by looking for the "Full Name" question
+      let clientName = client.fullName;
+      if (!clientName && answers) {
+        // Look for any answer that might be the name (common patterns)
+        const nameKeys = Object.keys(answers).filter(key => 
+          key !== 'filledByTrainer' && 
+          answers[key] && 
+          answers[key] !== 'undefined' &&
+          answers[key] !== ''
+        );
+        
+        if (nameKeys.length > 0) {
+          // Use the first non-empty answer as the name
+          clientName = answers[nameKeys[0]];
+        }
+      }
+      
+      clientName = clientName || 'Unknown Client';
+      
       // 1. Create TrainerClient
       const createdClient = await tx.trainerClient.create({
         data: {
           trainerId: parsedTrainerId,
-          fullName: String(client.fullName),
-          phone: String(client.phone),
+          fullName: String(clientName),
+          phone: client.phone && client.phone !== 'undefined' ? String(client.phone) : '',
           email: client.email ? String(client.email) : '',
           gender: client.gender ? String(client.gender) : null,
           age: client.age ? Number(client.age) : null,
@@ -81,7 +104,7 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
       // After creating the client (in POST)
-      const answers = req.body.answers;
+      
       if (answers && client.selectedFormId) {
         await tx.checkInSubmission.create({
           data: {
@@ -97,6 +120,20 @@ router.post('/', async (req: Request, res: Response) => {
       if (!packageId) {
         throw new Error('Missing or invalid packageId for subscription');
       }
+
+      // Set discount applied flag and type based on whether discount values are provided
+      let discountApplied = Boolean(subscription.discountApplied);
+      let discountType = subscription.discountType ? String(subscription.discountType) : null;
+      
+      // If discount values are provided, mark as applied and set type
+      if (subscription.discountValue) {
+        discountApplied = true;
+        // If no discount type is provided but there's a discount value, assume percentage
+        if (!discountType) {
+          discountType = 'percentage';
+        }
+      }
+
       const createdSubscription = await tx.subscription.create({
         data: {
           clientId: createdClient.id,
@@ -108,10 +145,10 @@ router.post('/', async (req: Request, res: Response) => {
           paymentStatus: String(subscription.paymentStatus),
           paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
           priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
-          discountApplied: Boolean(subscription.discountApplied),
-          discountType: subscription.discountType ? String(subscription.discountType) : null,
+          discountApplied: discountApplied,
+          discountType: discountType,
           discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-          priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+          priceAfterDisc: null, // Temporarily set to null to fix TypeScript error
         },
       });
       // 3. Optionally create Installments

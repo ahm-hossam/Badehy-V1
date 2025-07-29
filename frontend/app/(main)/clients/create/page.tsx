@@ -175,8 +175,14 @@ export default function CreateClientPage() {
   useEffect(() => {
     console.log('Selected form ID:', selectedFormId);
     console.log('Available forms:', forms);
-    if (!selectedFormId) setSelectedForm(null);
-    else setSelectedForm(forms.find(f => String(f.id) === selectedFormId) || null);
+    if (!selectedFormId) {
+      console.log('No form ID selected, setting selectedForm to null');
+      setSelectedForm(null);
+    } else {
+      const foundForm = forms.find(f => String(f.id) === selectedFormId);
+      console.log('Found form:', foundForm);
+      setSelectedForm(foundForm || null);
+    }
   }, [selectedFormId, forms]);
 
   // Debug: Log selected form data
@@ -241,51 +247,37 @@ export default function CreateClientPage() {
 
   // Compute check-in fields based on selected form
   const checkInFields = useMemo(() => {
-    if (!selectedForm) return [];
+    console.log('checkInFields useMemo called, selectedForm:', selectedForm, 'selectedFormId:', selectedFormId);
+    if (!selectedForm || !selectedFormId) {
+      console.log('No selectedForm or selectedFormId, returning empty array');
+      return [];
+    }
     
     try {
-      // Process ALL questions from the form (both from dropdown and custom)
+      // Process ALL questions from the form as custom questions
       const allFormQuestions = (selectedForm.questions || []).map((q: any) => {
         if (!q || !q.label) return null;
         
-        // Check if this question exists in CORE_QUESTIONS
-        let coreField: any = null;
-        for (const field of coreFields) {
-            if (field.label === q.label) {
-            coreField = field;
-              break;
-            }
-        }
-        
-        if (coreField) {
-          // Question is from CORE_QUESTIONS - use form configuration but keep original key
-          return {
-            ...coreField,
-            type: mapFormTypeToInputType(q.type || coreField.type),
-            options: q.options || coreField.options || [],
-            required: coreField.required,
-            isCustom: false,
-          };
-        } else {
-          // Custom question - use form configuration
-          return {
-      key: q.id || q.label,
-      label: q.label,
-            type: mapFormTypeToInputType(q.type || 'text'),
-      required: !!q.required,
-      options: q.options || [],
-      isCustom: true,
-          };
-        }
+        // Treat ALL form questions as custom questions with question IDs as keys
+        return {
+          key: q.id, // Use question ID as key (111, 112, etc.)
+          label: q.label,
+          type: mapFormTypeToInputType(q.type || 'text'),
+          required: !!q.required,
+          options: q.options || [],
+          isCustom: true, // Always treat as custom
+        };
       }).filter(Boolean); // Remove null entries
       
+      console.log('Selected form questions:', selectedForm.questions);
       console.log('Check-in fields:', allFormQuestions);
+      console.log('Check-in fields count:', allFormQuestions.length);
       return allFormQuestions;
     } catch (error) {
       console.error('Error processing check-in fields:', error);
       return [];
     }
-  }, [selectedForm, coreFields]);
+  }, [selectedForm, coreFields, selectedFormId]);
 
   // Core questions that are NOT in the check-in form
   const coreFieldsNotInForm = useMemo(() => {
@@ -415,16 +407,26 @@ export default function CreateClientPage() {
         formDataToSend.mealCount = Number(formDataToSend.mealCount);
       }
       console.log('CreateClientPage formDataToSend:', formDataToSend);
-      // Collect custom question answers (those with numeric keys that are NOT core questions)
+      // Collect custom question answers from form questions
       const customAnswers: Record<string, any> = {};
-      Object.entries(formData).forEach(([key, value]) => {
-        if (!isNaN(Number(key))) {
-          // Check if this is a core question by looking at the question ID
-          // Core questions are typically in GROUPS, custom questions have numeric IDs from the form
-          // For now, assume all numeric keys are custom questions
-          customAnswers[key] = value;
-        }
-      });
+      console.log('formData keys:', Object.keys(formData));
+      console.log('formData values:', Object.values(formData));
+      
+      // Get the selected form questions to map answers
+      if (selectedForm && selectedForm.questions) {
+        selectedForm.questions.forEach((question: any) => {
+          const questionId = question.id;
+          
+          // Look for the answer in formData using the question ID as key
+          const answer = formData[questionId];
+          if (answer !== undefined && answer !== null && answer !== '') {
+            customAnswers[questionId] = answer;
+            console.log(`Adding custom answer for question ${questionId}: ${answer}`);
+          }
+        });
+      }
+      
+      console.log('Final customAnswers:', customAnswers);
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

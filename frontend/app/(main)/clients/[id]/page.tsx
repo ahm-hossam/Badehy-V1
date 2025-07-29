@@ -92,6 +92,23 @@ interface Client {
   }>;
   selectedFormId: string | null;
   answers: { [key: string]: any };
+  latestSubmission?: {
+    id: number;
+    formId: number;
+    answers: { [key: string]: any };
+    submittedAt: string;
+    form?: {
+      id: number;
+      name: string;
+      questions: Array<{
+        id: string;
+        label: string;
+        type: string;
+        required: boolean;
+        options?: string[];
+      }>;
+    };
+  };
   notes: Array<{
     id: string;
     content: string;
@@ -107,10 +124,36 @@ export default function ClientDetailsPage() {
   
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Helper function to get display name
+  const getDisplayName = (client: Client) => {
+    // If fullName is not "Unknown Client", use it
+    if (client.fullName && client.fullName !== "Unknown Client") {
+      return client.fullName;
+    }
+    
+    // Otherwise, try to get name from form answers
+    if (client.latestSubmission?.answers) {
+      const answers = client.latestSubmission.answers;
+      const nameKeys = Object.keys(answers).filter(key => 
+        key !== 'filledByTrainer' && 
+        answers[key] && 
+        answers[key] !== 'undefined' &&
+        answers[key] !== ''
+      );
+      
+      if (nameKeys.length > 0) {
+        return answers[nameKeys[0]];
+      }
+    }
+    
+    return "Unknown Client";
+  };
 
   useEffect(() => {
     loadClientDetails();
@@ -119,15 +162,24 @@ export default function ClientDetailsPage() {
   const loadClientDetails = async () => {
     try {
       setLoading(true);
+      // Use the proxy API route to avoid CORS issues
       const response = await fetch(`/api/clients/${clientId}`);
       if (response.ok) {
         const data = await response.json();
-        setClient(data);
+        console.log('Frontend received client data:', data);
+        if (data.error) {
+          console.error('Backend returned error:', data.error);
+          setError(data.error);
+        } else {
+          setClient(data);
+        }
       } else {
         console.error('Failed to load client details');
+        setError('Failed to load client details');
       }
     } catch (error) {
       console.error('Error loading client details:', error);
+      setError('Failed to load client details');
     } finally {
       setLoading(false);
     }
@@ -210,7 +262,7 @@ export default function ClientDetailsPage() {
     }
 
     // For active/expired status, check the end date
-    if (paymentStatus === 'PAID' && latestSubscription.endDate) {
+    if ((paymentStatus === 'PAID' || paymentStatus === 'FREE') && latestSubscription.endDate) {
       const endDate = new Date(latestSubscription.endDate);
       const currentDate = new Date();
       
@@ -330,7 +382,7 @@ export default function ClientDetailsPage() {
             <div className="flex items-center space-x-3">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {client.fullName} <span className="text-sm font-normal text-gray-600">#{client.id}</span>
+                  {getDisplayName(client)} <span className="text-sm font-normal text-gray-600">#{client.id}</span>
                 </h1>
                 <p className="text-gray-600">{client.email}</p>
               </div>
@@ -433,7 +485,7 @@ export default function ClientDetailsPage() {
 
         {/* Tab Content */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          {activeTab === 'overview' && <OverviewTab client={client} onHoldSubscription={handleHoldSubscription} onCancelSubscription={handleCancelSubscription} onAddRenew={handleAddRenew} />}
+          {activeTab === 'overview' && <OverviewTab client={client} onHoldSubscription={handleHoldSubscription} onCancelSubscription={handleCancelSubscription} onAddRenew={handleAddRenew} getDisplayName={getDisplayName} />}
           {activeTab === 'profile' && <ProfileTab client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
           {activeTab === 'subscriptions' && <SubscriptionsTab client={client} getPaymentStatusColor={getPaymentStatusColor} />}
           {activeTab === 'checkins' && <CheckinsTab client={client} />}
@@ -445,11 +497,12 @@ export default function ClientDetailsPage() {
 }
 
 // Overview Tab Component
-function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRenew }: { 
+function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRenew, getDisplayName }: { 
   client: Client; 
   onHoldSubscription: () => void;
   onCancelSubscription: () => void;
   onAddRenew: () => void;
+  getDisplayName: (client: Client) => string;
 }) {
   const [selectedForm, setSelectedForm] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
@@ -481,14 +534,48 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     return client.subscriptions.reduce((total, subscription) => {
       let subscriptionAmount = 0;
 
-      if (subscription.paymentStatus === 'PAID') {
-        // If paid and has discount, use price after discount, otherwise use price before discount
-        if (subscription.discountApplied) {
-          subscriptionAmount = subscription.priceAfterDisc || 0;
+      // Normalize payment status to uppercase for comparison
+      const paymentStatus = subscription.paymentStatus?.toUpperCase();
+      
+
+
+      if (paymentStatus === 'PAID') {
+        // If paid and has discount, calculate price after discount, otherwise use price before discount
+        
+        if (subscription.discountApplied && subscription.priceBeforeDisc && subscription.discountValue && subscription.discountType) {
+          const priceBefore = subscription.priceBeforeDisc;
+          const discountValue = subscription.discountValue;
+          const discountType = subscription.discountType;
+          
+          console.log('Discount calculation:', {
+            priceBefore,
+            discountValue,
+            discountType,
+            discountApplied: subscription.discountApplied
+          });
+          
+          if (discountType === 'percentage') {
+            subscriptionAmount = priceBefore - (priceBefore * discountValue / 100);
+            console.log('Percentage discount calculation:', priceBefore, '-', (priceBefore * discountValue / 100), '=', subscriptionAmount);
+          } else if (discountType === 'fixed') {
+            subscriptionAmount = priceBefore - discountValue;
+            console.log('Fixed discount calculation:', priceBefore, '-', discountValue, '=', subscriptionAmount);
+          } else {
+            subscriptionAmount = priceBefore;
+            console.log('No discount type, using original price:', priceBefore);
+          }
+          
+          // Ensure price doesn't go below 0
+          if (subscriptionAmount < 0) subscriptionAmount = 0;
+          console.log('Final amount after discount:', subscriptionAmount);
         } else {
           subscriptionAmount = subscription.priceBeforeDisc || 0;
+          console.log('No discount applied, using original price:', subscriptionAmount);
         }
-      } else if (subscription.paymentStatus === 'INSTALLMENT') {
+      } else if (paymentStatus === 'FREE') {
+        // For free subscriptions, show 0 amount
+        subscriptionAmount = 0;
+      } else if (paymentStatus === 'INSTALLMENT') {
         // If installment, sum all installment amounts
         subscriptionAmount = subscription.installments.reduce((sum, installment) => {
           return sum + (installment.amount || 0);
@@ -508,11 +595,20 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     }
 
     return client.subscriptions.filter(subscription => {
+      // Normalize payment status to uppercase for comparison
+      const paymentStatus = subscription.paymentStatus?.toUpperCase();
+      
+
+      
       // Check if subscription is active based on end date
-      if (subscription.paymentStatus === 'PAID' && subscription.endDate) {
+      if ((paymentStatus === 'PAID' || paymentStatus === 'FREE') && subscription.endDate) {
         const endDate = new Date(subscription.endDate);
         const currentDate = new Date();
-        return currentDate < endDate;
+        const isActive = currentDate < endDate;
+        
+
+        
+        return isActive;
       }
       return false;
     }).length;
@@ -531,11 +627,13 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
           <div className="flex items-start">
             <div className="p-2 bg-green-500 rounded-lg flex-shrink-0">
-              <PhoneIcon className="h-6 w-6 text-white" />
+              <UserIcon className="h-6 w-6 text-white" />
             </div>
             <div className="ml-3 min-w-0 flex-1">
               <p className="text-sm font-medium text-green-900 mb-1">Contact</p>
-              <p className="text-lg font-semibold text-green-700 break-words">{client.phone}</p>
+              <p className="text-lg font-semibold text-green-700 break-words">
+                {getDisplayName(client)}
+              </p>
               <p className="text-sm text-green-600">{client.gender}, {client.age} years</p>
             </div>
           </div>
@@ -614,75 +712,9 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
         </div>
       </div>
 
-      {/* Dynamic Form Data Section */}
-      {selectedForm && (
-        <div className="mt-6">
-          <h4 className="font-semibold mb-4 flex items-center text-gray-900">
-            <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
-            {selectedForm.name} - Client Responses
-          </h4>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {selectedForm.questions?.map((question: any, index: number) => {
-              const answer = client.answers?.[question.id] || 'Not specified';
-              return (
-                <div key={question.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                  <div className="flex items-start">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 mb-1">{question.label}</p>
-                      <p className="text-gray-600">
-                        {Array.isArray(answer) ? answer.join(', ') : answer}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* Subscription Actions Section */}
-      {client.subscriptions && client.subscriptions.length > 0 && (
-        <div className="mt-6">
-          <h4 className="font-semibold mb-4 flex items-center text-gray-900">
-            <CreditCardIcon className="h-5 w-5 mr-2 text-blue-500" />
-            Subscription Management
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={onHoldSubscription}
-              className="flex items-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-colors duration-150"
-            >
-              <ClockIcon className="h-5 w-5 text-yellow-600 mr-3" />
-              <div className="text-left">
-                <p className="font-medium text-yellow-900">Hold Subscription</p>
-                <p className="text-sm text-yellow-700">Pause billing temporarily</p>
-              </div>
-            </button>
-            <button
-              onClick={onCancelSubscription}
-              className="flex items-center p-4 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors duration-150"
-            >
-              <XCircleIcon className="h-5 w-5 text-red-600 mr-3" />
-              <div className="text-left">
-                <p className="font-medium text-red-900">Cancel Subscription</p>
-                <p className="text-sm text-red-700">Stop all future billing</p>
-              </div>
-            </button>
-            <button
-              onClick={onAddRenew}
-              className="flex items-center p-4 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors duration-150"
-            >
-              <CheckCircleIcon className="h-5 w-5 text-green-600 mr-3" />
-              <div className="text-left">
-                <p className="font-medium text-green-900">Add Renew</p>
-                <p className="text-sm text-green-700">Extend subscription period</p>
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
+
+
     </div>
   );
 }
@@ -694,10 +726,35 @@ function ProfileTab({ client, editing, onSave, saving }: {
   onSave: () => void;
   saving: boolean;
 }) {
+  const [selectedForm, setSelectedForm] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch the form data based on selectedFormId
+  useEffect(() => {
+    const fetchFormData = async () => {
+      if (client.selectedFormId) {
+        setLoading(true);
+        try {
+          const response = await fetch(`/api/checkins/${client.selectedFormId}`);
+          if (response.ok) {
+            const form = await response.json();
+            setSelectedForm(form);
+          }
+        } catch (error) {
+          console.error('Error fetching form data:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchFormData();
+  }, [client.selectedFormId]);
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold">Profile Information</h3>
+        <h3 className="text-lg font-semibold">Client Form Responses</h3>
         {editing && (
           <div className="flex items-center space-x-3">
             <Button outline disabled={saving}>
@@ -710,242 +767,94 @@ function ProfileTab({ client, editing, onSave, saving }: {
         )}
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Basic Information */}
-        <div className="space-y-6">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900 mb-4 flex items-center">
+      <div className="space-y-6">
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-gray-500">Loading form data...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Combined Client Information */}
+        {!loading && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
               <UserIcon className="h-5 w-5 mr-2 text-blue-500" />
-              Basic Information
+              Client Information
             </h4>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                <Input
-                  value={client.fullName}
-                  disabled={!editing}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <Input
-                    value={client.email}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <Input
-                    value={client.phone}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                  <Input
-                    value={client.gender}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
-                  <Input
-                    value={client.age}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Non-duplicated core client fields */}
+              {[
+                { label: 'Email', value: client.email || '', key: 'email' },
+                { label: 'Gender', value: client.gender || '', key: 'gender' },
+                { label: 'Age', value: client.age || '', key: 'age' },
+                { label: 'Source', value: client.source || '', key: 'source' },
+                { label: 'Registration Date', value: client.registrationDate ? new Date(client.registrationDate).toLocaleDateString() : '', key: 'registrationDate' },
+              ].map((field) => {
+                const hasValue = field.value && field.value !== '' && field.value !== null && field.value !== 'undefined';
+                
+                return (
+                  <div key={field.key} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasValue ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 mb-1">{field.label}</p>
+                        <p className={`${hasValue ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                          {hasValue ? field.value : 'Not provided'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Form responses */}
+              {selectedForm && client.latestSubmission?.answers && selectedForm.questions?.map((question: any, index: number) => {
+                const answer = client.latestSubmission?.answers?.[String(question.id)];
+                const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
+                
+                return (
+                  <div key={question.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasAnswer ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 mb-1">{question.label}</p>
+                        <p className={`${hasAnswer ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                          {hasAnswer ? (Array.isArray(answer) ? answer.join(', ') : answer) : 'Answer not provided'}
+                        </p>
+                        {!hasAnswer && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            This answer was not stored when the client was created
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          {/* Physical Information */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900 mb-4 flex items-center">
-              <ChartBarIcon className="h-5 w-5 mr-2 text-green-500" />
-              Physical Information
-            </h4>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
-                  <Input
-                    value={client.height || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
-                  <Input
-                    value={client.weight || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Workout Place</label>
-                <Input
-                  value={client.workoutPlace || ''}
-                  disabled={!editing}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Days</label>
-                  <Input
-                    value={client.preferredTrainingDays || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Time</label>
-                  <Input
-                    value={client.preferredTrainingTime || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+        {/* No Form Data Message */}
+        {!loading && (!selectedForm || !client.latestSubmission?.answers || Object.keys(client.latestSubmission?.answers || {}).length === 0) && (
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="text-center py-8">
+              <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Form Responses</h3>
+              <p className="text-gray-500">
+                {client.selectedFormId 
+                  ? "This client hasn't filled out the selected form yet."
+                  : "No form was selected for this client."
+                }
+              </p>
             </div>
           </div>
-        </div>
-
-        {/* Goals and Nutrition */}
-        <div className="space-y-6">
-          {/* Goals and Preferences */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900 mb-4 flex items-center">
-              <FireIcon className="h-5 w-5 mr-2 text-red-500" />
-              Goals and Preferences
-            </h4>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Primary Goal</label>
-                <Textarea
-                  value={client.goal || ''}
-                  disabled={!editing}
-                  rows={3}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Weak Areas</label>
-                <Textarea
-                  value={client.weakAreas || ''}
-                  disabled={!editing}
-                  rows={3}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Availability</label>
-                  <Input
-                    value={client.equipmentAvailability || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Favorite Training Style</label>
-                  <Input
-                    value={client.favoriteTrainingStyle || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Nutrition Information */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900 mb-4 flex items-center">
-              <HeartIcon className="h-5 w-5 mr-2 text-green-500" />
-              Nutrition Information
-            </h4>
-            
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nutrition Goal</label>
-                  <Input
-                    value={client.nutritionGoal || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Diet Preference</label>
-                  <Input
-                    value={client.dietPreference || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Meals per Day</label>
-                  <Input
-                    value={client.mealCount || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Nutrition Plan</label>
-                  <Input
-                    value={client.currentNutritionPlan || ''}
-                    disabled={!editing}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Food Allergies</label>
-                <Textarea
-                  value={client.foodAllergies || ''}
-                  disabled={!editing}
-                  rows={2}
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Disliked Ingredients</label>
-                <Textarea
-                  value={client.dislikedIngredients || ''}
-                  disabled={!editing}
-                  rows={2}
-                  className="w-full"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
