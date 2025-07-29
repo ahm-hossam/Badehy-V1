@@ -29,34 +29,47 @@ router.post('/', async (req: Request, res: Response) => {
     
     // Transaction: create client, subscription, and installments
     const result = await prisma.$transaction(async (tx) => {
-      // Get name from form answers if not provided in client object
+      // Get name and phone from form answers if not provided in client object
       const answers = req.body.answers;
       
-      // Find the name from form answers by looking for the "Full Name" question
+      // Find the name and phone from form answers
       let clientName = client.fullName;
-      if (!clientName && answers) {
-        // Look for any answer that might be the name (common patterns)
-        const nameKeys = Object.keys(answers).filter(key => 
-          key !== 'filledByTrainer' && 
-          answers[key] && 
-          answers[key] !== 'undefined' &&
-          answers[key] !== ''
-        );
-        
-        if (nameKeys.length > 0) {
-          // Use the first non-empty answer as the name
-          clientName = answers[nameKeys[0]];
-        }
+      let clientPhone = client.phone;
+      
+      if (answers) {
+        // Look for name and phone in answers
+        Object.entries(answers).forEach(([key, value]) => {
+          if (value && value !== 'undefined' && value !== '') {
+            // Check if this is a name field (common patterns)
+            if (!clientName && (
+              typeof value === 'string' && 
+              value.length > 2 && 
+              !value.includes('@') && 
+              !value.includes('+') &&
+              !value.match(/^\d+$/)
+            )) {
+              clientName = value;
+            }
+            // Check if this is a phone field (contains numbers and possibly +)
+            if (!clientPhone && (
+              typeof value === 'string' && 
+              (value.includes('+') || value.match(/^\d+$/) || value.match(/^\d+[\d\s\-\(\)]+$/))
+            )) {
+              clientPhone = value;
+            }
+          }
+        });
       }
       
       clientName = clientName || 'Unknown Client';
+      clientPhone = clientPhone || '';
       
       // 1. Create TrainerClient
       const createdClient = await tx.trainerClient.create({
         data: {
           trainerId: parsedTrainerId,
           fullName: String(clientName),
-          phone: client.phone && client.phone !== 'undefined' ? String(client.phone) : '',
+          phone: clientPhone,
           email: client.email ? String(client.email) : '',
           gender: client.gender ? String(client.gender) : null,
           age: client.age ? Number(client.age) : null,

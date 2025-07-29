@@ -127,7 +127,7 @@ export default function CreateClientPage() {
   const [newPackageName, setNewPackageName] = useState('');
   const [showAddPackage, setShowAddPackage] = useState(false);
   const [packageError, setPackageError] = useState('');
-  type InstallmentRow = { id?: string; date: string; amount: string; image: File | null; nextDate: string; };
+  type InstallmentRow = { id?: string; date: string; amount: string; image: File | null; nextDate: string; remaining?: string; };
   const [installments, setInstallments] = useState<InstallmentRow[]>([{ date: '', amount: '', image: null, nextDate: '' }]);
 
   // Fetch trainer's check-in forms
@@ -434,7 +434,13 @@ export default function CreateClientPage() {
           trainerId: user.id, 
           client: { ...formDataToSend, registrationDate, selectedFormId, labels: selectedLabels }, 
           subscription,
-          installments: installments.filter(inst => inst.date && inst.amount), // Only send installments with valid data
+          installments: installments.filter(inst => inst.date && inst.amount).map(inst => ({
+            paidDate: inst.date,
+            amount: inst.amount,
+            nextInstallment: inst.nextDate,
+            remaining: inst.remaining || 0,
+            status: 'paid'
+          })), // Only send installments with valid data
           notes: notes.map(note => ({ content: note.content })),
           answers: customAnswers // <-- send answers
         }),

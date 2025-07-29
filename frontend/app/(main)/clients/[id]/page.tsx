@@ -575,11 +575,33 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
       } else if (paymentStatus === 'FREE') {
         // For free subscriptions, show 0 amount
         subscriptionAmount = 0;
-      } else if (paymentStatus === 'INSTALLMENT') {
-        // If installment, sum all installment amounts
-        subscriptionAmount = subscription.installments.reduce((sum, installment) => {
-          return sum + (installment.amount || 0);
-        }, 0);
+      } else if (paymentStatus === 'INSTALLMENTS') {
+        // If installments, sum all installment amounts
+        if (subscription.installments && subscription.installments.length > 0) {
+          subscriptionAmount = subscription.installments.reduce((sum, installment) => {
+            return sum + (installment.amount || 0);
+          }, 0);
+        } else {
+          // If no installments found but payment status is installments, 
+          // fall back to discount calculation or original price
+          if (subscription.discountApplied && subscription.priceBeforeDisc && subscription.discountValue) {
+            const priceBefore = subscription.priceBeforeDisc;
+            const discountValue = subscription.discountValue;
+            const discountType = subscription.discountType || 'percentage';
+            
+            if (discountType === 'percentage') {
+              subscriptionAmount = priceBefore - (priceBefore * discountValue / 100);
+            } else if (discountType === 'fixed') {
+              subscriptionAmount = priceBefore - discountValue;
+            } else {
+              subscriptionAmount = priceBefore;
+            }
+            
+            if (subscriptionAmount < 0) subscriptionAmount = 0;
+          } else {
+            subscriptionAmount = subscription.priceBeforeDisc || 0;
+          }
+        }
       } else {
         // For other statuses, use price after discount as fallback
         subscriptionAmount = subscription.priceAfterDisc || 0;
@@ -601,7 +623,7 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
 
       
       // Check if subscription is active based on end date
-      if ((paymentStatus === 'PAID' || paymentStatus === 'FREE') && subscription.endDate) {
+      if ((paymentStatus === 'PAID' || paymentStatus === 'FREE' || paymentStatus === 'INSTALLMENTS') && subscription.endDate) {
         const endDate = new Date(subscription.endDate);
         const currentDate = new Date();
         const isActive = currentDate < endDate;

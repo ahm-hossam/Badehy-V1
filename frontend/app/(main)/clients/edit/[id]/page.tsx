@@ -134,6 +134,23 @@ export default function EditClientPage() {
         if (data?.labels && Array.isArray(data.labels)) {
           setSelectedLabels(data.labels.map((label: any) => label.id));
         }
+        // Load subscription data
+        if (data?.subscriptions && data.subscriptions.length > 0) {
+          const latestSubscription = data.subscriptions[0];
+          setSubscription(latestSubscription);
+          // Load installments
+          if (latestSubscription.installments && latestSubscription.installments.length > 0) {
+            const installmentRows = latestSubscription.installments.map((inst: any) => ({
+              id: inst.id,
+              date: inst.paidDate ? new Date(inst.paidDate).toISOString().split('T')[0] : '',
+              amount: String(inst.amount || ''),
+              image: null,
+              nextDate: inst.nextInstallment ? new Date(inst.nextInstallment).toISOString().split('T')[0] : '',
+              remaining: String(inst.remaining || ''),
+            }));
+            setInstallments(installmentRows);
+          }
+        }
         console.log('EditClientPage formData:', data);
       })
       .catch(() => setError("Failed to load client data."))
@@ -337,6 +354,20 @@ export default function EditClientPage() {
     installments: "",
   });
   const [registrationDate, setRegistrationDate] = useState<string>("");
+  
+  // Add missing state variables that are used but not defined
+  const [transactionImage, setTransactionImage] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [showTransactionImage, setShowTransactionImage] = useState(false);
+  const [showDiscountValue, setShowDiscountValue] = useState(false);
+  const [showPriceFields, setShowPriceFields] = useState(false);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [newPackageName, setNewPackageName] = useState('');
+  const [showAddPackage, setShowAddPackage] = useState(false);
+  const [packageError, setPackageError] = useState('');
   
   // Array fields that need special handling
   const arrayFields = ['injuriesHealthNotes', 'goals', 'preferredTrainingDays', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas', 'foodAllergies'];
@@ -663,20 +694,7 @@ export default function EditClientPage() {
     }
   };
 
-  const [transactionImage, setTransactionImage] = useState<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Add after other useState declarations in EditClientPage:
-  const [packages, setPackages] = useState<any[]>([]);
-  const [newPackageName, setNewPackageName] = useState('');
-  const [showAddPackage, setShowAddPackage] = useState(false);
-  const [packageError, setPackageError] = useState('');
-  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
-  const [showDiscountFields, setShowDiscountFields] = useState(false);
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  const [showTransactionImage, setShowTransactionImage] = useState(false);
-  const [showDiscountValue, setShowDiscountValue] = useState(false);
-  const [showPriceFields, setShowPriceFields] = useState(false);
   type InstallmentRow = {
     id?: string;
     date: string;
@@ -1216,7 +1234,7 @@ export default function EditClientPage() {
                           </label>
                           <Textarea
                             value={value || ''}
-                            onChange={e => handleChange(field.id, e.target.value, true)}
+                            onChange={e => handleChange(field.key || field.id, e.target.value, true)}
                             placeholder={field.label}
                             required={field.required}
                           />
@@ -1233,7 +1251,7 @@ export default function EditClientPage() {
                         <Input
                           type={field.type || 'text'}
                           value={value || ''}
-                          onChange={e => handleChange(field.id, e.target.value, true)}
+                          onChange={e => handleChange(field.key || field.id, e.target.value, true)}
                           placeholder={field.label}
                           required={field.required}
               />
@@ -1250,7 +1268,7 @@ export default function EditClientPage() {
                       {field.type === 'select' ? (
                         <Select
                           value={value || ''}
-                          onChange={e => handleChange(field.id, e.target.value, true)}
+                          onChange={e => handleChange(field.key || field.id, e.target.value, true)}
                           required={field.required}
                 className="w-full"
                         >
@@ -1265,7 +1283,7 @@ export default function EditClientPage() {
                           return (
                             <MultiSelect
                               value={currentValues}
-                              onChange={(value) => handleChange(field.id, value, true)}
+                              onChange={(value) => handleChange(field.key || field.id, value, true)}
                               placeholder={`Select ${field.label}...`}
                               className="w-full"
                             >
@@ -1330,6 +1348,10 @@ export default function EditClientPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {coreFieldsNotInForm.map((field: any) => {
                     let value = formData[field.key];
+                    
+                    // Debug: log the field and value
+                    console.log(`Field: ${field.key}, Value:`, value);
+                    
                     // For multi-selects, ensure value is always an array
                     if ((field.type === 'multiselect' || field.type === 'multi') && typeof value === 'string') {
                       value = value.split(',').map((v: string) => v.trim()).filter(Boolean);
@@ -1340,7 +1362,6 @@ export default function EditClientPage() {
                     if (value === null || value === undefined) {
                       value = (field.type === 'multiselect' || field.type === 'multi') ? [] : '';
                     }
-                  console.log(`DEBUG: Rendering core field: ${field.label} (key: ${field.key}) with value:`, value);
                     return (
                     <div key={field.key} className="flex flex-col">
                     <label className="text-sm font-medium mb-1 flex items-center gap-1">
