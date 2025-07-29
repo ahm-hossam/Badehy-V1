@@ -7,6 +7,7 @@ import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
 import { Select } from '@/components/select';
 import { Dialog } from '@/components/dialog';
+import { Toast } from '@/components/toast';
 import { 
   UserIcon, 
   CreditCardIcon, 
@@ -80,6 +81,11 @@ interface Client {
     holdEndDate?: string;
     holdDuration?: number;
     holdDurationUnit?: string;
+    isCanceled?: boolean;
+    canceledAt?: string;
+    cancelReason?: string;
+    refundAmount?: number;
+    refundType?: string;
     installments: Array<{
       id: number;
       amount: number;
@@ -162,6 +168,43 @@ export default function ClientDetailsPage() {
   const [holdDurationUnit, setHoldDurationUnit] = useState('days');
   const [holdFromDate, setHoldFromDate] = useState('');
   const [selectedSubscription, setSelectedSubscription] = useState<any>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelDate, setCancelDate] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [refundType, setRefundType] = useState('none');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [toast, setToast] = useState({ open: false, message: '', type: 'success' as 'success' | 'error' });
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ open: true, message, type });
+    setTimeout(() => setToast({ open: false, message: '', type: 'success' }), 3000);
+  };
+
+  // Auto-calculate refund amount based on subscription details
+  const calculateRefundAmount = (subscription: any) => {
+    if (!subscription) return 0;
+
+    const paymentStatus = subscription.paymentStatus?.toUpperCase();
+    
+    if (paymentStatus === 'PAID') {
+      if (subscription.discountApplied && subscription.priceAfterDisc) {
+        return subscription.priceAfterDisc; // Use discounted amount
+      } else {
+        return subscription.priceBeforeDisc || 0; // Use original amount
+      }
+    } else if (paymentStatus === 'INSTALLMENTS') {
+      // Sum all paid installments
+      if (subscription.installments && subscription.installments.length > 0) {
+        return subscription.installments.reduce((sum: number, installment: any) => {
+          return sum + (installment.amount || 0);
+        }, 0);
+      }
+      return 0;
+    }
+    
+    return 0;
+  };
 
   // Helper function to get display name
   const getDisplayName = (client: Client) => {
@@ -287,12 +330,24 @@ export default function ClientDetailsPage() {
     // Normalize payment status to uppercase for comparison
     const paymentStatus = latestSubscription.paymentStatus?.toUpperCase();
 
+    // Check if subscription is canceled first
+    if (latestSubscription.isCanceled && latestSubscription.canceledAt) {
+      const cancelDate = new Date(latestSubscription.canceledAt);
+      const currentDate = new Date();
+      
+      if (currentDate >= cancelDate) {
+        return { status: 'Canceled', color: 'bg-gray-100 text-gray-700 border-gray-200', isActive: false };
+      } else {
+        return { status: 'Canceled (Active until ' + cancelDate.toLocaleDateString() + ')', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', isActive: true };
+      }
+    }
+
     // Check if subscription is on hold
     if (latestSubscription.isOnHold) {
       return { status: 'On Hold', color: 'bg-orange-100 text-orange-700 border-orange-200', isActive: true };
     }
 
-    // Check if subscription is canceled first
+    // Check if subscription is canceled by payment status
     if (paymentStatus === 'CANCELED') {
       return { status: 'Canceled', color: 'bg-gray-100 text-gray-700 border-gray-200', isActive: false };
     }
@@ -394,13 +449,15 @@ export default function ClientDetailsPage() {
         setHoldFromDate('');
         setSelectedSubscription(null);
         
-        // Show success toast (you can implement this)
-        console.log('Subscription held successfully');
+        // Show success toast
+        showToast('Subscription held successfully!');
       } else {
         console.error('Failed to hold subscription');
+        showToast('Failed to hold subscription. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error holding subscription:', error);
+      showToast('Error holding subscription. Please try again.', 'error');
     }
   };
 
@@ -423,9 +480,76 @@ export default function ClientDetailsPage() {
   };
 
   const handleCancelSubscription = () => {
-    // TODO: Implement cancel subscription functionality
-    console.log('Cancel subscription clicked');
-    setDropdownOpen(false);
+    if (!client) return;
+    
+    // Get the latest subscription
+    const latestSubscription = client.subscriptions && client.subscriptions.length > 0 
+      ? client.subscriptions[0] 
+      : null;
+    
+    if (latestSubscription) {
+      setSelectedSubscription(latestSubscription);
+      // Set default cancel date to current end date
+      setCancelDate(new Date(latestSubscription.endDate).toISOString().split('T')[0]);
+      // Reset refund fields
+      setRefundType('none');
+      setRefundAmount('');
+      setShowCancelModal(true);
+      setDropdownOpen(false);
+    }
+  };
+
+  const handleRefundTypeChange = (type: string) => {
+    setRefundType(type);
+    
+    if (type === 'full' && selectedSubscription) {
+      // Auto-calculate full refund amount
+      const calculatedAmount = calculateRefundAmount(selectedSubscription);
+      setRefundAmount(calculatedAmount.toString());
+    } else if (type === 'partial') {
+      // Clear amount for partial refund (user will enter manually)
+      setRefundAmount('');
+    } else {
+      // Clear amount for no refund
+      setRefundAmount('');
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!selectedSubscription || !cancelDate || !cancelReason) return;
+    
+    try {
+      const response = await fetch(`/api/subscriptions/${selectedSubscription.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          cancelDate,
+          cancelReason,
+          refundType,
+          refundAmount: refundAmount ? parseFloat(refundAmount) : null
+        }),
+      });
+      
+      if (response.ok) {
+        // Refresh client data to show updated subscription
+        loadClientDetails();
+        setShowCancelModal(false);
+        setCancelDate('');
+        setCancelReason('');
+        setRefundType('none');
+        setRefundAmount('');
+        setSelectedSubscription(null);
+        
+        // Show success toast
+        showToast('Subscription canceled successfully!');
+      } else {
+        console.error('Failed to cancel subscription');
+        showToast('Failed to cancel subscription. Please try again.', 'error');
+      }
+    } catch (error) {
+      console.error('Error canceling subscription:', error);
+      showToast('Error canceling subscription. Please try again.', 'error');
+    }
   };
 
   const handleAddRenew = () => {
@@ -755,6 +879,177 @@ export default function ClientDetailsPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Cancel Subscription Modal */}
+      <Dialog open={showCancelModal} onClose={() => setShowCancelModal(false)}>
+        <div className="p-6 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Cancel Subscription</h2>
+              <p className="text-gray-600 text-sm">
+                Are you sure you want to cancel this subscription?
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCancelModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {selectedSubscription && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current End Date
+                  </label>
+                  <p className="text-gray-900 font-medium">
+                    {new Date(selectedSubscription.endDate).toLocaleDateString()}
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cancel Date
+                  </label>
+                  <input
+                    type="date"
+                    value={cancelDate}
+                    onChange={(e) => setCancelDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cancel Reason
+                </label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                >
+                  <option value="">Select a reason</option>
+                  <option value="Client request">Client request</option>
+                  <option value="Payment issues">Payment issues</option>
+                  <option value="Service not needed">Service not needed</option>
+                  <option value="Dissatisfied with service">Dissatisfied with service</option>
+                  <option value="Moving/relocation">Moving/relocation</option>
+                  <option value="Health issues">Health issues</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Refund Options
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  <label className="flex items-center p-2 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="refundType"
+                      value="none"
+                      checked={refundType === 'none'}
+                      onChange={(e) => handleRefundTypeChange(e.target.value)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">No refund</span>
+                  </label>
+                  <label className="flex items-center p-2 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="refundType"
+                      value="partial"
+                      checked={refundType === 'partial'}
+                      onChange={(e) => handleRefundTypeChange(e.target.value)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Partial refund</span>
+                  </label>
+                  <label className="flex items-center p-2 border border-gray-200 rounded-md hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="refundType"
+                      value="full"
+                      checked={refundType === 'full'}
+                      onChange={(e) => handleRefundTypeChange(e.target.value)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">Full refund</span>
+                  </label>
+                </div>
+              </div>
+              
+              {(refundType === 'partial' || refundType === 'full') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Refund Amount
+                  </label>
+                  {refundType === 'full' ? (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-green-700 font-medium">Auto-calculated refund</span>
+                        <span className="text-green-800 font-semibold text-lg">
+                          EGP {parseFloat(refundAmount || '0').toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="Enter refund amount"
+                      min="0"
+                      step="0.01"
+                    />
+                  )}
+                </div>
+              )}
+              
+              {cancelDate && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <label className="block text-sm font-medium text-red-700 mb-1">
+                    Subscription will be canceled on
+                  </label>
+                  <p className="text-red-800 font-semibold">
+                    {new Date(cancelDate).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <Button outline onClick={() => setShowCancelModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmCancel}
+              disabled={!cancelDate || !cancelReason}
+              color="red"
+            >
+              Cancel Subscription
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Toast Notification */}
+      <Toast 
+        open={toast.open} 
+        message={toast.message} 
+        type={toast.type}
+        onClose={() => setToast({ open: false, message: '', type: 'success' })}
+      />
     </div>
   );
 }
@@ -1191,7 +1486,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                 <div className="bg-blue-50 rounded-lg p-4">
                   <p className="text-sm font-medium text-blue-900 mb-1">Total Amount</p>
                   <p className="text-2xl font-bold text-blue-700">
-                    ${(subscription.priceAfterDisc || 0).toFixed(2)}
+                    EGP {(subscription.priceAfterDisc || 0).toFixed(2)}
                   </p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4">
@@ -1217,7 +1512,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                           installment.status === 'PAID' ? 'bg-green-500' : 'bg-yellow-500'
                         }`}></div>
                         <div>
-                          <p className="font-medium text-gray-900">${(installment.amount || 0).toFixed(2)}</p>
+                          <p className="font-medium text-gray-900">EGP {(installment.amount || 0).toFixed(2)}</p>
                           <p className="text-sm text-gray-600">{installment.status}</p>
                         </div>
                       </div>

@@ -650,6 +650,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
       // Find all subscriptions for this client
       const subscriptions = await tx.subscription.findMany({ where: { clientId } });
       for (const sub of subscriptions) {
+        // Delete subscription hold records first
+        await tx.subscriptionHold.deleteMany({ where: { subscriptionId: sub.id } });
         // Delete subscription transaction images
         await tx.subscriptionTransactionImage.deleteMany({ where: { subscriptionId: sub.id } });
         // Find all installments for this subscription
