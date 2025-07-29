@@ -32,7 +32,9 @@ import {
   ClockIcon as ClockIconSolid,
   StarIcon,
   ArrowLeftIcon,
-  TrashIcon
+  TrashIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from '@heroicons/react/24/outline';
 
 interface Client {
@@ -619,7 +621,7 @@ export default function ClientDetailsPage() {
     { id: 'overview', name: 'Overview', icon: ChartBarIcon, count: null },
     { id: 'profile', name: 'Profile', icon: UserIcon, count: null },
     { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: client.subscriptions.length },
-    { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: 0 },
+    { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
 
@@ -1443,6 +1445,121 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
   client: Client; 
   getPaymentStatusColor: (status: string) => string;
 }) {
+  // Helper functions for payment calculations
+          const calculateTotalPaidAmount = (subscription: any) => {
+          console.log('=== calculateTotalPaidAmount DEBUG ===');
+          console.log('Payment status:', subscription.paymentStatus);
+          console.log('Price after disc:', subscription.priceAfterDisc);
+          console.log('Price before disc:', subscription.priceBeforeDisc);
+          console.log('Discount applied:', subscription.discountApplied);
+          console.log('Discount type:', subscription.discountType);
+          console.log('Discount value:', subscription.discountValue);
+          
+          if (subscription.paymentStatus?.toLowerCase() === 'paid') {
+            console.log('Processing PAID subscription...');
+            // For paid subscriptions, return the final amount (with discount if applied)
+            // If priceAfterDisc is null but discount is applied, calculate it
+            let amount = 0;
+            if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
+              amount = subscription.priceAfterDisc;
+              console.log('Using priceAfterDisc:', amount);
+            } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
+              console.log('Calculating discount...');
+              // Calculate the discounted amount
+              if (subscription.discountType === 'percentage') {
+                amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
+                console.log('Percentage discount calculation:', subscription.priceBeforeDisc, '-', (subscription.priceBeforeDisc * subscription.discountValue / 100), '=', amount);
+              } else {
+                amount = subscription.priceBeforeDisc - subscription.discountValue;
+                console.log('Fixed discount calculation:', subscription.priceBeforeDisc, '-', subscription.discountValue, '=', amount);
+              }
+            } else {
+              amount = subscription.priceBeforeDisc || 0;
+              console.log('Using priceBeforeDisc:', amount);
+            }
+            console.log('Final PAID amount:', amount);
+            return amount;
+          } else if (subscription.installments && subscription.installments.length > 0) {
+            console.log('Processing INSTALLMENT subscription...');
+            // For installment subscriptions, sum all paid installments
+            const amount = subscription.installments
+              .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
+              .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
+            console.log('INSTALLMENT amount:', amount);
+            return amount;
+          }
+          console.log('No conditions met, returning 0');
+          return 0;
+        };
+
+  const getFinalAmount = (subscription: any) => {
+    // Always return the price after discount if available, otherwise price before discount
+    let amount = 0;
+    if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
+      amount = subscription.priceAfterDisc;
+    } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
+      // Calculate the discounted amount
+      if (subscription.discountType === 'percentage') {
+        amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
+      } else {
+        amount = subscription.priceBeforeDisc - subscription.discountValue;
+      }
+    } else {
+      amount = subscription.priceBeforeDisc || 0;
+    }
+    console.log('getFinalAmount - priceAfterDisc:', subscription.priceAfterDisc);
+    console.log('getFinalAmount - priceBeforeDisc:', subscription.priceBeforeDisc);
+    console.log('getFinalAmount - discountApplied:', subscription.discountApplied);
+    console.log('getFinalAmount - discountType:', subscription.discountType);
+    console.log('getFinalAmount - discountValue:', subscription.discountValue);
+    console.log('getFinalAmount - final amount:', amount);
+    return amount;
+  };
+
+  const calculateTotalInstallmentsPaid = (subscription: any) => {
+    if (!subscription.installments) return 0;
+    return subscription.installments.filter((inst: any) => inst.status?.toLowerCase() === 'paid').length;
+  };
+
+  const calculateRemainingInstallments = (subscription: any) => {
+    if (!subscription.installments) return 0;
+    return subscription.installments.filter((inst: any) => inst.status?.toLowerCase() !== 'paid').length;
+  };
+
+  const getPaymentTimeline = (subscription: any) => {
+    const timeline = [];
+    
+    // Add subscription creation
+    timeline.push({
+      id: `sub-${subscription.id}`,
+      type: 'subscription',
+      date: new Date().toISOString(), // Use current date since createdAt might not exist
+      amount: getFinalAmount(subscription),
+      status: subscription.paymentStatus,
+      description: `Subscription #${subscription.id} created`,
+      isPaid: subscription.paymentStatus?.toLowerCase() === 'paid'
+    });
+
+    // Add installments
+    if (subscription.installments) {
+      subscription.installments.forEach((inst: any) => {
+        timeline.push({
+          id: `inst-${inst.id}`,
+          type: 'installment',
+          date: inst.paidDate || new Date().toISOString(),
+          amount: inst.amount || 0,
+          status: inst.status,
+          description: `Installment payment`,
+          isPaid: inst.status?.toLowerCase() === 'paid',
+          installmentId: inst.id
+        } as any);
+      });
+    }
+
+    // Sort by date (newest first)
+    return timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
   return (
     <div className="p-6">
       <h3 className="text-lg font-semibold mb-6">Subscriptions & Payments</h3>
@@ -1455,72 +1572,164 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
         </div>
       ) : (
         <div className="space-y-6">
-          {client.subscriptions.map((subscription, index) => (
-            <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-500 rounded-lg">
-                    <CreditCardIcon className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Subscription #{subscription.id}</h4>
-                    <p className="text-sm text-gray-600">Created on {new Date().toLocaleDateString()}</p>
-                  </div>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getPaymentStatusColor(subscription.paymentStatus)}`}>
-                  {subscription.paymentStatus}
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <p className="text-sm font-medium text-blue-900 mb-1">Total Amount</p>
-                  <p className="text-2xl font-bold text-blue-700">
-                    EGP {(subscription.priceAfterDisc || 0).toFixed(2)}
-                  </p>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <p className="text-sm font-medium text-green-900 mb-1">Installments</p>
-                  <p className="text-2xl font-bold text-green-700">{subscription.installments?.length || 0} payments</p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <p className="text-sm font-medium text-purple-900 mb-1">Transaction Images</p>
-                  <p className="text-2xl font-bold text-purple-700">
-                    {subscription.installments?.reduce((sum, inst) => sum + (inst.transactionImages?.length || 0), 0) || 0} uploaded
-                  </p>
-                </div>
-              </div>
+          {client.subscriptions.map((subscription, index) => {
+            console.log('=== SUBSCRIPTION DEBUG ===');
+            console.log('Full subscription object:', JSON.stringify(subscription, null, 2));
+            console.log('Payment status:', subscription.paymentStatus);
+            console.log('Price before disc:', subscription.priceBeforeDisc);
+            console.log('Price after disc:', subscription.priceAfterDisc);
+            console.log('Discount applied:', subscription.discountApplied);
+            console.log('Discount type:', subscription.discountType);
+            console.log('Discount value:', subscription.discountValue);
+            console.log('Type of priceAfterDisc:', typeof subscription.priceAfterDisc);
+            console.log('Is priceAfterDisc null?', subscription.priceAfterDisc === null);
+            console.log('Is priceAfterDisc undefined?', subscription.priceAfterDisc === undefined);
+            
+            const totalPaid = calculateTotalPaidAmount(subscription);
+            const totalInstallmentsPaid = calculateTotalInstallmentsPaid(subscription);
+            const remainingInstallments = calculateRemainingInstallments(subscription);
+            const paymentTimeline = getPaymentTimeline(subscription);
+            
+            console.log('Calculated total paid:', totalPaid);
+            console.log('Final amount:', getFinalAmount(subscription));
+            console.log('=== END DEBUG ===');
 
-              {/* Installments */}
-              <div className="mt-6">
-                <h5 className="font-medium text-gray-900 mb-3">Payment History</h5>
-                <div className="space-y-3">
-                  {subscription.installments?.map((installment) => (
-                    <div key={installment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-3 h-3 rounded-full ${
-                          installment.status === 'PAID' ? 'bg-green-500' : 'bg-yellow-500'
-                        }`}></div>
-                        <div>
-                          <p className="font-medium text-gray-900">EGP {(installment.amount || 0).toFixed(2)}</p>
-                          <p className="text-sm text-gray-600">{installment.status}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">
-                          {installment.transactionImages?.length || 0} images
-                        </p>
-                      </div>
+            return (
+              <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
+                {/* Subscription Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-500 rounded-lg">
+                      <CreditCardIcon className="h-5 w-5 text-white" />
                     </div>
-                  )) || (
-                    <div className="text-center py-4 text-gray-500">
-                      No installments found
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Subscription #{subscription.id}</h4>
+                      <p className="text-sm text-gray-600">
+                        Created on {new Date().toLocaleDateString()}
+                      </p>
                     </div>
-                  )}
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getPaymentStatusColor(subscription.paymentStatus)}`}>
+                    {subscription.paymentStatus}
+                  </span>
                 </div>
+                
+                {/* Summary Cards */}
+                <div className="mb-6">
+                  <div className="bg-blue-50 rounded-lg p-4 max-w-xs">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Total Paid Amount</p>
+                    <p className="text-xl font-bold text-blue-700">
+                      EGP {totalPaid.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payment Timeline */}
+                <div className="mt-6">
+                  <h5 className="font-medium text-gray-900 mb-4">Payment History Timeline</h5>
+                  <div className="space-y-3">
+                    {paymentTimeline.length > 0 ? (
+                      paymentTimeline.map((payment, idx) => (
+                        <div key={payment.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                          <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                            payment.isPaid ? 'bg-green-500' : 'bg-yellow-500'
+                          }`}></div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-gray-900">{payment.description}</p>
+                                <p className="text-sm text-gray-600">
+                                  {new Date(payment.date).toLocaleDateString()} at {new Date(payment.date).toLocaleTimeString()}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-gray-900">EGP {payment.amount.toFixed(2)}</p>
+                                <p className={`text-sm font-medium ${
+                                  payment.isPaid ? 'text-green-600' : 'text-yellow-600'
+                                }`}>
+                                  {payment.status}
+                                </p>
+                              </div>
+                            </div>
+                                                         {payment.type === 'installment' && (
+                               <div className="mt-2 text-xs text-gray-500">
+                                 Installment payment
+                               </div>
+                             )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <CreditCardIcon className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                        <p>No payment history available</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Detailed Installments Table */}
+                {subscription.installments && subscription.installments.length > 0 && (
+                  <div className="mt-6">
+                    <h5 className="font-medium text-gray-900 mb-4">Installment Details</h5>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Installment
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Amount
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Paid Date
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Images
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {subscription.installments.map((installment, idx) => (
+                            <tr key={installment.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #{installment.id}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                EGP {(installment.amount || 0).toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  installment.status === 'PAID' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {installment.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                {installment.paidDate 
+                                  ? new Date(installment.paidDate).toLocaleDateString()
+                                  : 'Not paid yet'
+                                }
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                {installment.transactionImages?.length || 0} images
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -1529,136 +1738,126 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 
 // Check-ins Tab Component
 function CheckinsTab({ client }: { client: Client }) {
-  console.log('CheckinsTab - client:', client);
-  console.log('CheckinsTab - submissions:', client.submissions);
-  console.log('CheckinsTab - submissions length:', client.submissions?.length);
-  
+  const [expandedForms, setExpandedForms] = useState<Set<number>>(new Set());
 
-  
+  const toggleForm = (formId: number) => {
+    const newExpanded = new Set(expandedForms);
+    if (newExpanded.has(formId)) {
+      newExpanded.delete(formId);
+    } else {
+      newExpanded.add(formId);
+    }
+    setExpandedForms(newExpanded);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return {
+      date: date.toLocaleDateString(),
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+  };
+
+  const getFilledByText = (submission: any) => {
+    return submission.answers?.filledByTrainer ? 'Trainer' : 'Client';
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold">Check-in Responses</h3>
+        <h3 className="text-lg font-semibold text-gray-900">Check-in Forms</h3>
+        <p className="text-sm text-gray-600 mt-1">
+          All forms submitted by or for this client
+        </p>
       </div>
       
       {client.submissions && client.submissions.length > 0 ? (
-        <div className="space-y-6">
-          {client.submissions.map((submission, index) => (
-              <div key={submission.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900">
-                    {submission.form?.name || `Form #${submission.formId}`}
-                  </h4>
-                  <p className="text-sm text-gray-500">
-                    Submitted on {new Date(submission.submittedAt).toLocaleDateString()} at {new Date(submission.submittedAt).toLocaleTimeString()}
-                  </p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Completed
-                  </span>
-                </div>
-              </div>
-              
-              {submission.form?.questions && submission.answers && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {submission.form.questions.map((question) => {
-                    const answer = submission.answers[String(question.id)];
-                    const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
-                    
-                    return (
-                      <div key={question.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start">
-                          <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasAnswer ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 mb-1">{question.label}</p>
-                            <p className={`${hasAnswer ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                              {hasAnswer ? (Array.isArray(answer) ? answer.join(', ') : answer) : 'Answer not provided'}
-                            </p>
-                          </div>
+        <div className="space-y-4">
+          {client.submissions.map((submission, index) => {
+            const isExpanded = expandedForms.has(submission.id);
+            const { date, time } = formatDate(submission.submittedAt);
+            const filledBy = getFilledByText(submission);
+            
+            return (
+              <div key={submission.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                {/* Form Header - Always Visible */}
+                <div 
+                  className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+                  onClick={() => toggleForm(submission.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <ClipboardDocumentListIcon className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">
+                          {submission.form?.name || `Form #${submission.formId}`}
+                        </h4>
+                        <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
+                          <span className="flex items-center">
+                            <CalendarIcon className="h-4 w-4 mr-1" />
+                            {date} at {time}
+                          </span>
+                          <span className="flex items-center">
+                            <UserIcon className="h-4 w-4 mr-1" />
+                            Filled by {filledBy}
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Completed
+                      </span>
+                      {isExpanded ? (
+                        <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+                      ) : (
+                        <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+                
+                {/* Form Content - Collapsible */}
+                {isExpanded && submission.form?.questions && submission.answers && (
+                  <div className="border-t border-gray-200 bg-gray-50">
+                    <div className="p-6">
+                      <h5 className="font-medium text-gray-900 mb-4">Form Responses</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {submission.form.questions.map((question) => {
+                          const answer = submission.answers[String(question.id)];
+                          const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
+                          
+                          return (
+                            <div key={question.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-start">
+                                <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasAnswer ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900 mb-1">{question.label}</p>
+                                  <p className={`${hasAnswer ? 'text-gray-600' : 'text-gray-400 italic'}`}>
+                                    {hasAnswer ? (Array.isArray(answer) ? answer.join(', ') : answer) : 'No response'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
-      <div className="text-center py-12">
-        <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Responses</h3>
-        <p className="text-gray-500">This client hasn't submitted any check-in responses yet.</p>
+        <div className="text-center py-12">
+          <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Forms</h3>
+          <p className="text-gray-500">This client hasn't submitted any check-in forms yet.</p>
         </div>
       )}
-      
-      {/* Core Questions Section */}
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Core Questions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.email ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Email</p>
-                <p className={`${client.email ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.email || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.gender ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Gender</p>
-                <p className={`${client.gender ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.gender || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.age ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Age</p>
-                <p className={`${client.age ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.age || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.source ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Source</p>
-                <p className={`${client.source ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.source || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${client.registrationDate ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900 mb-1">Registration Date</p>
-                <p className={`${client.registrationDate ? 'text-gray-600' : 'text-red-500 italic'}`}>
-                  {client.registrationDate ? new Date(client.registrationDate).toLocaleDateString() : 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
