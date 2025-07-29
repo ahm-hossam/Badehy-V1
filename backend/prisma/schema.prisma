@@ -112,6 +112,8 @@ model Subscription {
   cancelReason    String?
   refundAmount    Decimal?      @db.Decimal(10,2)
   refundType      String?       // "none", "partial", "full"
+  // Renewal fields
+  renewalHistory  Json?         // Array of renewal records
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   installments    Installment[]

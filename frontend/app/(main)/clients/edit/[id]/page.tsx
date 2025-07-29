@@ -1194,9 +1194,10 @@ export default function EditClientPage() {
   }, []);
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
-      <p className="mb-6 text-zinc-600">Update the client profile. Complete all fields to mark as completed.</p>
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
+        <p className="mb-6 text-zinc-600">Update the client profile. Complete all fields to mark as completed.</p>
       {error && (
         <Alert open={!!error} onClose={() => setError(null)}>
           {error}
@@ -1845,6 +1846,7 @@ export default function EditClientPage() {
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
         </div>
       </form>
-    </div>
+        </div>
+      </div>
   );
 } 

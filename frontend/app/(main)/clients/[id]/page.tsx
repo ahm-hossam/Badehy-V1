@@ -39,6 +39,7 @@ import {
 
 interface Client {
   id: number;
+  trainerId: number;
   fullName: string;
   phone: string;
   email: string;
@@ -88,6 +89,7 @@ interface Client {
     cancelReason?: string;
     refundAmount?: number;
     refundType?: string;
+    renewalHistory?: any[];
     installments: Array<{
       id: number;
       amount: number;
@@ -177,6 +179,34 @@ export default function ClientDetailsPage() {
   const [refundAmount, setRefundAmount] = useState('');
   const [toast, setToast] = useState({ open: false, message: '', type: 'success' as 'success' | 'error' });
 
+  // Renewal modal state
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [renewalData, setRenewalData] = useState<any>({
+    startDate: '',
+    durationValue: '',
+    durationUnit: 'month',
+    endDate: '',
+    paymentStatus: 'paid',
+    paymentMethod: 'instapay',
+    priceBeforeDisc: '',
+    discount: 'no',
+    discountValue: '',
+    discountType: 'fixed',
+    packageId: '',
+    installments: []
+  });
+  const [packages, setPackages] = useState<any[]>([]);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(true);
+  const [showDiscountFields, setShowDiscountFields] = useState(true);
+  const [showDiscountValue, setShowDiscountValue] = useState(false);
+  const [showTransactionImage, setShowTransactionImage] = useState(false);
+  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [transactionImage, setTransactionImage] = useState<File | null>(null);
+  const [renewalLoading, setRenewalLoading] = useState(false);
+  const [installments, setInstallments] = useState<Array<{ date: string; amount: string; image: File | null; nextDate: string }>>([
+    { date: '', amount: '', image: null, nextDate: '' }
+  ]);
+
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ open: true, message, type });
@@ -187,25 +217,79 @@ export default function ClientDetailsPage() {
   const calculateRefundAmount = (subscription: any) => {
     if (!subscription) return 0;
 
+    console.log('=== calculateRefundAmount DEBUG ===');
+    console.log('Subscription:', subscription);
+    console.log('Payment status:', subscription.paymentStatus);
+    console.log('Discount applied:', subscription.discountApplied);
+    console.log('Price before discount:', subscription.priceBeforeDisc);
+    console.log('Price after discount:', subscription.priceAfterDisc);
+    console.log('Renewal history:', subscription.renewalHistory);
+
     const paymentStatus = subscription.paymentStatus?.toUpperCase();
+    let totalAmount = 0;
     
     if (paymentStatus === 'PAID') {
+      // Calculate original subscription amount
       if (subscription.discountApplied && subscription.priceAfterDisc) {
-        return subscription.priceAfterDisc; // Use discounted amount
+        totalAmount = subscription.priceAfterDisc; // Use discounted amount
+        console.log('Using price after discount:', totalAmount);
       } else {
-        return subscription.priceBeforeDisc || 0; // Use original amount
+        totalAmount = subscription.priceBeforeDisc || 0; // Use original amount
+        console.log('Using price before discount:', totalAmount);
       }
     } else if (paymentStatus === 'INSTALLMENTS') {
       // Sum all paid installments
       if (subscription.installments && subscription.installments.length > 0) {
-        return subscription.installments.reduce((sum: number, installment: any) => {
+        totalAmount = subscription.installments.reduce((sum: number, installment: any) => {
           return sum + (installment.amount || 0);
         }, 0);
+        console.log('Using installments total:', totalAmount);
+      } else {
+        totalAmount = 0;
+        console.log('No installments found');
       }
-      return 0;
+    } else if (paymentStatus === 'FREE') {
+      totalAmount = 0;
+      console.log('Free subscription, no refund');
+    } else {
+      totalAmount = 0;
+      console.log('Unknown payment status, no refund');
     }
-    
-    return 0;
+
+    // Add renewal amounts if any
+    if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
+      console.log('Processing renewal history...');
+      subscription.renewalHistory.forEach((renewal: any, index: number) => {
+        console.log(`Renewal ${index + 1}:`, renewal);
+        
+        if (renewal.paymentStatus?.toUpperCase() === 'PAID') {
+          let renewalAmount = 0;
+          
+          if (renewal.priceAfterDisc !== null && renewal.priceAfterDisc !== undefined) {
+            renewalAmount = renewal.priceAfterDisc;
+            console.log(`Renewal ${index + 1} using price after discount:`, renewalAmount);
+          } else if (renewal.discountApplied && renewal.priceBeforeDisc && renewal.discountValue && renewal.discountType) {
+            if (renewal.discountType === 'percentage') {
+              renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
+            } else {
+              renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
+            }
+            console.log(`Renewal ${index + 1} calculated amount:`, renewalAmount);
+          } else {
+            renewalAmount = renewal.priceBeforeDisc || 0;
+            console.log(`Renewal ${index + 1} using price before discount:`, renewalAmount);
+          }
+          
+          totalAmount += renewalAmount;
+          console.log(`Total amount after renewal ${index + 1}:`, totalAmount);
+        } else {
+          console.log(`Renewal ${index + 1} not paid, skipping`);
+        }
+      });
+    }
+
+    console.log('Final refund amount:', totalAmount);
+    return totalAmount;
   };
 
   // Helper function to get display name
@@ -507,7 +591,10 @@ export default function ClientDetailsPage() {
     
     if (type === 'full' && selectedSubscription) {
       // Auto-calculate full refund amount
+      console.log('=== handleRefundTypeChange DEBUG ===');
+      console.log('Selected subscription:', selectedSubscription);
       const calculatedAmount = calculateRefundAmount(selectedSubscription);
+      console.log('Calculated refund amount:', calculatedAmount);
       setRefundAmount(calculatedAmount.toString());
     } else if (type === 'partial') {
       // Clear amount for partial refund (user will enter manually)
@@ -556,9 +643,151 @@ export default function ClientDetailsPage() {
   };
 
   const handleAddRenew = () => {
-    // TODO: Implement add renew functionality
-    console.log('Add renew clicked');
+    // Get the latest subscription to pre-populate data
+    const latestSubscription = client?.subscriptions?.[0];
+    if (latestSubscription) {
+      // Pre-populate with current subscription data as defaults
+      setRenewalData({
+        startDate: new Date().toISOString().split('T')[0], // Today's date
+        durationValue: latestSubscription.durationValue?.toString() || '1',
+        durationUnit: latestSubscription.durationUnit || 'month',
+        endDate: '', // Will be calculated
+        paymentStatus: latestSubscription.paymentStatus || 'paid',
+        paymentMethod: latestSubscription.paymentMethod || 'instapay',
+        priceBeforeDisc: latestSubscription.priceBeforeDisc?.toString() || '',
+        discount: latestSubscription.discountApplied ? 'yes' : 'no',
+        discountValue: latestSubscription.discountValue?.toString() || '',
+        discountType: latestSubscription.discountType || 'fixed',
+        packageId: (latestSubscription as any).packageId?.toString() || '',
+        installments: []
+      });
+      
+      // Set UI states based on payment status
+      setShowPaymentMethod(['paid', 'installments'].includes(latestSubscription.paymentStatus || 'paid'));
+      setShowDiscountFields(['paid', 'installments'].includes(latestSubscription.paymentStatus || 'paid'));
+      setShowTransactionImage(latestSubscription.paymentStatus === 'paid');
+      setShowDiscountValue(latestSubscription.discountApplied || false);
+    }
+    
+    // Load packages
+    loadPackages();
+    setShowRenewModal(true);
     setDropdownOpen(false);
+  };
+
+  const loadPackages = async () => {
+    try {
+      // Get trainerId from the client data
+      const trainerId = client?.trainerId;
+      if (!trainerId) {
+        console.error('No trainer ID found');
+        return;
+      }
+      
+      const response = await fetch(`/api/packages?trainerId=${trainerId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPackages(data);
+      }
+    } catch (error) {
+      console.error('Error loading packages:', error);
+    }
+  };
+
+  const handleRenewalDataChange = (key: string, value: any) => {
+    setRenewalData((prev: any) => ({ ...prev, [key]: value }));
+    
+    // Handle special cases
+    if (key === 'paymentStatus') {
+      setShowPaymentMethod(['paid', 'installments'].includes(value));
+      setShowDiscountFields(['paid', 'installments'].includes(value));
+      setShowTransactionImage(value === 'paid');
+    }
+    
+    if (key === 'discount') {
+      setShowDiscountValue(value === 'yes');
+    }
+  };
+
+  const handleInstallmentChange = (idx: number, key: string, value: any) => {
+    setInstallments(prev => prev.map((inst, i) => i === idx ? { ...inst, [key]: value } : inst));
+  };
+
+  const handleInstallmentImage = (idx: number, file: File | null) => {
+    setInstallments(prev => prev.map((inst, i) => i === idx ? { ...inst, image: file } : inst));
+  };
+
+  const addInstallment = () => {
+    setInstallments(prev => [...prev, { date: '', amount: '', image: null, nextDate: '' }]);
+  };
+
+  const removeInstallment = (idx: number) => {
+    setInstallments(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev);
+  };
+
+  const handleRenewalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRenewalLoading(true);
+    
+    try {
+      // Calculate end date based on start date and duration
+      const startDate = new Date(renewalData.startDate);
+      let endDate = new Date(startDate);
+      
+      switch (renewalData.durationUnit) {
+        case 'days':
+          endDate.setDate(endDate.getDate() + parseInt(renewalData.durationValue));
+          break;
+        case 'weeks':
+          endDate.setDate(endDate.getDate() + (parseInt(renewalData.durationValue) * 7));
+          break;
+        case 'months':
+          endDate.setMonth(endDate.getMonth() + parseInt(renewalData.durationValue));
+          break;
+        default:
+          endDate.setMonth(endDate.getMonth() + parseInt(renewalData.durationValue));
+      }
+      
+      // Get the latest subscription to renew
+      const latestSubscription = client?.subscriptions?.[0]; // Assuming subscriptions are ordered by creation date
+
+      const subscriptionData = {
+        ...renewalData,
+        endDate: endDate.toISOString().split('T')[0],
+        clientId: clientId,
+        discountApplied: renewalData.discount === 'yes',
+        priceAfterDisc: renewalData.discount === 'yes' ? 
+          (renewalData.discountType === 'fixed' ? 
+            parseFloat(renewalData.priceBeforeDisc) - parseFloat(renewalData.discountValue) :
+            parseFloat(renewalData.priceBeforeDisc) - (parseFloat(renewalData.priceBeforeDisc) * parseFloat(renewalData.discountValue) / 100)
+          ) : null,
+        isRenewal: true,
+        originalSubscriptionId: latestSubscription?.id
+      };
+      
+      const response = await fetch('/api/subscriptions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(subscriptionData),
+      });
+      
+      if (response.ok) {
+        showToast('Subscription renewed successfully!', 'success');
+        setShowRenewModal(false);
+        // Reload client data to show the new subscription
+        loadClientDetails();
+      } else {
+        const errorData = await response.json();
+        showToast(errorData.message || 'Failed to renew subscription', 'error');
+      }
+    } catch (error) {
+      console.error('Error renewing subscription:', error);
+      showToast('Failed to renew subscription', 'error');
+    } finally {
+      setRenewalLoading(false);
+    }
   };
 
   // Close dropdown when clicking outside
@@ -620,7 +849,7 @@ export default function ClientDetailsPage() {
   const tabs = [
     { id: 'overview', name: 'Overview', icon: ChartBarIcon, count: null },
     { id: 'profile', name: 'Profile', icon: UserIcon, count: null },
-    { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: client.subscriptions.length },
+    { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: null },
     { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
@@ -1035,6 +1264,283 @@ export default function ClientDetailsPage() {
         </div>
       </Dialog>
 
+      {/* Renew Subscription Modal */}
+      <Dialog open={showRenewModal} onClose={() => setShowRenewModal(false)} size="5xl" className="!max-w-6xl !w-[90vw]">
+        <div className="p-6 max-h-[90vh] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Renew Subscription</h2>
+              <p className="text-gray-600 text-sm">
+                Create a new subscription for this client
+              </p>
+            </div>
+            <button
+              onClick={() => setShowRenewModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <form onSubmit={handleRenewalSubmit} className="space-y-6">
+            {/* Subscription Details Section */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold mb-4">Subscription Details</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Subscription Start Date</label>
+                  <Input 
+                    type="date" 
+                    value={renewalData.startDate} 
+                    onChange={e => handleRenewalDataChange('startDate', e.target.value)} 
+                    required
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Subscription Duration</label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      value={renewalData.durationValue} 
+                      onChange={e => handleRenewalDataChange('durationValue', e.target.value)} 
+                      className="w-1/2" 
+                      required
+                    />
+                    <Select 
+                      value={renewalData.durationUnit} 
+                      onChange={e => handleRenewalDataChange('durationUnit', e.target.value)} 
+                      className="w-1/2"
+                    >
+                      <option value="month">Month(s)</option>
+                      <option value="week">Week(s)</option>
+                      <option value="day">Day(s)</option>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Payment Status</label>
+                  <Select
+                    value={renewalData.paymentStatus}
+                    onChange={e => handleRenewalDataChange('paymentStatus', e.target.value)}
+                    required
+                  >
+                    <option value="">Select...</option>
+                    <option value="paid">Paid</option>
+                    <option value="free">Free</option>
+                    <option value="free_trial">Free Trial</option>
+                    <option value="pending">Pending</option>
+                    <option value="installments">Installments</option>
+                  </Select>
+                </div>
+                {showPaymentMethod && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Payment Method</label>
+                    <Select 
+                      value={renewalData.paymentMethod} 
+                      onChange={e => handleRenewalDataChange('paymentMethod', e.target.value)}
+                      required
+                    >
+                      <option value="">Select...</option>
+                      <option value="instapay">Instapay</option>
+                      <option value="vodafone_cash">Vodafone Cash</option>
+                      <option value="fawry">Fawry</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                    </Select>
+                  </div>
+                )}
+                {['paid', 'installments'].includes(renewalData.paymentStatus) && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                    <Input
+                      type="number"
+                      value={renewalData.priceBeforeDisc}
+                      onChange={e => handleRenewalDataChange('priceBeforeDisc', e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+                {showDiscountFields && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Discount</label>
+                    <Select
+                      value={renewalData.discount}
+                      onChange={e => handleRenewalDataChange('discount', e.target.value)}
+                    >
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
+                    </Select>
+                  </div>
+                )}
+                {showDiscountValue && (
+                  <>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Discount Value</label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          value={renewalData.discountValue}
+                          onChange={e => handleRenewalDataChange('discountValue', e.target.value)}
+                          className="w-1/2"
+                          required
+                        />
+                        <Select
+                          value={discountType}
+                          onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
+                          className="w-1/2"
+                        >
+                          <option value="fixed">Fixed Amount</option>
+                          <option value="percentage">Percentage</option>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Price After Discount</label>
+                      <Input
+                        type="number"
+                        value={(() => {
+                          const before = Number(renewalData.priceBeforeDisc) || 0;
+                          const discount = Number(renewalData.discountValue) || 0;
+                          if (discountType === 'fixed') return before - discount;
+                          if (discountType === 'percentage') return before - (before * discount / 100);
+                          return before;
+                        })()}
+                        readOnly
+                        disabled
+                        className="bg-zinc-100"
+                      />
+                    </div>
+                  </>
+                )}
+                {showTransactionImage && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Transaction Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0] || null;
+                        setTransactionImage(file);
+                      }}
+                      className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    />
+                    {transactionImage && (
+                      <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Package</label>
+                  <Select
+                    value={renewalData.packageId}
+                    onChange={e => handleRenewalDataChange('packageId', e.target.value)}
+                    required
+                  >
+                    <option value="">Select package...</option>
+                    {packages.map((pkg: any) => (
+                      <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            {/* Installments Management section */}
+            {renewalData.paymentStatus === 'installments' && (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold mb-4">Installments Management</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Installment Date</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Amount</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Transaction Image</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Next Installment Date</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {installments.map((inst, idx) => (
+                        <tr key={idx} className="border-b border-gray-100">
+                          <td className="py-2 px-3">
+                            <Input 
+                              type="date" 
+                              value={inst.date} 
+                              onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} 
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <Input 
+                              type="number" 
+                              value={inst.amount} 
+                              onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} 
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} 
+                              className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" 
+                            />
+                            {inst.image && (
+                              <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            <Input 
+                              type="date" 
+                              value={inst.nextDate} 
+                              onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} 
+                            />
+                          </td>
+                          <td className="py-2 px-3">
+                            <div className="flex gap-2 items-center">
+                              <button 
+                                type="button" 
+                                onClick={() => removeInstallment(idx)} 
+                                disabled={installments.length === 1} 
+                                className="text-red-500 disabled:opacity-50"
+                              >
+                                <TrashIcon className="w-5 h-5" />
+                              </button>
+                              <button 
+                                type="button" 
+                                onClick={addInstallment} 
+                                className="text-green-600"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <Button outline onClick={() => setShowRenewModal(false)}>
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                disabled={renewalLoading}
+              >
+                {renewalLoading ? 'Creating...' : 'Create Subscription'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Dialog>
+
       {/* Toast Notification */}
       <Toast 
         open={toast.open} 
@@ -1081,11 +1587,17 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
       return 0;
     }
 
+    console.log('=== calculateTotalPayments DEBUG ===');
+    console.log('Client subscriptions:', client.subscriptions);
+
     return client.subscriptions.reduce((total, subscription) => {
       let subscriptionAmount = 0;
 
       // Normalize payment status to uppercase for comparison
       const paymentStatus = subscription.paymentStatus?.toUpperCase();
+      
+      console.log('Processing subscription:', subscription.id, 'with status:', paymentStatus);
+      console.log('Renewal history:', subscription.renewalHistory);
       
 
 
@@ -1152,13 +1664,78 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
             subscriptionAmount = subscription.priceBeforeDisc || 0;
           }
         }
+      } else if (paymentStatus === 'FREE') {
+        // For free subscriptions, amount is always 0
+        subscriptionAmount = 0;
       } else {
         // For other statuses, use price after discount as fallback
         subscriptionAmount = subscription.priceAfterDisc || 0;
       }
 
+      // Add renewal amounts (check each renewal's payment status individually)
+      if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
+        subscription.renewalHistory.forEach((renewal: any) => {
+          // Only include renewals that are paid (not free)
+          if (renewal.paymentStatus?.toUpperCase() === 'PAID') {
+            let renewalAmount = 0;
+            if (renewal.priceAfterDisc !== null && renewal.priceAfterDisc !== undefined) {
+              renewalAmount = renewal.priceAfterDisc;
+            } else if (renewal.discountApplied && renewal.priceBeforeDisc && renewal.discountValue && renewal.discountType) {
+              if (renewal.discountType === 'percentage') {
+                renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
+              } else {
+                renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
+              }
+            } else {
+              renewalAmount = renewal.priceBeforeDisc || 0;
+            }
+            console.log('Adding renewal amount:', renewalAmount, 'for renewal with status:', renewal.paymentStatus);
+            subscriptionAmount += renewalAmount;
+          }
+        });
+      }
+
+      // Subtract refund amount if subscription was canceled and refund was given
+      if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
+        console.log('Subtracting refund amount:', subscription.refundAmount);
+        subscriptionAmount -= subscription.refundAmount;
+        // Ensure total doesn't go below 0
+        if (subscriptionAmount < 0) subscriptionAmount = 0;
+        console.log('Amount after refund deduction:', subscriptionAmount);
+      }
+
       return total + subscriptionAmount;
     }, 0);
+  };
+
+  const getActiveSubscription = () => {
+    if (!client.subscriptions || client.subscriptions.length === 0) {
+      return null;
+    }
+
+    console.log('=== getActiveSubscription DEBUG ===');
+    console.log('All subscriptions:', client.subscriptions);
+
+    // Sort subscriptions by end date (latest first) and filter out canceled ones
+    const sortedSubscriptions = client.subscriptions
+      .filter(sub => !sub.isCanceled)
+      .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
+
+    console.log('Sorted non-canceled subscriptions:', sortedSubscriptions);
+
+    // If no non-canceled subscriptions, get the latest one (even if canceled)
+    if (sortedSubscriptions.length === 0) {
+      const allSorted = client.subscriptions.sort((a, b) => 
+        new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
+      );
+      console.log('No non-canceled subscriptions, using latest (even if canceled):', allSorted[0]);
+      return allSorted[0];
+    }
+
+    const activeSub = sortedSubscriptions[0];
+    console.log('Selected active subscription:', activeSub);
+    console.log('Is it the same as first subscription?', activeSub?.id === client.subscriptions[0]?.id);
+    return activeSub;
   };
 
   const getActiveSubscriptionsCount = () => {
@@ -1194,7 +1771,7 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     <div className="p-6">
       <h3 className="text-lg font-semibold mb-6">Client Overview</h3>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {/* Contact Card */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
           <div className="flex items-start">
@@ -1234,16 +1811,20 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
             <div className="ml-3 min-w-0 flex-1">
               <p className="text-sm font-medium text-orange-900">Subscription Start</p>
               <p className="text-lg font-semibold text-orange-700">
-                {client.subscriptions && client.subscriptions.length > 0 
-                  ? new Date(client.subscriptions[0].startDate).toLocaleDateString()
-                  : new Date(client.registrationDate).toLocaleDateString()
-                }
-              </p>
-              <p className="text-sm text-orange-600">
-                {client.subscriptions && client.subscriptions.length > 0 
-                  ? `${Math.floor((Date.now() - new Date(client.subscriptions[0].startDate).getTime()) / (1000 * 60 * 60 * 24))} days`
-                  : `${Math.floor((Date.now() - new Date(client.registrationDate).getTime()) / (1000 * 60 * 60 * 24))} days`
-                }
+                {(() => {
+                  const activeSub = getActiveSubscription();
+                  const displayDate = activeSub 
+                    ? new Date(activeSub.startDate).toLocaleDateString()
+                    : new Date(client.registrationDate).toLocaleDateString();
+                  
+                  console.log('=== Subscription Start Card DEBUG ===');
+                  console.log('Active subscription:', activeSub);
+                  console.log('All subscriptions:', client.subscriptions);
+                  console.log('Selected start date:', activeSub?.startDate);
+                  console.log('Display date:', displayDate);
+                  
+                  return displayDate;
+                })()}
               </p>
             </div>
           </div>
@@ -1258,26 +1839,44 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
             <div className="ml-3 min-w-0 flex-1">
               <p className="text-sm font-medium text-red-900">Remaining Days</p>
               <p className="text-lg font-semibold text-red-700">
-                {client.subscriptions && client.subscriptions.length > 0 && client.subscriptions[0].endDate 
-                  ? (() => {
-                      const endDate = new Date(client.subscriptions[0].endDate);
-                      const currentDate = new Date();
-                      const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                      return remainingDays > 0 ? `${remainingDays} days` : 'Expired';
-                    })()
-                  : 'No subscription'
-                }
+                {(() => {
+                  // Calculate total remaining days across all active subscriptions
+                  let totalRemainingDays = 0;
+                  
+                  if (client.subscriptions && client.subscriptions.length > 0) {
+                    client.subscriptions.forEach(subscription => {
+                      if (!subscription.isCanceled && subscription.endDate) {
+                        const endDate = new Date(subscription.endDate);
+                        const currentDate = new Date();
+                        const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                        
+                        if (remainingDays > 0) {
+                          totalRemainingDays += remainingDays;
+                        }
+                      }
+                    });
+                  }
+                  
+                  const displayText = totalRemainingDays > 0 ? `${totalRemainingDays} days` : 'No active subscriptions';
+                  
+                  console.log('=== Remaining Days Card DEBUG ===');
+                  console.log('All subscriptions:', client.subscriptions);
+                  console.log('Total remaining days:', totalRemainingDays);
+                  console.log('Display text:', displayText);
+                  
+                  return displayText;
+                })()}
               </p>
               <p className="text-sm text-red-600">
-                {client.subscriptions && client.subscriptions.length > 0 && client.subscriptions[0].endDate 
-                  ? (() => {
-                      const endDate = new Date(client.subscriptions[0].endDate);
-                      const currentDate = new Date();
-                      const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                      return remainingDays > 0 ? 'until expiration' : 'subscription ended';
-                    })()
-                  : 'no active plan'
-                }
+                {(() => {
+                  const activeSub = getActiveSubscription();
+                  if (!activeSub || !activeSub.endDate) return 'no active plan';
+                  
+                  const endDate = new Date(activeSub.endDate);
+                  const currentDate = new Date();
+                  const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                  return remainingDays > 0 ? 'until expiration' : 'subscription ended';
+                })()}
               </p>
             </div>
           </div>
@@ -1455,6 +2054,9 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
           console.log('Discount type:', subscription.discountType);
           console.log('Discount value:', subscription.discountValue);
           
+          let totalAmount = 0;
+          
+          // Calculate original subscription amount
           if (subscription.paymentStatus?.toLowerCase() === 'paid') {
             console.log('Processing PAID subscription...');
             // For paid subscriptions, return the final amount (with discount if applied)
@@ -1478,7 +2080,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
               console.log('Using priceBeforeDisc:', amount);
             }
             console.log('Final PAID amount:', amount);
-            return amount;
+            totalAmount += amount;
           } else if (subscription.installments && subscription.installments.length > 0) {
             console.log('Processing INSTALLMENT subscription...');
             // For installment subscriptions, sum all paid installments
@@ -1486,10 +2088,48 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
               .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
               .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
             console.log('INSTALLMENT amount:', amount);
-            return amount;
+            totalAmount += amount;
+          } else if (subscription.paymentStatus?.toLowerCase() === 'free') {
+            console.log('Processing FREE subscription...');
+            // For free subscriptions, amount is always 0
+            console.log('FREE subscription amount: 0');
+            // totalAmount += 0; // No need to add 0
           }
-          console.log('No conditions met, returning 0');
-          return 0;
+          
+          // Add renewal amounts
+          if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
+            console.log('Processing renewal history...');
+            subscription.renewalHistory.forEach((renewal: any) => {
+              if (renewal.paymentStatus?.toLowerCase() === 'paid') {
+                let renewalAmount = 0;
+                if (renewal.priceAfterDisc !== null && renewal.priceAfterDisc !== undefined) {
+                  renewalAmount = renewal.priceAfterDisc;
+                } else if (renewal.discountApplied && renewal.priceBeforeDisc) {
+                  if (renewal.discountType === 'percentage') {
+                    renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
+                  } else {
+                    renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
+                  }
+                } else {
+                  renewalAmount = renewal.priceBeforeDisc || 0;
+                }
+                console.log('Renewal amount:', renewalAmount);
+                totalAmount += renewalAmount;
+              }
+            });
+          }
+
+          // Subtract refund amount if subscription was canceled and refund was given
+          if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
+            console.log('Subtracting refund amount:', subscription.refundAmount);
+            totalAmount -= subscription.refundAmount;
+            // Ensure total doesn't go below 0
+            if (totalAmount < 0) totalAmount = 0;
+            console.log('Amount after refund deduction:', totalAmount);
+          }
+          
+          console.log('Total amount including renewals and refunds:', totalAmount);
+          return totalAmount;
         };
 
   const getFinalAmount = (subscription: any) => {
@@ -1529,19 +2169,38 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
   const getPaymentTimeline = (subscription: any) => {
     const timeline = [];
     
-    // Add subscription creation
+    console.log('=== getPaymentTimeline DEBUG ===');
+    console.log('Subscription:', subscription);
+    
+    // Add subscription creation - use startDate instead of current date
     timeline.push({
       id: `sub-${subscription.id}`,
       type: 'subscription',
-      date: new Date().toISOString(), // Use current date since createdAt might not exist
+      date: subscription.startDate || new Date().toISOString(),
       amount: getFinalAmount(subscription),
       status: subscription.paymentStatus,
       description: `Subscription #${subscription.id} created`,
       isPaid: subscription.paymentStatus?.toLowerCase() === 'paid'
     });
 
-    // Add installments
-    if (subscription.installments) {
+    // Add renewal history
+    if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
+      subscription.renewalHistory.forEach((renewal: any) => {
+        timeline.push({
+          id: `renewal-${renewal.id}`,
+          type: 'renewal',
+          date: renewal.renewedAt || new Date().toISOString(),
+          amount: renewal.priceAfterDisc || renewal.priceBeforeDisc || 0,
+          status: renewal.paymentStatus,
+          description: `Subscription renewed`,
+          isPaid: renewal.paymentStatus?.toLowerCase() === 'paid',
+          renewalData: renewal
+        });
+      });
+    }
+
+    // Add installments only for non-free subscriptions
+    if (subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.installments) {
       subscription.installments.forEach((inst: any) => {
         timeline.push({
           id: `inst-${inst.id}`,
@@ -1556,8 +2215,39 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       });
     }
 
+    // Add refund record if subscription was canceled and refund was given
+    if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
+      timeline.push({
+        id: `refund-${subscription.id}`,
+        type: 'refund',
+        date: subscription.canceledAt || new Date().toISOString(),
+        amount: -(subscription.refundAmount), // Negative amount to show as refund
+        status: 'refunded',
+        description: `Refund (${subscription.refundType || 'partial'})`,
+        isPaid: false,
+        refundType: subscription.refundType,
+        cancelReason: subscription.cancelReason
+      });
+    }
+
+    console.log('Timeline before sorting:', timeline.map(item => ({
+      id: item.id,
+      date: item.date,
+      description: item.description,
+      type: item.type
+    })));
+
     // Sort by date (newest first)
-    return timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedTimeline = timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    console.log('Timeline after sorting:', sortedTimeline.map(item => ({
+      id: item.id,
+      date: item.date,
+      description: item.description,
+      type: item.type
+    })));
+    
+    return sortedTimeline;
   };
 
   return (
@@ -1630,32 +2320,54 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                   <div className="space-y-3">
                     {paymentTimeline.length > 0 ? (
                       paymentTimeline.map((payment, idx) => (
-                        <div key={payment.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                        <div key={payment.id} className={`flex items-center space-x-4 p-4 rounded-lg ${
+                          payment.type === 'refund' ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+                        }`}>
                           <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                            payment.type === 'refund' ? 'bg-red-500' : 
                             payment.isPaid ? 'bg-green-500' : 'bg-yellow-500'
                           }`}></div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
                               <div>
-                                <p className="font-medium text-gray-900">{payment.description}</p>
-                                <p className="text-sm text-gray-600">
+                                <p className={`font-medium ${
+                                  payment.type === 'refund' ? 'text-red-900' : 'text-gray-900'
+                                }`}>
+                                  {payment.description}
+                                  {payment.type === 'refund' && payment.cancelReason && (
+                                    <span className="text-sm text-red-700 ml-2">({payment.cancelReason})</span>
+                                  )}
+                                </p>
+                                <p className={`text-sm ${
+                                  payment.type === 'refund' ? 'text-red-600' : 'text-gray-600'
+                                }`}>
                                   {new Date(payment.date).toLocaleDateString()} at {new Date(payment.date).toLocaleTimeString()}
                                 </p>
                               </div>
                               <div className="text-right">
-                                <p className="font-semibold text-gray-900">EGP {payment.amount.toFixed(2)}</p>
+                                <p className={`font-semibold ${
+                                  payment.type === 'refund' ? 'text-red-900' : 'text-gray-900'
+                                }`}>
+                                  {payment.type === 'refund' ? '-' : ''}EGP {Math.abs(payment.amount).toFixed(2)}
+                                </p>
                                 <p className={`text-sm font-medium ${
+                                  payment.type === 'refund' ? 'text-red-600' : 
                                   payment.isPaid ? 'text-green-600' : 'text-yellow-600'
                                 }`}>
                                   {payment.status}
                                 </p>
                               </div>
                             </div>
-                                                         {payment.type === 'installment' && (
-                               <div className="mt-2 text-xs text-gray-500">
-                                 Installment payment
-                               </div>
-                             )}
+                            {payment.type === 'installment' && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                Installment payment
+                              </div>
+                            )}
+                            {payment.type === 'refund' && (
+                              <div className="mt-2 text-xs text-red-600">
+                                Refund processed
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))
@@ -1669,7 +2381,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                 </div>
 
                 {/* Detailed Installments Table */}
-                {subscription.installments && subscription.installments.length > 0 && (
+                {subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.installments && subscription.installments.length > 0 && (
                   <div className="mt-6">
                     <h5 className="font-medium text-gray-900 mb-4">Installment Details</h5>
                     <div className="overflow-x-auto">
@@ -1687,6 +2399,9 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Paid Date
+                            </th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Remaining
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Images
@@ -1716,6 +2431,9 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                                   ? new Date(installment.paidDate).toLocaleDateString()
                                   : 'Not paid yet'
                                 }
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                                EGP {(installment.remaining || 0).toFixed(2)}
                               </td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                                 {installment.transactionImages?.length || 0} images
