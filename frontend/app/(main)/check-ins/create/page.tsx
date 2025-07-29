@@ -512,6 +512,7 @@ function handlePreview(checkinName: string, questions: QuestionData[]) {
 
 export default function CheckInCreatePage() {
   const [checkinName, setCheckinName] = useState("");
+  const [isMainForm, setIsMainForm] = useState(false);
   const [questions, setQuestions] = useState<QuestionData[]>([
     {
       id: Math.random().toString(36).slice(2),
@@ -614,6 +615,19 @@ export default function CheckInCreatePage() {
       setError('At least one valid question is required.');
       return;
     }
+    
+    // Check if non-main form has phone number question
+    if (!isMainForm) {
+      const hasPhoneQuestion = validQuestions.some(q => {
+        const questionText = (q.question || q.customQuestion || '').toLowerCase();
+        return questionText.includes('phone') || questionText.includes('mobile');
+      });
+      
+      if (!hasPhoneQuestion) {
+        setError('Non-main forms must include a "Mobile Number" or "Phone Number" question to identify existing clients.');
+        return;
+      }
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/checkins', {
@@ -623,6 +637,7 @@ export default function CheckInCreatePage() {
           trainerId: user.id,
           name: checkinName,
           questions: validQuestions,
+          isMainForm: isMainForm,
         }),
       });
       if (!res.ok) {
@@ -658,6 +673,51 @@ export default function CheckInCreatePage() {
           onChange={e => setCheckinName(e.target.value)}
           required
         />
+        
+        {/* Main Form Toggle */}
+        <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Switch 
+                checked={isMainForm} 
+                onChange={setIsMainForm}
+                className="data-[state=checked]:bg-blue-600"
+              />
+              <div>
+                <label className="text-sm font-medium text-gray-900">
+                  Main Form
+                </label>
+                <p className="text-xs text-gray-600 mt-1">
+                  Main forms create new clients. Other forms link to existing clients by phone number.
+                </p>
+              </div>
+            </div>
+            <div className="text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded">
+              {isMainForm ? 'Will create new clients' : 'Will link to existing clients'}
+            </div>
+          </div>
+          
+          {/* Warning for non-main forms without phone number */}
+          {!isMainForm && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <div className="text-yellow-600 mt-0.5">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="text-sm text-yellow-800">
+                  <p className="font-medium">Important:</p>
+                  <p className="text-xs mt-1">
+                    Non-main forms require a "Mobile Number" or "Phone Number" question to identify existing clients. 
+                    Make sure to include this question in your form.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
         {error && <div className="text-red-500 text-sm mt-1">{error}</div>}
         {isSaved && (
           <div className="mt-3 flex items-center">

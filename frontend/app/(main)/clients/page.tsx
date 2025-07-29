@@ -39,6 +39,9 @@ interface Client {
     id: number;
     paymentStatus: string;
     priceAfterDisc: number;
+    endDate: string;
+    isCanceled?: boolean;
+    isOnHold?: boolean;
     installments: Array<{
       id: number;
       amount: number;
@@ -71,6 +74,7 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Helper function to get display name
   const getDisplayName = (client: Client) => {
@@ -95,6 +99,36 @@ export default function ClientsPage() {
     }
     
     return "Unknown Client";
+  };
+
+  // Helper function to get subscription status
+  const getSubscriptionStatus = (client: Client) => {
+    if (!client.subscriptions || client.subscriptions.length === 0) {
+      return { status: 'No Subscription', color: 'gray' };
+    }
+
+    // Get the most recent subscription (assuming they're ordered by creation date)
+    const latestSubscription = client.subscriptions[0];
+    
+    if (latestSubscription.isCanceled) {
+      return { status: 'Canceled', color: 'red' };
+    }
+    
+    if (latestSubscription.isOnHold) {
+      return { status: 'On Hold', color: 'yellow' };
+    }
+    
+    // Check if subscription is expired
+    if (latestSubscription.endDate) {
+      const endDate = new Date(latestSubscription.endDate);
+      const currentDate = new Date();
+      
+      if (endDate < currentDate) {
+        return { status: 'Expired', color: 'orange' };
+      }
+    }
+    
+    return { status: 'Active', color: 'green' };
   };
 
   // Load clients on component mount
@@ -204,21 +238,35 @@ export default function ClientsPage() {
           </p>
         </div>
 
-        {/* Search and Add Button */}
+        {/* Search, Filter and Add Button */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="relative flex-1 max-w-sm">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <div className="relative flex-1 max-w-sm">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search clients by name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
-            <input
-              type="text"
-              placeholder="Search clients by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="all">All Statuses</option>
+              <option value="Active">Active</option>
+              <option value="Expired">Expired</option>
+              <option value="Canceled">Canceled</option>
+              <option value="On Hold">On Hold</option>
+              <option value="No Subscription">No Subscription</option>
+            </select>
           </div>
           <Button onClick={handleAddClient} className="px-4">
             <PlusIcon className="h-5 w-5 mr-2" />
@@ -233,18 +281,31 @@ export default function ClientsPage() {
               <TableRow>
                 <TableHeader>ID</TableHeader>
                 <TableHeader>Client Name</TableHeader>
+                <TableHeader>Subscription Status</TableHeader>
                 <TableHeader>Profile Completion</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
               ) : errorMessage ? (
-                <TableRow><TableCell colSpan={3} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
               ) : clients.length === 0 ? (
-                <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
-              ) : clients.map((client) => (
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
+              ) : clients
+                .filter(client => {
+                  // Filter by search term
+                  const matchesSearch = searchTerm === "" || 
+                    getDisplayName(client).toLowerCase().includes(searchTerm.toLowerCase());
+                  
+                  // Filter by status
+                  const clientStatus = getSubscriptionStatus(client);
+                  const matchesStatus = statusFilter === "all" || clientStatus.status === statusFilter;
+                  
+                  return matchesSearch && matchesStatus;
+                })
+                .map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-mono text-xs text-zinc-500">{client.id}</TableCell>
                   <TableCell>
@@ -254,6 +315,23 @@ export default function ClientsPage() {
                     >
                       {getDisplayName(client)}
                     </button>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const status = getSubscriptionStatus(client);
+                      const colorClasses = {
+                        green: 'bg-green-100 text-green-700',
+                        red: 'bg-red-100 text-red-700',
+                        yellow: 'bg-yellow-100 text-yellow-700',
+                        orange: 'bg-orange-100 text-orange-700',
+                        gray: 'bg-gray-100 text-gray-700'
+                      };
+                      return (
+                        <span className={`inline-block px-2 py-1 text-xs rounded font-semibold ${colorClasses[status.color as keyof typeof colorClasses]}`}>
+                          {status.status}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {client.profileCompletion === 'Completed' ? (
