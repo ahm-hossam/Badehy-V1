@@ -331,7 +331,6 @@ router.get('/:id', async (req: Request, res: Response) => {
         }, // Include notes
         submissions: {
           orderBy: { submittedAt: 'desc' },
-          take: 1,
           include: {
             form: { select: { id: true, name: true, questions: true } },
           },
@@ -351,7 +350,8 @@ router.get('/:id', async (req: Request, res: Response) => {
         },
       },
     });
-    console.log('Fetched client:', client);
+    console.log('Backend GET - Fetched client:', client);
+    console.log('Backend GET - fullName from database:', client?.fullName);
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -400,6 +400,8 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const updated = await prisma.$transaction(async (tx) => {
       // 1. Update client details
+      console.log('Backend - Received client data:', client);
+      console.log('Backend - fullName from request:', client.fullName);
       const updatedClient = await tx.trainerClient.update({
         where: { id: clientId },
         data: {

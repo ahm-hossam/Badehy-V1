@@ -92,6 +92,23 @@ interface Client {
   }>;
   selectedFormId: string | null;
   answers: { [key: string]: any };
+  submissions: Array<{
+    id: number;
+    formId: number;
+    answers: { [key: string]: any };
+    submittedAt: string;
+    form?: {
+      id: number;
+      name: string;
+      questions: Array<{
+        id: string;
+        label: string;
+        type: string;
+        required: boolean;
+        options?: string[];
+      }>;
+    };
+  }>;
   latestSubmission?: {
     id: number;
     formId: number;
@@ -129,6 +146,7 @@ export default function ClientDetailsPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [clientDataVersion, setClientDataVersion] = useState(0);
 
   // Helper function to get display name
   const getDisplayName = (client: Client) => {
@@ -159,7 +177,9 @@ export default function ClientDetailsPage() {
     loadClientDetails();
   }, [clientId]);
 
-  const loadClientDetails = async () => {
+
+
+  const loadClientDetails = React.useCallback(async () => {
     try {
       setLoading(true);
       // Use the proxy API route to avoid CORS issues
@@ -172,6 +192,7 @@ export default function ClientDetailsPage() {
           setError(data.error);
         } else {
           setClient(data);
+          setClientDataVersion(prev => prev + 1);
         }
       } else {
         console.error('Failed to load client details');
@@ -183,7 +204,7 @@ export default function ClientDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientId]);
 
   const handleSaveProfile = async () => {
     setSaving(true);
@@ -262,14 +283,14 @@ export default function ClientDetailsPage() {
     }
 
     // For active/expired status, check the end date
-    if ((paymentStatus === 'PAID' || paymentStatus === 'FREE') && latestSubscription.endDate) {
+    if (latestSubscription.endDate) {
       const endDate = new Date(latestSubscription.endDate);
       const currentDate = new Date();
       
       // Check if the date is valid
       if (isNaN(endDate.getTime())) {
         console.log('Invalid end date:', latestSubscription.endDate);
-        return { status: 'Unknown', color: 'bg-gray-100 text-gray-700 border-gray-200' };
+        return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
       }
       
       const isActive = currentDate < endDate;
@@ -285,11 +306,26 @@ export default function ClientDetailsPage() {
       }
     } else if (paymentStatus === 'OVERDUE') {
       return { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
+    } else if (paymentStatus === 'PAID' || paymentStatus === 'FREE') {
+      // If paid/free but no end date, assume active
+      return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' };
     } else {
-      console.log('Falling back to Unknown status');
-      console.log('Payment status was:', paymentStatus);
-      console.log('End date was:', latestSubscription.endDate);
-      return { status: 'Unknown', color: 'bg-gray-100 text-gray-700 border-gray-200' };
+      // For any other payment status, check if we have an end date to determine status
+      if (latestSubscription.endDate) {
+        const endDate = new Date(latestSubscription.endDate);
+        const currentDate = new Date();
+        
+        if (!isNaN(endDate.getTime())) {
+          const isActive = currentDate < endDate;
+          return isActive 
+            ? { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' }
+            : { status: 'Expired', color: 'bg-red-100 text-red-700 border-red-200' };
+        }
+      }
+      
+      // If we can't determine status from end date, use payment status as fallback
+      console.log('Using payment status as fallback:', paymentStatus);
+      return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200' };
     }
   };
 
@@ -486,10 +522,10 @@ export default function ClientDetailsPage() {
         {/* Tab Content */}
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
           {activeTab === 'overview' && <OverviewTab client={client} onHoldSubscription={handleHoldSubscription} onCancelSubscription={handleCancelSubscription} onAddRenew={handleAddRenew} getDisplayName={getDisplayName} />}
-          {activeTab === 'profile' && <ProfileTab client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
+          {activeTab === 'profile' && <ProfileTab key={`profile-${client.id}-${clientDataVersion}`} client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
           {activeTab === 'subscriptions' && <SubscriptionsTab client={client} getPaymentStatusColor={getPaymentStatusColor} />}
           {activeTab === 'checkins' && <CheckinsTab client={client} />}
-          {activeTab === 'notes' && <NotesTab client={client} />}
+          {activeTab === 'notes' && <NotesTab client={client} onNotesChange={() => setClientDataVersion(prev => prev + 1)} />}
         </div>
       </div>
     </div>
@@ -771,7 +807,7 @@ function ProfileTab({ client, editing, onSave, saving }: {
     };
 
     fetchFormData();
-  }, [client.selectedFormId]);
+  }, [client.selectedFormId, client.id]); // Add client.id as dependency to refresh when client data changes
 
   return (
     <div className="p-6">
@@ -809,8 +845,10 @@ function ProfileTab({ client, editing, onSave, saving }: {
             </h4>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Non-duplicated core client fields */}
+              {/* Core client fields - these come from the client object directly */}
               {[
+                { label: 'Full Name', value: client.fullName || '', key: 'fullName' },
+                { label: 'Mobile Number', value: client.phone || '', key: 'phone' },
                 { label: 'Email', value: client.email || '', key: 'email' },
                 { label: 'Gender', value: client.gender || '', key: 'gender' },
                 { label: 'Age', value: client.age || '', key: 'age' },
@@ -834,8 +872,14 @@ function ProfileTab({ client, editing, onSave, saving }: {
                 );
               })}
               
-              {/* Form responses */}
+              {/* Form responses - only show non-core questions to avoid duplication */}
               {selectedForm && client.latestSubmission?.answers && selectedForm.questions?.map((question: any, index: number) => {
+                // Skip core questions that are already displayed above
+                const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender', 'Age', 'Source'];
+                if (coreQuestionLabels.includes(question.label)) {
+                  return null; // Skip this question as it's already shown in core fields
+                }
+                
                 const answer = client.latestSubmission?.answers?.[String(question.id)];
                 const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
                 
@@ -975,30 +1019,77 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 function CheckinsTab({ client }: { client: Client }) {
   return (
     <div className="p-6">
-      <h3 className="text-lg font-semibold mb-6">Check-in Responses</h3>
-      
-      <div className="text-center py-12">
-        <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Responses</h3>
-        <p className="text-gray-500">This client hasn't submitted any check-in responses yet.</p>
-        <div className="mt-4">
-          <Button outline>
-            <DocumentTextIcon className="h-4 w-4 mr-2" />
-            Create Check-in Form
-          </Button>
-        </div>
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-semibold">Check-in Responses</h3>
+        <Button outline>
+          <DocumentTextIcon className="h-4 w-4 mr-2" />
+          Create Check-in Form
+        </Button>
       </div>
+      
+      {client.submissions && client.submissions.length > 0 ? (
+        <div className="space-y-6">
+          {client.submissions.map((submission, index) => (
+            <div key={submission.id} className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900">
+                    {submission.form?.name || `Form #${submission.formId}`}
+                  </h4>
+                  <p className="text-sm text-gray-500">
+                    Submitted on {new Date(submission.submittedAt).toLocaleDateString()} at {new Date(submission.submittedAt).toLocaleTimeString()}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Completed
+                  </span>
+                </div>
+              </div>
+              
+              {submission.form?.questions && submission.answers && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {submission.form.questions.map((question) => {
+                    const answer = submission.answers[String(question.id)];
+                    const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
+                    
+                    return (
+                      <div key={question.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-start">
+                          <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${hasAnswer ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 mb-1">{question.label}</p>
+                            <p className={`${hasAnswer ? 'text-gray-600' : 'text-red-500 italic'}`}>
+                              {hasAnswer ? (Array.isArray(answer) ? answer.join(', ') : answer) : 'Answer not provided'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Responses</h3>
+          <p className="text-gray-500">This client hasn't submitted any check-in responses yet.</p>
+        </div>
+      )}
     </div>
   );
 }
 
 // Notes Tab Component
-function NotesTab({ client }: { client: Client }) {
-  const [notes, setNotes] = useState(client.notes || []);
+function NotesTab({ client, onNotesChange }: { client: Client; onNotesChange: () => void }) {
   const [showAddNote, setShowAddNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [newNoteContent, setNewNoteContent] = useState('');
   const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const handleAddNote = async () => {
     if (!newNoteContent.trim()) return;
@@ -1018,9 +1109,11 @@ function NotesTab({ client }: { client: Client }) {
       //   body: JSON.stringify({ content: newNoteContent.trim() })
       // });
 
-      setNotes(prev => [newNote, ...prev]);
+      // Update the client's notes directly
+      client.notes = [newNote, ...(client.notes || [])];
       setNewNoteContent('');
       setShowAddNote(false);
+      onNotesChange(); // Trigger counter update
     } catch (error) {
       console.error('Error adding note:', error);
     }
@@ -1037,19 +1130,21 @@ function NotesTab({ client }: { client: Client }) {
       //   body: JSON.stringify({ content: editingNoteContent.trim() })
       // });
 
-      setNotes(prev => prev.map(note => 
-        note.id === noteId 
-          ? { ...note, content: editingNoteContent.trim(), updatedAt: new Date().toISOString() }
-          : note
-      ));
+      // Update the client's notes directly
+      if (client.notes) {
+        client.notes = client.notes.map(note => 
+          note.id === noteId 
+            ? { ...note, content: editingNoteContent.trim(), updatedAt: new Date().toISOString() }
+            : note
+        );
+      }
       setEditingNoteId(null);
       setEditingNoteContent('');
+      onNotesChange(); // Trigger counter update
     } catch (error) {
       console.error('Error updating note:', error);
     }
   };
-
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const handleDeleteNote = async (noteId: string) => {
     try {
@@ -1058,8 +1153,12 @@ function NotesTab({ client }: { client: Client }) {
       //   method: 'DELETE'
       // });
 
-      setNotes(prev => prev.filter(note => note.id !== noteId));
+      // Update the client's notes directly
+      if (client.notes) {
+        client.notes = client.notes.filter(note => note.id !== noteId);
+      }
       setShowDeleteConfirm(null);
+      onNotesChange(); // Trigger counter update
     } catch (error) {
       console.error('Error deleting note:', error);
     }
@@ -1131,9 +1230,9 @@ function NotesTab({ client }: { client: Client }) {
         </div>
       </Dialog>
       
-      {notes.length > 0 ? (
+      {client.notes && client.notes.length > 0 ? (
         <div className="space-y-4">
-          {notes.map((note: any, index: number) => (
+          {client.notes.map((note: any, index: number) => (
             <div key={note.id || index} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
               {editingNoteId === note.id ? (
                 // Edit Mode
