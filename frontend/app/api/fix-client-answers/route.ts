@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     // This is a temporary fix to add missing answers for client 66
-    const response = await fetch('http://localhost:3000/api/clients/66', {
+    const response = await fetch('http://localhost:4000/api/clients/66', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

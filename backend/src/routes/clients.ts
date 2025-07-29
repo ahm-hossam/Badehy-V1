@@ -277,17 +277,7 @@ router.get('/', async (req: Request, res: Response) => {
         },
       },
     });
-    // Add profileCompletion field using both client fields and latest check-in answers
-    const requiredFields = [
-      // Basic Data
-      'fullName', 'phone', 'email', 'gender', 'age', 'source', 'level',
-      // Client Profile & Preferences
-      'goal', 'injuries', 'workoutPlace', 'height', 'weight',
-      // Workout Preferences
-      'preferredTrainingDays', 'preferredTrainingTime', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas',
-      // Nutrition Preferences
-      'nutritionGoal', 'dietPreference', 'mealCount', 'foodAllergies', 'dislikedIngredients', 'currentNutritionPlanFollowed'
-    ];
+    // Enhanced profile completion logic for clients list
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
     const clientsWithCompletion = clients.map((client: any) => {
       // Get latest submission answers (if any)
@@ -301,17 +291,92 @@ router.get('/', async (req: Request, res: Response) => {
           answerByLabel[normalize(q.label)] = answers[String(q.id)];
         }
       }
-      // Check all required fields in both client fields and answers
-      const isComplete = requiredFields.every(field => {
-        // Try client field first
+
+      // Helper function to get value from client or answers
+      const getValue = (field: string) => {
         let value = (client as any)[field];
-        if (value === undefined) {
-          // Try to find in answers by label
+        if (value === undefined || value === null || value === '') {
           value = answerByLabel[normalize(field)];
         }
-        if (field === 'age') return value !== null && value !== undefined && value !== '';
-        return value !== null && value !== undefined && String(value).trim() !== '';
+        return value;
+      };
+
+          // Check core questions (required)
+    const coreQuestions = ['fullName', 'phone', 'email', 'gender', 'age', 'source'];
+    const coreComplete = coreQuestions.every(field => {
+      const value = getValue(field);
+      if (field === 'age') return value !== null && value !== undefined && value !== '';
+      return value !== null && value !== undefined && String(value).trim() !== '';
+    });
+
+    // Check subscription details (required)
+    let subscriptionComplete = false;
+    if (client.subscriptions && client.subscriptions.length > 0) {
+      const subscription = client.subscriptions[0]; // Latest subscription
+      
+      // Required subscription fields
+      const requiredSubscriptionFields = [
+        'startDate', 'durationValue', 'durationUnit', 'paymentStatus', 'packageId'
+      ];
+      
+      const subscriptionFieldsComplete = requiredSubscriptionFields.every(field => {
+        const value = (subscription as any)[field];
+        return value !== null && value !== undefined && value !== '';
       });
+
+      // Check registration date (client registration date)
+      const registrationComplete = client.registrationDate !== null;
+
+      // Check payment method (conditional based on payment status)
+      let paymentMethodComplete = true;
+      if (subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.paymentStatus?.toLowerCase() !== 'free trial') {
+        paymentMethodComplete = subscription.paymentMethod !== null && subscription.paymentMethod !== '';
+      } else {
+        // For free subscriptions, payment method is not required
+        paymentMethodComplete = true;
+      }
+
+      // Check price fields (conditional based on payment status)
+      let priceComplete = true;
+      if (subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.paymentStatus?.toLowerCase() !== 'free trial') {
+        priceComplete = subscription.priceBeforeDisc !== null && subscription.priceBeforeDisc !== undefined;
+        if (subscription.discountApplied) {
+          priceComplete = priceComplete && subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined;
+        }
+      } else {
+        // For free subscriptions, price fields are not required
+        priceComplete = true;
+      }
+
+      // Check installment fields (conditional based on payment status)
+      let installmentComplete = true;
+      if (subscription.paymentStatus?.toLowerCase() === 'installments') {
+        installmentComplete = subscription.installments && subscription.installments.length > 0;
+        if (installmentComplete) {
+          // Check if installments have required fields
+          installmentComplete = subscription.installments.every((installment: any) => 
+            installment.amount !== null && installment.amount !== undefined
+          );
+        }
+      }
+
+      subscriptionComplete = subscriptionFieldsComplete && registrationComplete && paymentMethodComplete && priceComplete && installmentComplete;
+
+      // Debug logging
+      console.log('=== Profile Completion Debug ===');
+      console.log('Core Complete:', coreComplete);
+      console.log('Subscription Fields Complete:', subscriptionFieldsComplete);
+      console.log('Registration Complete:', registrationComplete);
+      console.log('Payment Method Complete:', paymentMethodComplete, 'Value:', subscription.paymentMethod);
+      console.log('Price Complete:', priceComplete);
+      console.log('Installment Complete:', installmentComplete);
+      console.log('Subscription Complete:', subscriptionComplete);
+      console.log('Final Complete:', coreComplete && subscriptionComplete);
+      console.log('Payment Status:', subscription.paymentStatus);
+      console.log('Package ID:', subscription.packageId);
+    }
+
+    const isComplete = coreComplete && subscriptionComplete;
       return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission };
     });
     res.json(clientsWithCompletion);
@@ -361,13 +426,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (!client) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    // Compute profileCompletion for this client
-    const requiredFields = [
-      'fullName', 'phone', 'email', 'gender', 'age', 'source', 'level',
-      'goal', 'injuries', 'workoutPlace', 'height', 'weight',
-      'preferredTrainingDays', 'preferredTrainingTime', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas',
-      'nutritionGoal', 'dietPreference', 'mealCount', 'foodAllergies', 'dislikedIngredients', 'currentNutritionPlanFollowed'
-    ];
+    // Enhanced profile completion logic
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
     const latestSubmission = client.submissions && client.submissions[0];
     const answers = latestSubmission?.answers && typeof latestSubmission.answers === 'object' ? latestSubmission.answers : {};
@@ -379,14 +438,89 @@ router.get('/:id', async (req: Request, res: Response) => {
         answerByLabel[normalize(q.label)] = answersObj[String(q.id)];
       }
     }
-    const isComplete = requiredFields.every(field => {
+
+    // Helper function to get value from client or answers
+    const getValue = (field: string) => {
       let value = (client as any)[field];
-      if (value === undefined) {
+      if (value === undefined || value === null || value === '') {
         value = answerByLabel[normalize(field)];
       }
+      return value;
+    };
+
+    // Check core questions (required)
+    const coreQuestions = ['fullName', 'phone', 'email', 'gender', 'age', 'source'];
+    const coreComplete = coreQuestions.every(field => {
+      const value = getValue(field);
       if (field === 'age') return value !== null && value !== undefined && value !== '';
       return value !== null && value !== undefined && String(value).trim() !== '';
     });
+
+    // Check subscription details (required)
+    let subscriptionComplete = false;
+    if (client.subscriptions && client.subscriptions.length > 0) {
+      const subscription = client.subscriptions[0]; // Latest subscription
+      
+      // Required subscription fields
+      const requiredSubscriptionFields = [
+        'startDate', 'durationValue', 'durationUnit', 'paymentStatus', 'packageId'
+      ];
+      
+      const subscriptionFieldsComplete = requiredSubscriptionFields.every(field => {
+        const value = (subscription as any)[field];
+        return value !== null && value !== undefined && value !== '';
+      });
+
+      // Check registration date (client registration date)
+      const registrationComplete = client.registrationDate !== null;
+
+      // Check payment method (conditional based on payment status)
+      let paymentMethodComplete = true;
+      if (subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.paymentStatus?.toLowerCase() !== 'free trial') {
+        paymentMethodComplete = subscription.paymentMethod !== null && subscription.paymentMethod !== '';
+      } else {
+        // For free subscriptions, payment method is not required
+        paymentMethodComplete = true;
+      }
+
+      // Check price fields (conditional based on payment status)
+      let priceComplete = true;
+      if (subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.paymentStatus?.toLowerCase() !== 'free trial') {
+        priceComplete = subscription.priceBeforeDisc !== null && subscription.priceBeforeDisc !== undefined;
+        if (subscription.discountApplied) {
+          priceComplete = priceComplete && subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined;
+        }
+      }
+
+      // Check installment fields (conditional based on payment status)
+      let installmentComplete = true;
+      if (subscription.paymentStatus?.toLowerCase() === 'installments') {
+        installmentComplete = subscription.installments && subscription.installments.length > 0;
+        if (installmentComplete) {
+          // Check if installments have required fields
+          installmentComplete = subscription.installments.every(installment => 
+            installment.amount !== null && installment.amount !== undefined
+          );
+        }
+      }
+
+              subscriptionComplete = subscriptionFieldsComplete && registrationComplete && paymentMethodComplete && priceComplete && installmentComplete;
+
+        // Debug logging for clients list
+        console.log(`=== Profile Completion Debug for Client ${client.id} ===`);
+        console.log('Core Complete:', coreComplete);
+        console.log('Subscription Fields Complete:', subscriptionFieldsComplete);
+        console.log('Registration Complete:', registrationComplete);
+        console.log('Payment Method Complete:', paymentMethodComplete, 'Value:', subscription.paymentMethod);
+        console.log('Price Complete:', priceComplete);
+        console.log('Installment Complete:', installmentComplete);
+        console.log('Subscription Complete:', subscriptionComplete);
+        console.log('Final Complete:', coreComplete && subscriptionComplete);
+        console.log('Payment Status:', subscription.paymentStatus);
+        console.log('Package ID:', subscription.packageId);
+      }
+
+      const isComplete = coreComplete && subscriptionComplete;
     res.json({ ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission });
   } catch (error) {
     console.error('Error fetching client:', error);

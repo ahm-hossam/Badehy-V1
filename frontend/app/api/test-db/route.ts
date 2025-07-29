@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     // Test the backend directly
-    const response = await fetch('http://localhost:3000/api/clients?trainerId=8');
+    const response = await fetch('http://localhost:4000/api/clients?trainerId=8');
     const clients = await response.json();
     
     console.log('=== DATABASE TEST ===');

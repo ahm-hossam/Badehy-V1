@@ -1815,7 +1815,7 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
                   const activeSub = getActiveSubscription();
                   const displayDate = activeSub 
                     ? new Date(activeSub.startDate).toLocaleDateString()
-                    : new Date(client.registrationDate).toLocaleDateString();
+                    : 'No subscription';
                   
                   console.log('=== Subscription Start Card DEBUG ===');
                   console.log('Active subscription:', activeSub);

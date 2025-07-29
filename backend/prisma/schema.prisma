@@ -221,6 +221,7 @@ model CheckInForm {
   trainerId   Int
   name        String
   published   Boolean            @default(false)
+  isMainForm  Boolean            @default(false)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   trainer     Registered         @relation(fields: [trainerId], references: [id])
@@ -251,6 +252,7 @@ model CheckInSubmission {
   id         Int           @id @default(autoincrement())
   formId     Int
   clientId   Int?
+  phoneNumber String?      // for client identification
   submittedAt DateTime     @default(now())
   answers    Json          // stores all answers as JSON
   form       CheckInForm   @relation(fields: [formId], references: [id])
@@ -258,6 +260,7 @@ model CheckInSubmission {
 
   @@index([formId])
   @@index([clientId])
+  @@index([phoneNumber])
 }
 
 model CheckInFormHistory {

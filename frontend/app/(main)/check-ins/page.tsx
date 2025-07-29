@@ -107,18 +107,30 @@ export default function CheckInsPage() {
           <TableHead>
             <TableRow>
               <TableHeader>Name</TableHeader>
+              <TableHeader>Type</TableHeader>
               <TableHeader>Created</TableHeader>
               <TableHeader>Actions</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
             ) : paginatedCheckIns.length === 0 ? (
-              <TableRow><TableCell colSpan={3} className="text-center py-8 text-zinc-400">No check-ins found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-8 text-zinc-400">No check-ins found.</TableCell></TableRow>
             ) : paginatedCheckIns.map(checkIn => (
               <TableRow key={checkIn.id}>
                 <TableCell className="font-medium text-zinc-900">{checkIn.name}</TableCell>
+                <TableCell>
+                  {checkIn.isMainForm ? (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Main Form
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      Regular Form
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-zinc-600">{new Date(checkIn.createdAt).toLocaleString()}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button outline onClick={() => router.push(`/check-ins/${checkIn.id}/edit`)}>Edit</Button>

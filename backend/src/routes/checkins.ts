@@ -22,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 // POST /api/checkins
 router.post('/', async (req: Request, res: Response) => {
-  const { trainerId, name, questions } = req.body;
+  const { trainerId, name, questions, isMainForm } = req.body;
   if (!trainerId || !name || !Array.isArray(questions) || questions.length === 0) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -31,6 +31,7 @@ router.post('/', async (req: Request, res: Response) => {
       data: {
         trainerId: Number(trainerId),
         name,
+        isMainForm: !!isMainForm,
         questions: {
           create: questions.map((q: any, idx: number) => ({
             order: idx,
@@ -154,6 +155,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
   try {
     const form = await prisma.checkInForm.findUnique({ where: { id }, include: { questions: true, trainer: true } });
     if (!form) return res.status(404).json({ error: 'Check-in form not found' });
+    
     // Map answers to client fields (robust best practice)
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
     // Accept a variety of possible name labels
@@ -167,44 +169,90 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
       }
       return '';
     };
-    // Try to get full name from robust label set
-    let fullName = getAnswer(nameLabels);
-    // Fallback: use first non-empty short/long answer
-    if (!fullName) {
-      const firstTextQ = form.questions.find(q => (q.type === 'short' || q.type === 'long') && answers[q.id] && String(answers[q.id]).trim() !== '');
-      if (firstTextQ) fullName = answers[firstTextQ.id];
+    
+    // Extract phone number for client identification
+    const phoneNumber = getAnswer(['Phone', 'Phone Number', 'Mobile', 'Mobile Number']) || '';
+    
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^[\+]?[0-9\s\-\(\)]{7,15}$/;
+    if (phoneNumber && !phoneRegex.test(phoneNumber)) {
+      return res.status(400).json({ error: 'Invalid phone number format' });
     }
-    if (!fullName) fullName = 'Unnamed';
-    const clientData: any = {
-      trainerId: form.trainerId,
-      fullName,
-      phone: getAnswer(['Phone', 'Phone Number', 'Mobile', 'Mobile Number']) || '',
-      email: getAnswer(['Email', 'Email Address']) || '',
-      gender: getAnswer(['Gender']) || null,
-      age: getAnswer(['Age']) ? Number(getAnswer(['Age'])) : null,
-      source: getAnswer(['Source']) || null,
-      level: getAnswer(['Level']) || null,
-      registrationDate: new Date(),
-      injuriesHealthNotes: [],
-      goals: [],
-    };
-    // Optionally extract goals and injuries/health notes if present as arrays
-    const goalsAnswer = getAnswer(['Goals']);
-    if (goalsAnswer) clientData.goals = Array.isArray(goalsAnswer) ? goalsAnswer : [goalsAnswer];
-    const injuriesAnswer = getAnswer(['Injuries', 'Health Notes', 'Injuries / Health Notes']);
-    if (injuriesAnswer) clientData.injuriesHealthNotes = Array.isArray(injuriesAnswer) ? injuriesAnswer : [injuriesAnswer];
-    // Create the client
-    const createdClient = await prisma.trainerClient.create({ data: clientData });
+    
+    let clientIdToUse = clientId;
+    
+    // If this is NOT a main form, we need to find existing client by phone number
+    if (!form.isMainForm) {
+      if (!phoneNumber) {
+        return res.status(400).json({ 
+          error: 'Phone number is required for this form. Please fill the main form first to create your profile.' 
+        });
+      }
+      
+      // Search for existing client by phone number
+      const existingClient = await prisma.trainerClient.findFirst({
+        where: {
+          trainerId: form.trainerId,
+          phone: phoneNumber
+        }
+      });
+      
+      if (!existingClient) {
+        return res.status(400).json({ 
+          error: 'No client found with this phone number. Please fill the main form first to create your profile.' 
+        });
+      }
+      
+      clientIdToUse = existingClient.id;
+    } else {
+      // This is a main form - create new client
+      // Try to get full name from robust label set
+      let fullName = getAnswer(nameLabels);
+      // Fallback: use first non-empty short/long answer
+      if (!fullName) {
+        const firstTextQ = form.questions.find(q => (q.type === 'short' || q.type === 'long') && answers[q.id] && String(answers[q.id]).trim() !== '');
+        if (firstTextQ) fullName = answers[firstTextQ.id];
+      }
+      if (!fullName) fullName = 'Unnamed';
+      
+      const clientData: any = {
+        trainerId: form.trainerId,
+        fullName,
+        phone: phoneNumber,
+        email: getAnswer(['Email', 'Email Address']) || '',
+        gender: getAnswer(['Gender']) || null,
+        age: getAnswer(['Age']) ? Number(getAnswer(['Age'])) : null,
+        source: getAnswer(['Source']) || null,
+        level: getAnswer(['Level']) || null,
+        registrationDate: new Date(),
+        injuriesHealthNotes: [],
+        goals: [],
+      };
+      
+      // Optionally extract goals and injuries/health notes if present as arrays
+      const goalsAnswer = getAnswer(['Goals']);
+      if (goalsAnswer) clientData.goals = Array.isArray(goalsAnswer) ? goalsAnswer : [goalsAnswer];
+      const injuriesAnswer = getAnswer(['Injuries', 'Health Notes', 'Injuries / Health Notes']);
+      if (injuriesAnswer) clientData.injuriesHealthNotes = Array.isArray(injuriesAnswer) ? injuriesAnswer : [injuriesAnswer];
+      
+      // Create the client
+      const createdClient = await prisma.trainerClient.create({ data: clientData });
+      clientIdToUse = createdClient.id;
+    }
+    
     // Create the submission and link to the client
     const submission = await prisma.checkInSubmission.create({
       data: {
         formId: id,
-        clientId: createdClient.id,
+        clientId: clientIdToUse,
+        phoneNumber: phoneNumber,
         answers,
       },
     });
+    
     res.status(201).json(submission);
   } catch (err) {
+    console.error('Submission error:', err);
     res.status(500).json({ error: 'Failed to submit check-in' });
   }
 });
@@ -212,7 +260,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
 // PUT /api/checkins/:id - update a check-in form (with versioning)
 router.put('/:id', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const { name, questions } = req.body;
+  const { name, questions, isMainForm } = req.body;
   if (!id || !name || !Array.isArray(questions) || questions.length === 0) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -245,6 +293,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       where: { id },
       data: {
         name,
+        isMainForm: !!isMainForm,
         questions: {
           create: questions.map((q: any, idx: number) => ({
             order: idx,
