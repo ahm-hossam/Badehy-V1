@@ -13,9 +13,7 @@ import {
 import { 
   PencilIcon, 
   TrashIcon, 
-  PlusIcon,
-  MagnifyingGlassIcon,
-  UsersIcon 
+  PlusIcon
 } from "@heroicons/react/20/solid";
 import { getStoredUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
@@ -55,6 +53,13 @@ interface Client {
     }>;
   }>;
   profileCompletion: string;
+  teamAssignments?: Array<{
+    teamMember: {
+      id: number;
+      fullName: string;
+      role: string;
+    };
+  }>;
 }
 
 export default function ClientsPage() {
@@ -75,6 +80,9 @@ export default function ClientsPage() {
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [profileCompletionFilter, setProfileCompletionFilter] = useState<string>("all");
+  const [assignedToFilter, setAssignedToFilter] = useState<string>("all");
+  const [showFilters, setShowFilters] = useState<boolean>(false);
 
   // Helper function to get display name
   const getDisplayName = (client: Client) => {
@@ -238,7 +246,7 @@ export default function ClientsPage() {
           </p>
         </div>
 
-        {/* Search, Filter and Add Button */}
+        {/* Search and Add Button */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 flex-1">
             <div className="relative flex-1 max-w-sm">
@@ -255,24 +263,68 @@ export default function ClientsPage() {
                 className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            <button 
+              onClick={() => setShowFilters(!showFilters)} 
+              className="px-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:bg-gray-50 flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700"
             >
-              <option value="all">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Expired">Expired</option>
-              <option value="Canceled">Canceled</option>
-              <option value="On Hold">On Hold</option>
-              <option value="No Subscription">No Subscription</option>
-            </select>
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
+              </svg>
+              <span>Filters</span>
+            </button>
           </div>
           <Button onClick={handleAddClient} className="px-4">
             <PlusIcon className="h-5 w-5 mr-2" />
             Add Client
           </Button>
         </div>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Subscription Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Canceled">Canceled</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="No Subscription">No Subscription</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Profile Completion</label>
+                <select
+                  value={profileCompletionFilter}
+                  onChange={(e) => setProfileCompletionFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Completions</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Not Completed">Not Completed</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Team Assignment</label>
+                <select
+                  value={assignedToFilter}
+                  onChange={(e) => setAssignedToFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Assignments</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="not_assigned">Not Assigned</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -282,6 +334,7 @@ export default function ClientsPage() {
                 <TableHeader>ID</TableHeader>
                 <TableHeader>Client Name</TableHeader>
                 <TableHeader>Subscription Status</TableHeader>
+                <TableHeader>Assigned To</TableHeader>
                 <TableHeader>Profile Completion</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
@@ -292,7 +345,7 @@ export default function ClientsPage() {
               ) : errorMessage ? (
                 <TableRow><TableCell colSpan={5} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
               ) : clients.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
               ) : clients
                 .filter(client => {
                   // Filter by search term
@@ -303,7 +356,17 @@ export default function ClientsPage() {
                   const clientStatus = getSubscriptionStatus(client);
                   const matchesStatus = statusFilter === "all" || clientStatus.status === statusFilter;
                   
-                  return matchesSearch && matchesStatus;
+                  // Filter by profile completion
+                  const matchesProfileCompletion = profileCompletionFilter === "all" || 
+                    client.profileCompletion === profileCompletionFilter;
+                  
+                  // Filter by assignment
+                  const isAssigned = client.teamAssignments && client.teamAssignments.length > 0;
+                  const matchesAssignment = assignedToFilter === "all" || 
+                    (assignedToFilter === "assigned" && isAssigned) ||
+                    (assignedToFilter === "not_assigned" && !isAssigned);
+                  
+                  return matchesSearch && matchesStatus && matchesProfileCompletion && matchesAssignment;
                 })
                 .map((client) => (
                 <TableRow key={client.id}>
@@ -332,6 +395,20 @@ export default function ClientsPage() {
                         </span>
                       );
                     })()}
+                  </TableCell>
+                  <TableCell>
+                    {client.teamAssignments && client.teamAssignments.length > 0 ? (
+                      <div className="space-y-1">
+                        {client.teamAssignments.map((assignment, index) => (
+                          <div key={index} className="text-xs">
+                            <span className="font-medium">{assignment.teamMember.fullName}</span>
+                            <span className="text-gray-500 ml-1">({assignment.teamMember.role})</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Not assigned</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {client.profileCompletion === 'Completed' ? (
@@ -369,7 +446,7 @@ export default function ClientsPage() {
             <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
             <div className="flex justify-end gap-2 mt-6">
               <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-              <Button color="red" type="button" onClick={confirmDeleteClient}>Delete</Button>
+              <Button type="button" onClick={confirmDeleteClient} className="bg-red-600 hover:bg-red-700 text-white">Delete</Button>
             </div>
           </div>
         </Dialog>

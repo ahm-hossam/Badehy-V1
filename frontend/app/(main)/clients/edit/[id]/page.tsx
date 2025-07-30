@@ -117,6 +117,9 @@ export default function EditClientPage() {
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<number[]>([]);
+  const [clientAssignments, setClientAssignments] = useState<any[]>([]);
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
@@ -287,6 +290,12 @@ export default function EditClientPage() {
       .then(data => setLabels(data || []))
       .catch(() => console.error("Failed to load labels."));
     
+    // Fetch team members
+    fetch(`/api/team-members?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setTeamMembers(data || []))
+      .catch(() => console.error("Failed to load team members."));
+    
     // Fetch notes for this client
     if (clientId) {
       fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/notes?clientId=${clientId}`)
@@ -294,6 +303,18 @@ export default function EditClientPage() {
         .then(data => setNotes(data || []))
         .catch(() => console.error("Failed to load notes."));
     }
+  }, [user?.id, clientId]);
+
+  // Fetch client's team assignments
+  useEffect(() => {
+    if (!user?.id || !clientId) return;
+    fetch(`/api/client-assignments?trainerId=${user.id}&clientId=${clientId}`)
+      .then(res => res.json())
+      .then(data => {
+        setClientAssignments(data || []);
+        setSelectedTeamMembers(data.map((assignment: any) => assignment.teamMember.id));
+      })
+      .catch(() => console.error("Failed to load client assignments."));
   }, [user?.id, clientId]);
 
   // Helper: map static question labels to field keys (with label variations)
@@ -717,6 +738,30 @@ export default function EditClientPage() {
             }
           })
         );
+        
+        // Handle team member assignments
+        if (user) {
+          // Remove existing assignments
+          for (const assignment of clientAssignments) {
+            await fetch(`/api/client-assignments/${clientId}/${assignment.teamMember.id}?trainerId=${user.id}`, {
+              method: 'DELETE',
+            });
+          }
+          
+          // Add new assignments
+          for (const teamMemberId of selectedTeamMembers) {
+            await fetch('/api/client-assignments', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                clientId: parseInt(clientId),
+                teamMemberId: teamMemberId,
+                assignedBy: user.id,
+              }),
+            });
+          }
+        }
+        
         setSuccess(true);
         router.push("/clients?updated=1");
       } else {
@@ -1515,6 +1560,32 @@ export default function EditClientPage() {
                     {packageError && <span className="text-red-500 text-xs ml-2">{packageError}</span>}
                   </div>
                 )}
+              </div>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Assign to Team Members</label>
+                <div className="border rounded-lg p-3 border-zinc-950/10">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
+                  ) : (
+                    teamMembers.map((member) => (
+                      <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamMembers.includes(member.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTeamMembers(prev => [...prev, member.id]);
+                            } else {
+                              setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
+                            }
+                          }}
+                          className="rounded border-zinc-950/20"
+                        />
+                        <span className="text-sm">{member.fullName} ({member.role})</span>
+                      </label>
+                    ))
+                  )}
+                </div>
               </div>
               {showPaymentMethod && (
                 <div className="flex flex-col">
