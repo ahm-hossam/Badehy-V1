@@ -127,6 +127,8 @@ export default function CreateClientPage() {
   const [newPackageName, setNewPackageName] = useState('');
   const [showAddPackage, setShowAddPackage] = useState(false);
   const [packageError, setPackageError] = useState('');
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<number[]>([]);
   type InstallmentRow = { id?: string; date: string; amount: string; image: File | null; nextDate: string; remaining?: string; };
   const [installments, setInstallments] = useState<InstallmentRow[]>([{ date: '', amount: '', image: null, nextDate: '' }]);
 
@@ -150,6 +152,16 @@ export default function CreateClientPage() {
       .then(res => res.json())
       .then(data => setLabels(data || []))
       .catch(() => console.error("Failed to load labels."));
+  }, []);
+
+  // Fetch trainer's team members
+  useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
+    fetch(`/api/team-members?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setTeamMembers(data || []))
+      .catch(() => console.error("Failed to load team members."));
   }, []);
 
   // Refresh forms when selected form changes to get latest data
@@ -445,20 +457,36 @@ export default function CreateClientPage() {
           answers: customAnswers // <-- send answers
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        // If a transaction image was selected and payment status is paid, upload it
-        if (transactionImage && subscription.paymentStatus === 'paid' && data.subscription && data.subscription.id) {
-          const formDataImg = new FormData();
-          formDataImg.append('file', transactionImage);
-          formDataImg.append('subscriptionId', data.subscription.id);
-          await fetch('/api/transaction-images/subscription', {
-            method: 'POST',
-            body: formDataImg,
-          });
-        }
-        router.push("/clients?created=1");
-      } else {
+              if (res.ok) {
+          const data = await res.json();
+          
+          // Create team member assignments if any are selected
+          if (selectedTeamMembers.length > 0) {
+            for (const teamMemberId of selectedTeamMembers) {
+              await fetch('/api/client-assignments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  clientId: data.id,
+                  teamMemberId: teamMemberId,
+                  assignedBy: user.id,
+                }),
+              });
+            }
+          }
+          
+          // If a transaction image was selected and payment status is paid, upload it
+          if (transactionImage && subscription.paymentStatus === 'paid' && data.subscription && data.subscription.id) {
+            const formDataImg = new FormData();
+            formDataImg.append('file', transactionImage);
+            formDataImg.append('subscriptionId', data.subscription.id);
+            await fetch('/api/transaction-images/subscription', {
+              method: 'POST',
+              body: formDataImg,
+            });
+          }
+          router.push("/clients?created=1");
+        } else {
         const data = await res.json();
         setError(data.error || "Failed to create client.");
       }
@@ -911,6 +939,32 @@ export default function CreateClientPage() {
                   </Select>
                 </div>
               )}
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Assign to Team Members</label>
+                <div className="border rounded-lg p-3 border-zinc-950/10">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
+                  ) : (
+                    teamMembers.map((member) => (
+                      <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamMembers.includes(member.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTeamMembers(prev => [...prev, member.id]);
+                            } else {
+                              setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
+                            }
+                          }}
+                          className="rounded border-zinc-950/20"
+                        />
+                        <span className="text-sm">{member.fullName} ({member.role})</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
               {['paid', 'installments'].includes(subscription.paymentStatus) && (
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Price Before Discount</label>

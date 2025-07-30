@@ -42,6 +42,7 @@ import {
   TicketIcon,
   UsersIcon,
   FireIcon,
+  UserGroupIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -261,6 +262,10 @@ export function ApplicationLayout({
               <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
                 <UsersIcon />
                 <SidebarLabel>Clients</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/team-members" current={pathname.startsWith('/team-members')}>
+                <UserGroupIcon />
+                <SidebarLabel>Team Members</SidebarLabel>
               </SidebarItem>
               {/* Workout Programs collapsible section */}
               <WorkoutProgramsCollapsible pathname={pathname} />

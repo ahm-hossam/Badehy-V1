@@ -275,11 +275,22 @@ router.get('/', async (req: Request, res: Response) => {
             }
           }
         },
+        teamAssignments: {
+          include: {
+            teamMember: {
+              select: {
+                id: true,
+                fullName: true,
+                role: true,
+              },
+            },
+          },
+        },
       },
     });
     // Enhanced profile completion logic for clients list
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
-    const clientsWithCompletion = clients.map((client: any) => {
+    const clientsWithCompletion = await Promise.all(clients.map(async (client: any) => {
       // Get latest submission answers (if any)
       const latestSubmission = client.submissions && client.submissions[0];
       const answers = latestSubmission?.answers && typeof latestSubmission.answers === 'object' ? latestSubmission.answers : {};
@@ -308,6 +319,12 @@ router.get('/', async (req: Request, res: Response) => {
       if (field === 'age') return value !== null && value !== undefined && value !== '';
       return value !== null && value !== undefined && String(value).trim() !== '';
     });
+
+    // Check team assignment (required)
+    const teamAssignments = await prisma.clientTeamAssignment.findMany({
+      where: { clientId: client.id },
+    });
+    const teamAssignmentComplete = teamAssignments.length > 0;
 
     // Check subscription details (required)
     let subscriptionComplete = false;
@@ -365,20 +382,21 @@ router.get('/', async (req: Request, res: Response) => {
       // Debug logging
       console.log('=== Profile Completion Debug ===');
       console.log('Core Complete:', coreComplete);
+      console.log('Team Assignment Complete:', teamAssignmentComplete);
       console.log('Subscription Fields Complete:', subscriptionFieldsComplete);
       console.log('Registration Complete:', registrationComplete);
       console.log('Payment Method Complete:', paymentMethodComplete, 'Value:', subscription.paymentMethod);
       console.log('Price Complete:', priceComplete);
       console.log('Installment Complete:', installmentComplete);
       console.log('Subscription Complete:', subscriptionComplete);
-      console.log('Final Complete:', coreComplete && subscriptionComplete);
+      console.log('Final Complete:', coreComplete && teamAssignmentComplete && subscriptionComplete);
       console.log('Payment Status:', subscription.paymentStatus);
       console.log('Package ID:', subscription.packageId);
     }
 
-    const isComplete = coreComplete && subscriptionComplete;
+    const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
       return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission };
-    });
+    }));
     res.json(clientsWithCompletion);
   } catch (error) {
     console.error(error);
@@ -419,6 +437,17 @@ router.get('/:id', async (req: Request, res: Response) => {
             subscriptionTransactionImages: true,
           },
         },
+        teamAssignments: {
+          include: {
+            teamMember: {
+              select: {
+                id: true,
+                fullName: true,
+                role: true,
+              },
+            },
+          },
+        },
       },
     });
     console.log('Backend GET - Fetched client:', client);
@@ -455,6 +484,12 @@ router.get('/:id', async (req: Request, res: Response) => {
       if (field === 'age') return value !== null && value !== undefined && value !== '';
       return value !== null && value !== undefined && String(value).trim() !== '';
     });
+
+    // Check team assignment (required)
+    const teamAssignments = await prisma.clientTeamAssignment.findMany({
+      where: { clientId: client.id },
+    });
+    const teamAssignmentComplete = teamAssignments.length > 0;
 
     // Check subscription details (required)
     let subscriptionComplete = false;
@@ -504,23 +539,24 @@ router.get('/:id', async (req: Request, res: Response) => {
         }
       }
 
-              subscriptionComplete = subscriptionFieldsComplete && registrationComplete && paymentMethodComplete && priceComplete && installmentComplete;
+      subscriptionComplete = subscriptionFieldsComplete && registrationComplete && paymentMethodComplete && priceComplete && installmentComplete;
 
-        // Debug logging for clients list
-        console.log(`=== Profile Completion Debug for Client ${client.id} ===`);
-        console.log('Core Complete:', coreComplete);
-        console.log('Subscription Fields Complete:', subscriptionFieldsComplete);
-        console.log('Registration Complete:', registrationComplete);
-        console.log('Payment Method Complete:', paymentMethodComplete, 'Value:', subscription.paymentMethod);
-        console.log('Price Complete:', priceComplete);
-        console.log('Installment Complete:', installmentComplete);
-        console.log('Subscription Complete:', subscriptionComplete);
-        console.log('Final Complete:', coreComplete && subscriptionComplete);
-        console.log('Payment Status:', subscription.paymentStatus);
-        console.log('Package ID:', subscription.packageId);
-      }
+      // Debug logging for single client
+      console.log(`=== Profile Completion Debug for Client ${client.id} ===`);
+      console.log('Core Complete:', coreComplete);
+      console.log('Team Assignment Complete:', teamAssignmentComplete);
+      console.log('Subscription Fields Complete:', subscriptionFieldsComplete);
+      console.log('Registration Complete:', registrationComplete);
+      console.log('Payment Method Complete:', paymentMethodComplete, 'Value:', subscription.paymentMethod);
+      console.log('Price Complete:', priceComplete);
+      console.log('Installment Complete:', installmentComplete);
+      console.log('Subscription Complete:', subscriptionComplete);
+      console.log('Final Complete:', coreComplete && teamAssignmentComplete && subscriptionComplete);
+      console.log('Payment Status:', subscription.paymentStatus);
+      console.log('Package ID:', subscription.packageId);
+    }
 
-      const isComplete = coreComplete && subscriptionComplete;
+    const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
     res.json({ ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission });
   } catch (error) {
     console.error('Error fetching client:', error);

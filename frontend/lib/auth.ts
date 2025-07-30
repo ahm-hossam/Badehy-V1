@@ -3,6 +3,10 @@ export interface User {
   id: number;
   email: string;
   fullName: string;
+  isTeamMember?: boolean;
+  role?: string;
+  status?: string;
+  trainerId?: number; // For team members
 }
 
 export interface AuthState {

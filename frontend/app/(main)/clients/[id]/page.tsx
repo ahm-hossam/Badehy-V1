@@ -34,7 +34,8 @@ import {
   ArrowLeftIcon,
   TrashIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 
 interface Client {
@@ -151,6 +152,14 @@ interface Client {
     id: number;
     name: string;
     color: string;
+  }>;
+  teamAssignments?: Array<{
+    id: number;
+    teamMember: {
+      id: number;
+      fullName: string;
+      role: string;
+    };
   }>;
 }
 
@@ -1771,7 +1780,7 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     <div className="p-6">
       <h3 className="text-lg font-semibold mb-6">Client Overview</h3>
       
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {/* Contact Card */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
           <div className="flex items-start">
@@ -1877,6 +1886,37 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
                   const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                   return remainingDays > 0 ? 'until expiration' : 'subscription ended';
                 })()}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Assigned To Card */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+          <div className="flex items-center">
+            <div className="p-2 bg-blue-500 rounded-lg">
+              <UserGroupIcon className="h-6 w-6 text-white" />
+            </div>
+            <div className="ml-3 min-w-0 flex-1">
+              <p className="text-sm font-medium text-blue-900">Assigned To</p>
+              <p className="text-lg font-semibold text-blue-700">
+                {(() => {
+                  if (!client.teamAssignments || client.teamAssignments.length === 0) {
+                    return 'Not assigned';
+                  }
+                  
+                  const assignedMembers = client.teamAssignments.map(assignment => 
+                    `${assignment.teamMember.fullName} (${assignment.teamMember.role})`
+                  );
+                  
+                  return assignedMembers.join(', ');
+                })()}
+              </p>
+              <p className="text-sm text-blue-600">
+                {client.teamAssignments && client.teamAssignments.length > 0 
+                  ? `${client.teamAssignments.length} team member${client.teamAssignments.length !== 1 ? 's' : ''}`
+                  : 'No team members assigned'
+                }
               </p>
             </div>
           </div>

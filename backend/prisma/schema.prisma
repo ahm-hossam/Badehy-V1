@@ -27,6 +27,9 @@ model Registered {
   programs       Program[]
   brandingSettings BrandingSettings[]
   pdfTemplates   PDFTemplate[]
+  supportRequests SupportRequest[]
+  teamMembers    TeamMember[]
+  clientAssignments ClientTeamAssignment[]
 }
 
 model TrainerClient {
@@ -68,6 +71,7 @@ model TrainerClient {
   notes         Note[]
   submissions   CheckInSubmission[]
   selectedForm  CheckInForm?   @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
+  teamAssignments ClientTeamAssignment[]
 
   @@index([trainerId])
 }
@@ -409,12 +413,48 @@ model PDFTemplatePage {
 }
 
 model SupportRequest {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String
-  subject   String
-  message   String
-  status    String   @default("NEW") // NEW, IN_PROGRESS, RESOLVED, CLOSED
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          Int      @id @default(autoincrement())
+  trainerId   Int
+  subject     String
+  message     String
+  status      String   @default("pending") // pending, in_progress, resolved
+  priority    String   @default("medium") // low, medium, high
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  trainer     Registered @relation(fields: [trainerId], references: [id])
+
+  @@index([trainerId])
+}
+
+model TeamMember {
+  id          Int      @id @default(autoincrement())
+  trainerId   Int      // Owner's trainer ID
+  fullName    String
+  email       String   @unique
+  phone       String?
+  role        String   // Coach, Customer Support, Following Up, System Admin, Owner
+  password    String
+  status      String   @default("active") // active/inactive
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  trainer     Registered @relation(fields: [trainerId], references: [id])
+  clientAssignments ClientTeamAssignment[]
+
+  @@index([trainerId])
+}
+
+model ClientTeamAssignment {
+  id           Int        @id @default(autoincrement())
+  clientId     Int
+  teamMemberId Int
+  assignedAt   DateTime   @default(now())
+  assignedBy   Int        // Owner's trainer ID
+  client       TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  assignedByTrainer Registered @relation(fields: [assignedBy], references: [id])
+
+  @@unique([clientId, teamMemberId])
+  @@index([clientId])
+  @@index([teamMemberId])
+  @@index([assignedBy])
 }
