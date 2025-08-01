@@ -1867,29 +1867,45 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
               <p className="text-sm font-medium text-red-900">Remaining Days</p>
               <p className="text-lg font-semibold text-red-700">
                 {(() => {
-                  // Calculate total remaining days across all active subscriptions
-                  let totalRemainingDays = 0;
+                  // Calculate total subscription duration across all active subscriptions
+                  let totalSubscriptionDays = 0;
                   
-                  if (client.subscriptions && client.subscriptions.length > 0) {
-                    client.subscriptions.forEach(subscription => {
-                      if (!subscription.isCanceled && subscription.endDate) {
-                        const endDate = new Date(subscription.endDate);
-                        const currentDate = new Date();
-                        const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                  if (client.subscriptions && Array.isArray(client.subscriptions) && client.subscriptions.length > 0) {
+                    // Get all active (non-canceled) subscriptions
+                    const activeSubscriptions = client.subscriptions.filter(sub => 
+                      sub && !sub.isCanceled
+                    );
+                    
+                    console.log('=== Subscription Duration DEBUG ===');
+                    console.log('All subscriptions:', client.subscriptions);
+                    console.log('Active subscriptions:', activeSubscriptions);
+                    
+                    // Calculate total duration for each active subscription
+                    if (Array.isArray(activeSubscriptions)) {
+                      activeSubscriptions.forEach((sub, index) => {
+                        console.log(`Subscription ${index + 1}:`, {
+                          id: sub.id,
+                          durationValue: sub.durationValue,
+                          durationUnit: sub.durationUnit,
+                          startDate: sub.startDate,
+                          endDate: sub.endDate,
+                          isCanceled: sub.isCanceled
+                        });
                         
-                        if (remainingDays > 0) {
-                          totalRemainingDays += remainingDays;
+                        if (sub.durationValue && sub.durationUnit) {
+                          // Convert duration to days and sum
+                          const durationInDays = sub.durationUnit === 'month' ? sub.durationValue * 30 : 
+                                                sub.durationUnit === 'week' ? sub.durationValue * 7 : 
+                                                sub.durationValue;
+                          console.log(`Subscription ${index + 1} duration in days:`, durationInDays);
+                          totalSubscriptionDays += durationInDays;
                         }
-                      }
-                    });
+                      });
+                    }
                   }
                   
-                  const displayText = totalRemainingDays > 0 ? `${totalRemainingDays} days` : 'No active subscriptions';
-                  
-                  console.log('=== Remaining Days Card DEBUG ===');
-                  console.log('All subscriptions:', client.subscriptions);
-                  console.log('Total remaining days:', totalRemainingDays);
-                  console.log('Display text:', displayText);
+                  console.log('Total subscription days:', totalSubscriptionDays);
+                  const displayText = totalSubscriptionDays > 0 ? `${totalSubscriptionDays} days` : 'No active subscriptions';
                   
                   return displayText;
                 })()}
@@ -2301,23 +2317,23 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                     </p>
                   </div>
                   
-                  <div className="bg-green-50 rounded-lg p-4">
+                  {/* <div className="bg-green-50 rounded-lg p-4">
                     <p className="text-sm font-medium text-green-900 mb-1">Subscription Amount</p>
                     <p className="text-xl font-bold text-green-700">
                       EGP {getFinalAmount(subscription).toFixed(2)}
                     </p>
-                  </div>
+                  </div> */}
                   
-                  <div className="bg-purple-50 rounded-lg p-4">
+                  {/* <div className="bg-purple-50 rounded-lg p-4">
                     <p className="text-sm font-medium text-purple-900 mb-1">Payment Method</p>
                     <p className="text-xl font-bold text-purple-700">
                       {subscription.paymentMethod || 'Not specified'}
                     </p>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Subscription Details */}
-                <div className="mt-6 mb-6">
+                {/* <div className="mt-6 mb-6">
                   <h5 className="font-medium text-gray-900 mb-4">Subscription Details</h5>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2363,7 +2379,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                       )}
                     </div>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Payment Timeline */}
                 <div className="mt-6">

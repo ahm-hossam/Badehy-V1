@@ -289,7 +289,6 @@ router.get('/', async (req: Request, res: Response) => {
         },
         subscriptions: {
           orderBy: { createdAt: 'desc' },
-          take: 1, // latest subscription only
           include: {
             installments: {
               include: {
