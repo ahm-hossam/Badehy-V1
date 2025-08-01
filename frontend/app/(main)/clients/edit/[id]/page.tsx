@@ -130,7 +130,7 @@ export default function EditClientPage() {
     paymentStatus: '',
     paymentMethod: '',
     packageId: '',
-    discount: '',
+    discount: 'no',
     priceBeforeDisc: '',
     discountValue: '',
     discountType: 'fixed',
@@ -159,18 +159,17 @@ export default function EditClientPage() {
   // Registration date
   const [registrationDate, setRegistrationDate] = useState('');
 
-  // Debug subscription state changes
-  useEffect(() => {
-    console.log('Subscription state changed:', subscription);
-    console.log('Discount field value:', subscription.discount);
-    console.log('showDiscountFields:', showDiscountFields);
-    console.log('showDiscountValue:', showDiscountValue);
-    console.log('Stack trace:', new Error().stack);
-  }, [subscription, showDiscountFields, showDiscountValue]);
+  // Track if subscription data has been loaded
+  const subscriptionLoadedRef = useRef(false);
 
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
+
+  // Reset subscription loaded ref when clientId changes
+  useEffect(() => {
+    subscriptionLoadedRef.current = false;
+  }, [clientId]);
 
   // Fetch the check-in form for this client (assume client data includes checkInFormId or similar)
   useEffect(() => {
@@ -191,7 +190,7 @@ export default function EditClientPage() {
           setSelectedLabels(data.labels.map((label: any) => label.id));
         }
         // Load subscription data
-        if (data?.subscriptions && data.subscriptions.length > 0) {
+        if (data?.subscriptions && data.subscriptions.length > 0 && !subscriptionLoadedRef.current) {
           const latestSubscription = data.subscriptions[0];
           console.log('Loading subscription data:', latestSubscription);
           console.log('discountApplied:', latestSubscription.discountApplied);
@@ -208,7 +207,7 @@ export default function EditClientPage() {
             priceBeforeDisc: String(latestSubscription.priceBeforeDisc || ''),
             discountValue: String(latestSubscription.discountValue || ''),
             priceAfterDisc: String(latestSubscription.priceAfterDisc || ''),
-            discount: latestSubscription.discountApplied ? 'yes' : 'no',
+            discount: (latestSubscription.discountApplied === true || latestSubscription.discountApplied === 1) ? 'yes' : 'no',
             discountType: latestSubscription.discountType || 'fixed',
           };
           
@@ -216,19 +215,14 @@ export default function EditClientPage() {
           console.log('About to set subscription state with discount:', formattedSubscription.discount);
           console.log('discountApplied from backend:', latestSubscription.discountApplied);
           console.log('Type of discountApplied:', typeof latestSubscription.discountApplied);
-          
-          // Set all states together to ensure proper timing
-          setSubscription(formattedSubscription);
-          setShowDiscountFields(true);
-          setShowDiscountValue(formattedSubscription.discount === 'yes');
-          setShowPriceFields(['paid', 'installments'].includes(formattedSubscription.paymentStatus));
-          setShowPaymentMethod(formattedSubscription.paymentStatus !== 'free' && formattedSubscription.paymentStatus !== 'free_trial');
-          setDiscountType(formattedSubscription.discountType || 'fixed');
-          
-          // Set registration date from client data
-          if (data.registrationDate) {
-            setRegistrationDate(new Date(data.registrationDate).toISOString().split('T')[0]);
-          }
+          console.log('Raw latestSubscription object:', latestSubscription);
+          console.log('=== DEBUG: Subscription Data ===');
+          console.log('discountApplied:', latestSubscription.discountApplied);
+          console.log('discountValue:', latestSubscription.discountValue);
+          console.log('discountType:', latestSubscription.discountType);
+          console.log('priceBeforeDisc:', latestSubscription.priceBeforeDisc);
+          console.log('priceAfterDisc:', latestSubscription.priceAfterDisc);
+          console.log('=== END DEBUG ===');
           
           // Calculate end date if start date and duration are available
           if (formattedSubscription.startDate && formattedSubscription.durationValue && formattedSubscription.durationUnit) {
@@ -251,8 +245,21 @@ export default function EditClientPage() {
             formattedSubscription.endDate = endDate.format('YYYY-MM-DD');
           }
           
-          // Set the subscription state once with all the data
+          // Set all states together to ensure proper timing
           setSubscription(formattedSubscription);
+          setShowDiscountFields(true);
+          setShowDiscountValue(formattedSubscription.discount === 'yes');
+          setShowPriceFields(['paid', 'installments'].includes(formattedSubscription.paymentStatus));
+          setShowPaymentMethod(formattedSubscription.paymentStatus !== 'free' && formattedSubscription.paymentStatus !== 'free_trial');
+          setDiscountType(formattedSubscription.discountType || 'fixed');
+          
+          // Mark as loaded to prevent overwrites
+          subscriptionLoadedRef.current = true;
+          
+          // Set registration date from client data
+          if (data.registrationDate) {
+            setRegistrationDate(new Date(data.registrationDate).toISOString().split('T')[0]);
+          }
           
           // Load installments
           if (latestSubscription.installments && latestSubscription.installments.length > 0) {
@@ -364,24 +371,25 @@ export default function EditClientPage() {
       .catch(() => console.error("Failed to load notes."));
   }, [clientId]);
 
-  // Handle package selection and auto-populate subscription fields
-  useEffect(() => {
-    if (subscription.packageId && packages.length > 0) {
-      const selectedPackage = packages.find((pkg: any) => pkg.id === parseInt(subscription.packageId));
-      if (selectedPackage) {
-        console.log('Auto-populating subscription fields from package:', selectedPackage);
-        setSubscription((prev: any) => ({
-          ...prev,
-          priceBeforeDisc: selectedPackage.priceBeforeDisc || '',
-          discount: selectedPackage.discount || 'no',
-          discountValue: selectedPackage.discountValue || '',
-          discountType: selectedPackage.discountType || 'fixed',
-          priceAfterDisc: selectedPackage.priceAfterDisc || '',
-        }));
-        setDiscountType(selectedPackage.discountType || 'fixed');
-      }
-    }
-  }, [subscription.packageId, packages]);
+  // Auto-populate subscription fields when package is selected (disabled for edit form)
+  // useEffect(() => {
+  //   if (subscription.packageId && packages.length > 0) {
+  //     const selectedPackage = packages.find((pkg: any) => pkg.id === parseInt(subscription.packageId));
+  //     if (selectedPackage) {
+  //       console.log('Auto-populating subscription fields from package:', selectedPackage);
+  //       setSubscription((prev: any) => ({
+  //         ...prev,
+  //         priceBeforeDisc: selectedPackage.priceBeforeDisc || '',
+  //         // Only set discount if it's not already set or if we're explicitly changing it
+  //         discount: prev.discount || selectedPackage.discount || 'no',
+  //         discountValue: selectedPackage.discountValue || '',
+  //         discountType: selectedPackage.discountType || 'fixed',
+  //         priceAfterDisc: selectedPackage.priceAfterDisc || '',
+  //       }));
+  //       setDiscountType(selectedPackage.discountType || 'fixed');
+  //     }
+  //   }
+  // }, [subscription.packageId, packages]);
 
   // Handle payment status changes and show/hide related fields
   useEffect(() => {
@@ -1002,22 +1010,16 @@ export default function EditClientPage() {
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Discount</label>
                   <Select
-                    key={`discount-${subscription.discount}-${showDiscountFields}`}
-                    value={subscription.discount || ''}
+                    value={subscription.discount}
                     onChange={e => {
                       handleSubscriptionChange('discount', e.target.value);
                       setShowDiscountValue(e.target.value === 'yes');
                       setShowPriceFields(e.target.value === 'yes');
                     }}
                   >
-                    <option value="">Select...</option>
                     <option value="no">No</option>
                     <option value="yes">Yes</option>
                   </Select>
-                  {/* Debug info */}
-                  <div className="text-xs text-gray-500 mt-1">
-                    Debug: subscription.discount = "{subscription.discount}" (type: {typeof subscription.discount})
-                  </div>
                 </div>
               )}
               {['paid', 'installments'].includes(subscription.paymentStatus) && (
