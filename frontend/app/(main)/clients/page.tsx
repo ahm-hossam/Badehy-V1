@@ -86,26 +86,54 @@ export default function ClientsPage() {
 
   // Helper function to get display name
   const getDisplayName = (client: Client) => {
+    console.log('getDisplayName called for client:', client.id);
+    console.log('client.fullName:', client.fullName);
+    console.log('client.latestSubmission:', client.latestSubmission);
+    
     // If fullName is not "Unknown Client", use it
     if (client.fullName && client.fullName !== "Unknown Client") {
+      console.log('Using client.fullName:', client.fullName);
       return client.fullName;
     }
     
     // Otherwise, try to get name from form answers
     if (client.latestSubmission?.answers) {
       const answers = client.latestSubmission.answers;
+      console.log('Form answers:', answers);
+      
+      // Prioritize name-related fields
+      const nameFields = ['fullName', 'name', 'firstName', 'first_name', 'full_name'];
+      for (const field of nameFields) {
+        for (const key in answers) {
+          if (key.toLowerCase().includes(field.toLowerCase()) && 
+              answers[key] && 
+              answers[key] !== 'undefined' &&
+              answers[key] !== '') {
+            console.log('Found name field:', key, 'with value:', answers[key]);
+            return answers[key];
+          }
+        }
+      }
+      
+      // If no name fields found, look for any field that might contain a name
       const nameKeys = Object.keys(answers).filter(key => 
         key !== 'filledByTrainer' && 
         answers[key] && 
         answers[key] !== 'undefined' &&
-        answers[key] !== ''
+        answers[key] !== '' &&
+        !['gender', 'age', 'email', 'phone', 'source'].some(excludeField => 
+          key.toLowerCase().includes(excludeField.toLowerCase())
+        )
       );
       
+      console.log('Filtered nameKeys:', nameKeys);
       if (nameKeys.length > 0) {
+        console.log('Using first available key:', nameKeys[0], 'with value:', answers[nameKeys[0]]);
         return answers[nameKeys[0]];
       }
     }
     
+    console.log('Returning "Unknown Client"');
     return "Unknown Client";
   };
 
@@ -182,9 +210,12 @@ export default function ClientsPage() {
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
       const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}&page=${page}&pageSize=${pageSize}`;
+      console.log('Loading clients from URL:', url);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
+        console.log('Received clients data:', data);
+        console.log('First client sample:', data.clients?.[0] || data[0]);
         setClients(data.clients || data); // support both array and paginated
         setTotal(data.total || (Array.isArray(data) ? data.length : 0));
       } else {
@@ -445,8 +476,8 @@ export default function ClientsPage() {
             <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
             <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
             <div className="flex justify-end gap-2 mt-6">
-              <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-              <Button type="button" onClick={confirmDeleteClient} className="bg-red-600 hover:bg-red-700 text-white">Delete</Button>
+                      <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+        <Button color="red" type="button" onClick={confirmDeleteClient}>Delete</Button>
             </div>
           </div>
         </Dialog>

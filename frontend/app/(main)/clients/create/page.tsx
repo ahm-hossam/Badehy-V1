@@ -1152,7 +1152,7 @@ export default function CreateClientPage() {
                 <label className="text-sm font-medium mb-1">Assign to Team Members</label>
                 <div className="border rounded-lg p-3 border-zinc-950/10">
                   {/* Main Trainer (Account Owner) */}
-                  <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
+                  {/* <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
                     <input
                       type="checkbox"
                       checked={selectedTeamMembers.includes('me')}
@@ -1166,7 +1166,7 @@ export default function CreateClientPage() {
                       className="rounded border-zinc-950/20"
                     />
                     <span className="text-sm font-medium text-blue-600">{user?.fullName || 'You'} (Main Trainer)</span>
-                  </label>
+                  </label> */}
                   
                   {/* Team Members */}
                   {teamMembers.length === 0 ? (

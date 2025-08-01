@@ -311,11 +311,29 @@ export default function ClientDetailsPage() {
     // Otherwise, try to get name from form answers
     if (client.latestSubmission?.answers) {
       const answers = client.latestSubmission.answers;
+      
+      // Prioritize name-related fields
+      const nameFields = ['fullName', 'name', 'firstName', 'first_name', 'full_name'];
+      for (const field of nameFields) {
+        for (const key in answers) {
+          if (key.toLowerCase().includes(field.toLowerCase()) && 
+              answers[key] && 
+              answers[key] !== 'undefined' &&
+              answers[key] !== '') {
+            return answers[key];
+          }
+        }
+      }
+      
+      // If no name fields found, look for any field that might contain a name
       const nameKeys = Object.keys(answers).filter(key => 
         key !== 'filledByTrainer' && 
         answers[key] && 
         answers[key] !== 'undefined' &&
-        answers[key] !== ''
+        answers[key] !== '' &&
+        !['gender', 'age', 'email', 'phone', 'source'].some(excludeField => 
+          key.toLowerCase().includes(excludeField.toLowerCase())
+        )
       );
       
       if (nameKeys.length > 0) {
@@ -1849,29 +1867,45 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
               <p className="text-sm font-medium text-red-900">Remaining Days</p>
               <p className="text-lg font-semibold text-red-700">
                 {(() => {
-                  // Calculate total remaining days across all active subscriptions
-                  let totalRemainingDays = 0;
+                  // Calculate total subscription duration across all active subscriptions
+                  let totalSubscriptionDays = 0;
                   
-                  if (client.subscriptions && client.subscriptions.length > 0) {
-                    client.subscriptions.forEach(subscription => {
-                      if (!subscription.isCanceled && subscription.endDate) {
-                        const endDate = new Date(subscription.endDate);
-                        const currentDate = new Date();
-                        const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                  if (client.subscriptions && Array.isArray(client.subscriptions) && client.subscriptions.length > 0) {
+                    // Get all active (non-canceled) subscriptions
+                    const activeSubscriptions = client.subscriptions.filter(sub => 
+                      sub && !sub.isCanceled
+                    );
+                    
+                    console.log('=== Subscription Duration DEBUG ===');
+                    console.log('All subscriptions:', client.subscriptions);
+                    console.log('Active subscriptions:', activeSubscriptions);
+                    
+                    // Calculate total duration for each active subscription
+                    if (Array.isArray(activeSubscriptions)) {
+                      activeSubscriptions.forEach((sub, index) => {
+                        console.log(`Subscription ${index + 1}:`, {
+                          id: sub.id,
+                          durationValue: sub.durationValue,
+                          durationUnit: sub.durationUnit,
+                          startDate: sub.startDate,
+                          endDate: sub.endDate,
+                          isCanceled: sub.isCanceled
+                        });
                         
-                        if (remainingDays > 0) {
-                          totalRemainingDays += remainingDays;
+                        if (sub.durationValue && sub.durationUnit) {
+                          // Convert duration to days and sum
+                          const durationInDays = sub.durationUnit === 'month' ? sub.durationValue * 30 : 
+                                                sub.durationUnit === 'week' ? sub.durationValue * 7 : 
+                                                sub.durationValue;
+                          console.log(`Subscription ${index + 1} duration in days:`, durationInDays);
+                          totalSubscriptionDays += durationInDays;
                         }
-                      }
-                    });
+                      });
+                    }
                   }
                   
-                  const displayText = totalRemainingDays > 0 ? `${totalRemainingDays} days` : 'No active subscriptions';
-                  
-                  console.log('=== Remaining Days Card DEBUG ===');
-                  console.log('All subscriptions:', client.subscriptions);
-                  console.log('Total remaining days:', totalRemainingDays);
-                  console.log('Display text:', displayText);
+                  console.log('Total subscription days:', totalSubscriptionDays);
+                  const displayText = totalSubscriptionDays > 0 ? `${totalSubscriptionDays} days` : 'No active subscriptions';
                   
                   return displayText;
                 })()}
@@ -1937,30 +1971,32 @@ function ProfileTab({ client, editing, onSave, saving }: {
   onSave: () => void;
   saving: boolean;
 }) {
-  const [selectedForm, setSelectedForm] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch the form data based on selectedFormId
-  useEffect(() => {
-    const fetchFormData = async () => {
-      if (client.selectedFormId) {
-        setLoading(true);
-        try {
-          const response = await fetch(`/api/checkins/${client.selectedFormId}`);
-          if (response.ok) {
-            const form = await response.json();
-            setSelectedForm(form);
-          }
-        } catch (error) {
-          console.error('Error fetching form data:', error);
-        } finally {
-          setLoading(false);
+  // Get all unique form submissions to show data from all forms
+  const getAllFormData = () => {
+    if (!client.submissions || client.submissions.length === 0) {
+      return [];
+    }
+
+    // Group submissions by form to avoid duplicates
+    const formGroups = new Map();
+    
+    client.submissions.forEach(submission => {
+      if (submission.form && submission.answers) {
+        const formId = submission.form.id;
+        if (!formGroups.has(formId)) {
+          formGroups.set(formId, {
+            form: submission.form,
+            submission: submission,
+            answers: submission.answers
+          });
         }
       }
-    };
+    });
 
-    fetchFormData();
-  }, [client.selectedFormId, client.id]); // Add client.id as dependency to refresh when client data changes
+    return Array.from(formGroups.values());
+  };
 
   return (
     <div className="p-6">
@@ -2024,16 +2060,27 @@ function ProfileTab({ client, editing, onSave, saving }: {
                   </div>
                 );
               })}
-              
-              {/* Form responses - only show non-core questions to avoid duplication */}
-              {selectedForm && client.latestSubmission?.answers && selectedForm.questions?.map((question: any, index: number) => {
+            </div>
+          </div>
+        )}
+
+        {/* Form Responses from All Forms */}
+        {!loading && getAllFormData().map((formData, formIndex) => (
+          <div key={formData.form.id} className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+              <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
+              {formData.form.name} Responses
+            </h4>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {formData.form.questions?.map((question: any) => {
                 // Skip core questions that are already displayed above
                 const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender', 'Age', 'Source'];
                 if (coreQuestionLabels.includes(question.label)) {
                   return null; // Skip this question as it's already shown in core fields
                 }
                 
-                const answer = client.latestSubmission?.answers?.[String(question.id)];
+                const answer = formData.answers?.[String(question.id)];
                 const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
                 
                 return (
@@ -2047,7 +2094,7 @@ function ProfileTab({ client, editing, onSave, saving }: {
                         </p>
                         {!hasAnswer && (
                           <p className="text-xs text-gray-500 mt-1">
-                            This answer was not stored when the client was created
+                            This answer was not provided in {formData.form.name}
                           </p>
                         )}
                       </div>
@@ -2057,19 +2104,16 @@ function ProfileTab({ client, editing, onSave, saving }: {
               })}
             </div>
           </div>
-        )}
+        ))}
 
         {/* No Form Data Message */}
-        {!loading && (!selectedForm || !client.latestSubmission?.answers || Object.keys(client.latestSubmission?.answers || {}).length === 0) && (
+        {!loading && getAllFormData().length === 0 && (
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <div className="text-center py-8">
               <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Form Responses</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Form Data Available</h3>
               <p className="text-gray-500">
-                {client.selectedFormId 
-                  ? "This client hasn't filled out the selected form yet."
-                  : "No form was selected for this client."
-                }
+                This client hasn't filled out any forms yet, or the form data is not available.
               </p>
             </div>
           </div>
@@ -2085,99 +2129,67 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
   getPaymentStatusColor: (status: string) => string;
 }) {
   // Helper functions for payment calculations
-          const calculateTotalPaidAmount = (subscription: any) => {
-          console.log('=== calculateTotalPaidAmount DEBUG ===');
-          console.log('Payment status:', subscription.paymentStatus);
-          console.log('Price after disc:', subscription.priceAfterDisc);
-          console.log('Price before disc:', subscription.priceBeforeDisc);
-          console.log('Discount applied:', subscription.discountApplied);
-          console.log('Discount type:', subscription.discountType);
-          console.log('Discount value:', subscription.discountValue);
-          
-          let totalAmount = 0;
-          
-          // Calculate original subscription amount
-          if (subscription.paymentStatus?.toLowerCase() === 'paid') {
-            console.log('Processing PAID subscription...');
-            // For paid subscriptions, return the final amount (with discount if applied)
-            // If priceAfterDisc is null but discount is applied, calculate it
-            let amount = 0;
-            if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
-              amount = subscription.priceAfterDisc;
-              console.log('Using priceAfterDisc:', amount);
-            } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
-              console.log('Calculating discount...');
-              // Calculate the discounted amount
-              if (subscription.discountType === 'percentage') {
-                amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
-                console.log('Percentage discount calculation:', subscription.priceBeforeDisc, '-', (subscription.priceBeforeDisc * subscription.discountValue / 100), '=', amount);
-              } else {
-                amount = subscription.priceBeforeDisc - subscription.discountValue;
-                console.log('Fixed discount calculation:', subscription.priceBeforeDisc, '-', subscription.discountValue, '=', amount);
-              }
+  const calculateTotalPaidAmount = (subscription: any) => {
+    let totalAmount = 0;
+    
+    // Calculate original subscription amount
+    if (subscription.paymentStatus?.toLowerCase() === 'paid') {
+      // For paid subscriptions, return the final amount (with discount if applied)
+      let amount = 0;
+      if (subscription.discountApplied && subscription.priceBeforeDisc) {
+        // Calculate the discounted amount
+        if (subscription.discountType === 'percentage') {
+          amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
+        } else {
+          amount = subscription.priceBeforeDisc - subscription.discountValue;
+        }
+      } else {
+        amount = subscription.priceBeforeDisc || 0;
+      }
+      totalAmount += amount;
+    } else if (subscription.installments && subscription.installments.length > 0) {
+      // For installment subscriptions, sum all paid installments
+      const amount = subscription.installments
+        .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
+        .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
+      totalAmount += amount;
+    }
+    // For free subscriptions, amount is always 0
+    
+    // Add renewal amounts
+    if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
+      subscription.renewalHistory.forEach((renewal: any) => {
+        if (renewal.paymentStatus?.toLowerCase() === 'paid') {
+          let renewalAmount = 0;
+          if (renewal.discountApplied && renewal.priceBeforeDisc) {
+            if (renewal.discountType === 'percentage') {
+              renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
             } else {
-              amount = subscription.priceBeforeDisc || 0;
-              console.log('Using priceBeforeDisc:', amount);
+              renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
             }
-            console.log('Final PAID amount:', amount);
-            totalAmount += amount;
-          } else if (subscription.installments && subscription.installments.length > 0) {
-            console.log('Processing INSTALLMENT subscription...');
-            // For installment subscriptions, sum all paid installments
-            const amount = subscription.installments
-              .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
-              .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
-            console.log('INSTALLMENT amount:', amount);
-            totalAmount += amount;
-          } else if (subscription.paymentStatus?.toLowerCase() === 'free') {
-            console.log('Processing FREE subscription...');
-            // For free subscriptions, amount is always 0
-            console.log('FREE subscription amount: 0');
-            // totalAmount += 0; // No need to add 0
+          } else {
+            renewalAmount = renewal.priceBeforeDisc || 0;
           }
-          
-          // Add renewal amounts
-          if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
-            console.log('Processing renewal history...');
-            subscription.renewalHistory.forEach((renewal: any) => {
-              if (renewal.paymentStatus?.toLowerCase() === 'paid') {
-                let renewalAmount = 0;
-                if (renewal.priceAfterDisc !== null && renewal.priceAfterDisc !== undefined) {
-                  renewalAmount = renewal.priceAfterDisc;
-                } else if (renewal.discountApplied && renewal.priceBeforeDisc) {
-                  if (renewal.discountType === 'percentage') {
-                    renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
-                  } else {
-                    renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
-                  }
-                } else {
-                  renewalAmount = renewal.priceBeforeDisc || 0;
-                }
-                console.log('Renewal amount:', renewalAmount);
-                totalAmount += renewalAmount;
-              }
-            });
-          }
+          totalAmount += renewalAmount;
+        }
+      });
+    }
 
-          // Subtract refund amount if subscription was canceled and refund was given
-          if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
-            console.log('Subtracting refund amount:', subscription.refundAmount);
-            totalAmount -= subscription.refundAmount;
-            // Ensure total doesn't go below 0
-            if (totalAmount < 0) totalAmount = 0;
-            console.log('Amount after refund deduction:', totalAmount);
-          }
-          
-          console.log('Total amount including renewals and refunds:', totalAmount);
-          return totalAmount;
-        };
+    // Subtract refund amount if subscription was canceled and refund was given
+    if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
+      totalAmount -= subscription.refundAmount;
+      // Ensure total doesn't go below 0
+      if (totalAmount < 0) totalAmount = 0;
+    }
+    
+    return totalAmount;
+  };
 
   const getFinalAmount = (subscription: any) => {
-    // Always return the price after discount if available, otherwise price before discount
+    // Always calculate the discount properly, don't rely on priceAfterDisc from database
     let amount = 0;
-    if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
-      amount = subscription.priceAfterDisc;
-    } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
+    
+    if (subscription.discountApplied && subscription.priceBeforeDisc) {
       // Calculate the discounted amount
       if (subscription.discountType === 'percentage') {
         amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
@@ -2187,12 +2199,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
     } else {
       amount = subscription.priceBeforeDisc || 0;
     }
-    console.log('getFinalAmount - priceAfterDisc:', subscription.priceAfterDisc);
-    console.log('getFinalAmount - priceBeforeDisc:', subscription.priceBeforeDisc);
-    console.log('getFinalAmount - discountApplied:', subscription.discountApplied);
-    console.log('getFinalAmount - discountType:', subscription.discountType);
-    console.log('getFinalAmount - discountValue:', subscription.discountValue);
-    console.log('getFinalAmount - final amount:', amount);
+    
     return amount;
   };
 
@@ -2208,9 +2215,6 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 
   const getPaymentTimeline = (subscription: any) => {
     const timeline = [];
-    
-    console.log('=== getPaymentTimeline DEBUG ===');
-    console.log('Subscription:', subscription);
     
     // Add subscription creation - use startDate instead of current date
     timeline.push({
@@ -2270,22 +2274,8 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       });
     }
 
-    console.log('Timeline before sorting:', timeline.map(item => ({
-      id: item.id,
-      date: item.date,
-      description: item.description,
-      type: item.type
-    })));
-
     // Sort by date (newest first)
     const sortedTimeline = timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    console.log('Timeline after sorting:', sortedTimeline.map(item => ({
-      id: item.id,
-      date: item.date,
-      description: item.description,
-      type: item.type
-    })));
     
     return sortedTimeline;
   };
@@ -2303,26 +2293,10 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       ) : (
         <div className="space-y-6">
           {client.subscriptions.map((subscription, index) => {
-            console.log('=== SUBSCRIPTION DEBUG ===');
-            console.log('Full subscription object:', JSON.stringify(subscription, null, 2));
-            console.log('Payment status:', subscription.paymentStatus);
-            console.log('Price before disc:', subscription.priceBeforeDisc);
-            console.log('Price after disc:', subscription.priceAfterDisc);
-            console.log('Discount applied:', subscription.discountApplied);
-            console.log('Discount type:', subscription.discountType);
-            console.log('Discount value:', subscription.discountValue);
-            console.log('Type of priceAfterDisc:', typeof subscription.priceAfterDisc);
-            console.log('Is priceAfterDisc null?', subscription.priceAfterDisc === null);
-            console.log('Is priceAfterDisc undefined?', subscription.priceAfterDisc === undefined);
-            
             const totalPaid = calculateTotalPaidAmount(subscription);
             const totalInstallmentsPaid = calculateTotalInstallmentsPaid(subscription);
             const remainingInstallments = calculateRemainingInstallments(subscription);
             const paymentTimeline = getPaymentTimeline(subscription);
-            
-            console.log('Calculated total paid:', totalPaid);
-            console.log('Final amount:', getFinalAmount(subscription));
-            console.log('=== END DEBUG ===');
 
             return (
               <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -2335,7 +2309,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                     <div>
                       <h4 className="font-semibold text-gray-900">Subscription #{subscription.id}</h4>
                       <p className="text-sm text-gray-600">
-                        Created on {new Date().toLocaleDateString()}
+                        Created on {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString() : 'Unknown date'}
                       </p>
                     </div>
                   </div>
@@ -2345,14 +2319,77 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                 </div>
                 
                 {/* Summary Cards */}
-                <div className="mb-6">
-                  <div className="bg-blue-50 rounded-lg p-4 max-w-xs">
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4">
                     <p className="text-sm font-medium text-blue-900 mb-1">Total Paid Amount</p>
                     <p className="text-xl font-bold text-blue-700">
                       EGP {totalPaid.toFixed(2)}
                     </p>
                   </div>
+                  
+                  {/* <div className="bg-green-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-green-900 mb-1">Subscription Amount</p>
+                    <p className="text-xl font-bold text-green-700">
+                      EGP {getFinalAmount(subscription).toFixed(2)}
+                    </p>
+                  </div> */}
+                  
+                  {/* <div className="bg-purple-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-purple-900 mb-1">Payment Method</p>
+                    <p className="text-xl font-bold text-purple-700">
+                      {subscription.paymentMethod || 'Not specified'}
+                    </p>
+                  </div> */}
                 </div>
+
+                {/* Subscription Details */}
+                {/* <div className="mt-6 mb-6">
+                  <h5 className="font-medium text-gray-900 mb-4">Subscription Details</h5>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Start Date</p>
+                        <p className="text-sm text-gray-900">
+                          {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString() : 'Not set'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">End Date</p>
+                        <p className="text-sm text-gray-900">
+                          {subscription.endDate ? new Date(subscription.endDate).toLocaleDateString() : 'Not set'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Duration</p>
+                        <p className="text-sm text-gray-900">
+                          {subscription.durationValue} {subscription.durationUnit}(s)
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Original Price</p>
+                        <p className="text-sm text-gray-900">
+                          EGP {subscription.priceBeforeDisc?.toFixed(2) || '0.00'}
+                        </p>
+                      </div>
+                      {subscription.discountApplied && (
+                        <>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Discount</p>
+                            <p className="text-sm text-gray-900">
+                              {subscription.discountType === 'percentage' ? `${subscription.discountValue}%` : `EGP ${subscription.discountValue}`}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Final Price</p>
+                            <p className="text-sm text-gray-900">
+                              EGP {getFinalAmount(subscription).toFixed(2)}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div> */}
 
                 {/* Payment Timeline */}
                 <div className="mt-6">

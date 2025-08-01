@@ -48,7 +48,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     if (isRenewal && originalSubscriptionId) {
-      // Handle renewal - extend existing subscription
+      // Handle renewal - extend existing subscription and add to renewal history
       const originalSubscription = await prisma.subscription.findUnique({
         where: { id: Number(originalSubscriptionId) },
       });
@@ -79,7 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
 
       existingHistory.push(renewalRecord);
 
-      // Update the original subscription
+      // Update the original subscription with new end date and renewal history
       const updatedSubscription = await prisma.subscription.update({
         where: { id: Number(originalSubscriptionId) },
         data: {
