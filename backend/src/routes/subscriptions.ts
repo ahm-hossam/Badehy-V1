@@ -48,7 +48,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     if (isRenewal && originalSubscriptionId) {
-      // Handle renewal - create a NEW subscription instead of extending the existing one
+      // Handle renewal - extend existing subscription and add to renewal history
       const originalSubscription = await prisma.subscription.findUnique({
         where: { id: Number(originalSubscriptionId) },
       });
@@ -57,27 +57,34 @@ router.post('/', async (req: Request, res: Response) => {
         return res.status(404).json({ error: 'Original subscription not found' });
       }
 
-      // Create a NEW subscription for the renewal
-      const newSubscription = await prisma.subscription.create({
+      // Get existing renewal history or initialize empty array
+      const existingHistory = originalSubscription.renewalHistory as any[] || [];
+      
+      // Add new renewal record
+      const renewalRecord = {
+        id: Date.now(), // Simple ID for the renewal record
+        renewedAt: new Date().toISOString(),
+        originalEndDate: originalSubscription.endDate.toISOString(),
+        newEndDate: endDate,
+        durationValue: Number(durationValue),
+        durationUnit,
+        paymentStatus,
+        paymentMethod: paymentMethod || null,
+        priceBeforeDisc: priceBeforeDisc ? Number(priceBeforeDisc) : null,
+        discountApplied: discountApplied || false,
+        discountType: discountType || null,
+        discountValue: discountValue ? Number(discountValue) : null,
+        priceAfterDisc: priceAfterDisc ? Number(priceAfterDisc) : null,
+      };
+
+      existingHistory.push(renewalRecord);
+
+      // Update the original subscription with new end date and renewal history
+      const updatedSubscription = await prisma.subscription.update({
+        where: { id: Number(originalSubscriptionId) },
         data: {
-          clientId: Number(clientId),
-          packageId: Number(packageId),
-          startDate: new Date(startDate),
           endDate: new Date(endDate),
-          durationValue: Number(durationValue),
-          durationUnit,
-          paymentStatus,
-          paymentMethod: paymentMethod || null,
-          priceBeforeDisc: priceBeforeDisc ? Number(priceBeforeDisc) : null,
-          discountApplied: discountApplied || false,
-          discountType: discountType || null,
-          discountValue: discountValue ? Number(discountValue) : null,
-          priceAfterDisc: priceAfterDisc ? Number(priceAfterDisc) : null,
-          isOnHold: false,
-          holdStartDate: null,
-          holdEndDate: null,
-          holdDuration: null,
-          holdDurationUnit: null,
+          renewalHistory: existingHistory,
         },
         include: {
           client: true,
@@ -85,17 +92,16 @@ router.post('/', async (req: Request, res: Response) => {
         },
       });
 
-      console.log('New subscription created for renewal:', {
-        subscriptionId: newSubscription.id,
-        clientId: newSubscription.clientId,
-        paymentStatus: newSubscription.paymentStatus,
-        startDate: newSubscription.startDate,
-        endDate: newSubscription.endDate,
+      console.log('Subscription renewed successfully:', {
+        subscriptionId: updatedSubscription.id,
+        clientId: updatedSubscription.clientId,
+        paymentStatus: updatedSubscription.paymentStatus,
+        renewalCount: existingHistory.length,
       });
 
       res.status(200).json({ 
         success: true, 
-        subscription: newSubscription,
+        subscription: updatedSubscription,
         message: 'Subscription renewed successfully',
         isRenewal: true
       });
