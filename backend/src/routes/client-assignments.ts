@@ -50,7 +50,23 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
 
-    res.json(assignments);
+    // Transform assignments to handle trainer's team member record
+    const transformedAssignments = assignments.map(assignment => {
+      // If the team member is the trainer (role is 'Owner'), mark it as 'me'
+      if (assignment.teamMember && assignment.teamMember.role === 'Owner' && assignment.teamMember.id === assignment.assignedBy) {
+        return {
+          ...assignment,
+          teamMember: {
+            ...assignment.teamMember,
+            id: 'me', // Mark as 'me' for frontend compatibility
+            fullName: assignment.teamMember.fullName + ' (Main Trainer)',
+          },
+        };
+      }
+      return assignment;
+    });
+
+    res.json(transformedAssignments);
   } catch (error) {
     console.error('Error fetching client assignments:', error);
     res.status(500).json({ error: 'Failed to fetch client assignments' });
@@ -80,16 +96,94 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Check if team member exists and belongs to trainer
-    const teamMember = await prisma.teamMember.findFirst({
-      where: {
-        id: parseInt(teamMemberId),
-        trainerId: parseInt(assignedBy),
-      },
-    });
+    // Check if this is the trainer assigning themselves
+    if (parseInt(teamMemberId) === parseInt(assignedBy)) {
+      // Trainer is assigning themselves - check if they have a team member record
+      let trainerTeamMember = await prisma.teamMember.findFirst({
+        where: {
+          trainerId: parseInt(assignedBy),
+          role: 'Owner',
+        },
+      });
+      
+      // If no team member record exists for the trainer, create one
+      if (!trainerTeamMember) {
+        const trainer = await prisma.registered.findUnique({
+          where: { id: parseInt(assignedBy) },
+        });
+        
+        if (!trainer) {
+          return res.status(404).json({ error: 'Trainer not found' });
+        }
+        
+        trainerTeamMember = await prisma.teamMember.create({
+          data: {
+            trainerId: parseInt(assignedBy),
+            fullName: trainer.fullName,
+            email: trainer.email,
+            role: 'Owner',
+            password: '', // Empty password for trainer's team member record
+            phone: trainer.phoneNumber,
+          },
+        });
+      }
+      
+      // Use the trainer's team member ID for the assignment
+      const actualTeamMemberId = trainerTeamMember.id;
+      
+      // Check if assignment already exists
+      const existingAssignment = await prisma.clientTeamAssignment.findUnique({
+        where: {
+          clientId_teamMemberId: {
+            clientId: parseInt(clientId),
+            teamMemberId: actualTeamMemberId,
+          },
+        },
+      });
 
-    if (!teamMember) {
-      return res.status(404).json({ error: 'Team member not found' });
+      if (existingAssignment) {
+        return res.status(400).json({ error: 'Client is already assigned to this team member' });
+      }
+
+      const assignment = await prisma.clientTeamAssignment.create({
+        data: {
+          clientId: parseInt(clientId),
+          teamMemberId: actualTeamMemberId,
+          assignedBy: parseInt(assignedBy),
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
+            },
+          },
+          teamMember: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      return res.status(201).json(assignment);
+    } else {
+      // Check if team member exists and belongs to trainer
+      const teamMember = await prisma.teamMember.findFirst({
+        where: {
+          id: parseInt(teamMemberId),
+          trainerId: parseInt(assignedBy),
+        },
+      });
+
+      if (!teamMember) {
+        return res.status(404).json({ error: 'Team member not found' });
+      }
     }
 
     // Check if assignment already exists

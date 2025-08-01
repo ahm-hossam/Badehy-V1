@@ -14,6 +14,33 @@ router.get('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Trainer ID is required' });
     }
 
+    // Check if trainer has a team member record, create one if not
+    let trainerTeamMember = await prisma.teamMember.findFirst({
+      where: {
+        trainerId: parseInt(trainerId as string),
+        role: 'Owner',
+      },
+    });
+
+    if (!trainerTeamMember) {
+      const trainer = await prisma.registered.findUnique({
+        where: { id: parseInt(trainerId as string) },
+      });
+
+      if (trainer) {
+        trainerTeamMember = await prisma.teamMember.create({
+          data: {
+            trainerId: parseInt(trainerId as string),
+            fullName: trainer.fullName,
+            email: trainer.email,
+            role: 'Owner',
+            password: '', // Empty password for trainer's team member record
+            phone: trainer.phoneNumber,
+          },
+        });
+      }
+    }
+
     const teamMembers = await prisma.teamMember.findMany({
       where: {
         trainerId: parseInt(trainerId as string),
@@ -38,7 +65,19 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
 
-    res.json(teamMembers);
+    // Transform the response to mark the trainer's team member as 'me'
+    const transformedTeamMembers = teamMembers.map(member => {
+      if (member.role === 'Owner') {
+        return {
+          ...member,
+          id: 'me', // Mark as 'me' for frontend compatibility
+          fullName: member.fullName + ' (Main Trainer)',
+        };
+      }
+      return member;
+    });
+
+    res.json(transformedTeamMembers);
   } catch (error) {
     console.error('Error fetching team members:', error);
     res.status(500).json({ error: 'Failed to fetch team members' });

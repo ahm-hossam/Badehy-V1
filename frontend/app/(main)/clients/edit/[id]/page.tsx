@@ -118,7 +118,7 @@ export default function EditClientPage() {
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<number[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<(number | string)[]>([]);
   const [clientAssignments, setClientAssignments] = useState<any[]>([]);
   const subscriptionLoadedRef = useRef(false);
 
@@ -788,12 +788,14 @@ export default function EditClientPage() {
           
           // Add new assignments
           for (const teamMemberId of selectedTeamMembers) {
+            // Handle 'me' case by sending trainer's ID instead
+            const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
             await fetch('/api/client-assignments', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 clientId: parseInt(clientId),
-                teamMemberId: teamMemberId,
+                teamMemberId: actualTeamMemberId,
                 assignedBy: user.id,
               }),
             });
@@ -1748,6 +1750,24 @@ export default function EditClientPage() {
             <div className="flex flex-col">
               <label className="text-sm font-medium mb-1">Assign to Team Members</label>
               <div className="border rounded-lg p-3 border-zinc-950/10">
+                {/* Main Trainer (Account Owner) */}
+                <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={selectedTeamMembers.includes('me')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedTeamMembers(prev => [...prev, 'me']);
+                      } else {
+                        setSelectedTeamMembers(prev => prev.filter(id => id !== 'me'));
+                      }
+                    }}
+                    className="rounded border-zinc-950/20"
+                  />
+                  <span className="text-sm font-medium text-blue-600">{user?.fullName || 'You'} (Main Trainer)</span>
+                </label>
+                
+                {/* Team Members */}
                 {teamMembers.length === 0 ? (
                   <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
                 ) : (

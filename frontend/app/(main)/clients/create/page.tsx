@@ -128,13 +128,19 @@ export default function CreateClientPage() {
   const [showAddPackage, setShowAddPackage] = useState(false);
   const [packageError, setPackageError] = useState('');
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
-  const [selectedTeamMembers, setSelectedTeamMembers] = useState<number[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<(number | string)[]>([]);
+  const [user, setUser] = useState<any>(null);
   type InstallmentRow = { id?: string; date: string; amount: string; image: File | null; nextDate: string; remaining?: string; };
   const [installments, setInstallments] = useState<InstallmentRow[]>([{ date: '', amount: '', image: null, nextDate: '' }]);
 
+  // Initialize user
+  useEffect(() => {
+    const storedUser = getStoredUser();
+    setUser(storedUser);
+  }, []);
+
   // Fetch trainer's check-in forms
   useEffect(() => {
-    const user = getStoredUser();
     if (!user) return;
     setLoading(true);
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins?trainerId=${user.id}`)
@@ -142,33 +148,29 @@ export default function CreateClientPage() {
       .then(data => setForms(data || []))
       .catch(() => setError("Failed to load check-in forms."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   // Fetch trainer's labels
   useEffect(() => {
-    const user = getStoredUser();
     if (!user) return;
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => setLabels(data || []))
       .catch(() => console.error("Failed to load labels."));
-  }, []);
+  }, [user]);
 
   // Fetch trainer's team members
   useEffect(() => {
-    const user = getStoredUser();
     if (!user) return;
     fetch(`/api/team-members?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => setTeamMembers(data || []))
       .catch(() => console.error("Failed to load team members."));
-  }, []);
+  }, [user]);
 
   // Refresh forms when selected form changes to get latest data
   useEffect(() => {
-    if (selectedFormId) {
-      const user = getStoredUser();
-      if (!user) return;
+    if (selectedFormId && user) {
       fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins?trainerId=${user.id}`)
         .then(res => res.json())
         .then(data => {
@@ -181,7 +183,7 @@ export default function CreateClientPage() {
         })
         .catch(() => console.error("Failed to refresh forms."));
     }
-  }, [selectedFormId]);
+  }, [selectedFormId, user]);
 
   // Set selected form object when selectedFormId changes
   useEffect(() => {
@@ -268,10 +270,13 @@ export default function CreateClientPage() {
     try {
       // Process ALL questions from the form as custom questions
       const allFormQuestions = (selectedForm.questions || []).map((q: any) => {
-        if (!q || !q.label) return null;
+        if (!q || !q.label) {
+          console.log('Skipping question due to missing q or q.label:', q);
+          return null;
+        }
         
         // Treat ALL form questions as custom questions with question IDs as keys
-        return {
+        const field = {
           key: q.id, // Use question ID as key (111, 112, etc.)
           label: q.label,
           type: mapFormTypeToInputType(q.type || 'text'),
@@ -279,6 +284,9 @@ export default function CreateClientPage() {
           options: q.options || [],
           isCustom: true, // Always treat as custom
         };
+        
+        console.log('Created field for question:', q.label, 'with key:', q.id, 'type:', field.type);
+        return field;
       }).filter(Boolean); // Remove null entries
       
       console.log('Selected form questions:', selectedForm.questions);
@@ -287,9 +295,10 @@ export default function CreateClientPage() {
       return allFormQuestions;
     } catch (error) {
       console.error('Error processing check-in fields:', error);
+      console.error('Error stack:', (error as Error).stack);
       return [];
     }
-  }, [selectedForm, coreFields, selectedFormId]);
+  }, [selectedForm, selectedFormId]);
 
   // Core questions that are NOT in the check-in form
   const coreFieldsNotInForm = useMemo(() => {
@@ -358,7 +367,6 @@ export default function CreateClientPage() {
     setLoading(true);
     setError(null);
     try {
-      const user = getStoredUser();
       if (!user) throw new Error("Not authenticated");
       // Before sending, ensure correct types for injuriesHealthNotes and mealCount
       const formDataToSend = { ...formData };
@@ -463,12 +471,14 @@ export default function CreateClientPage() {
           // Create team member assignments if any are selected
           if (selectedTeamMembers.length > 0) {
             for (const teamMemberId of selectedTeamMembers) {
+              // Handle 'me' case by sending trainer's ID instead
+              const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
               await fetch('/api/client-assignments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   clientId: data.id,
-                  teamMemberId: teamMemberId,
+                  teamMemberId: actualTeamMemberId,
                   assignedBy: user.id,
                 }),
               });
@@ -499,16 +509,14 @@ export default function CreateClientPage() {
 
   // Fetch packages for the trainer
   useEffect(() => {
-    const user = getStoredUser();
     if (!user) return;
     fetch(`/api/packages?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => setPackages(data || []));
-  }, []);
+  }, [user]);
 
   const handleAddPackage = async () => {
     setPackageError('');
-    const user = getStoredUser();
     if (!user) return;
     if (!newPackageName.trim()) {
       setPackageError('Package name is required.');
@@ -568,7 +576,6 @@ export default function CreateClientPage() {
   // Labels handlers
   const handleAddLabel = async () => {
     setLabelError('');
-    const user = getStoredUser();
     if (!user) return;
     if (!newLabelName.trim()) {
       setLabelError('Label name is required.');
@@ -1133,6 +1140,24 @@ export default function CreateClientPage() {
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Assign to Team Members</label>
                 <div className="border rounded-lg p-3 border-zinc-950/10">
+                  {/* Main Trainer (Account Owner) */}
+                  <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
+                    <input
+                      type="checkbox"
+                      checked={selectedTeamMembers.includes('me')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedTeamMembers(prev => [...prev, 'me']);
+                        } else {
+                          setSelectedTeamMembers(prev => prev.filter(id => id !== 'me'));
+                        }
+                      }}
+                      className="rounded border-zinc-950/20"
+                    />
+                    <span className="text-sm font-medium text-blue-600">{user?.fullName || 'You'} (Main Trainer)</span>
+                  </label>
+                  
+                  {/* Team Members */}
                   {teamMembers.length === 0 ? (
                     <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
                   ) : (
