@@ -591,7 +591,7 @@ export default function ClientDetailsPage() {
       setRefundType('none');
       setRefundAmount('');
       setShowCancelModal(true);
-      setDropdownOpen(false);
+    setDropdownOpen(false);
     }
   };
 
@@ -1856,8 +1856,8 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
                     client.subscriptions.forEach(subscription => {
                       if (!subscription.isCanceled && subscription.endDate) {
                         const endDate = new Date(subscription.endDate);
-                        const currentDate = new Date();
-                        const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                      const currentDate = new Date();
+                      const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                         
                         if (remainingDays > 0) {
                           totalRemainingDays += remainingDays;
@@ -1882,9 +1882,9 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
                   if (!activeSub || !activeSub.endDate) return 'no active plan';
                   
                   const endDate = new Date(activeSub.endDate);
-                  const currentDate = new Date();
-                  const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-                  return remainingDays > 0 ? 'until expiration' : 'subscription ended';
+                      const currentDate = new Date();
+                      const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                      return remainingDays > 0 ? 'until expiration' : 'subscription ended';
                 })()}
               </p>
             </div>
@@ -2325,39 +2325,39 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
             console.log('=== END DEBUG ===');
 
             return (
-              <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
+            <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
                 {/* Subscription Header */}
                 <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-500 rounded-lg">
-                      <CreditCardIcon className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Subscription #{subscription.id}</h4>
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-500 rounded-lg">
+                    <CreditCardIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">Subscription #{subscription.id}</h4>
                       <p className="text-sm text-gray-600">
                         Created on {new Date().toLocaleDateString()}
                       </p>
-                    </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getPaymentStatusColor(subscription.paymentStatus)}`}>
-                    {subscription.paymentStatus}
-                  </span>
                 </div>
-                
+                <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getPaymentStatusColor(subscription.paymentStatus)}`}>
+                  {subscription.paymentStatus}
+                </span>
+              </div>
+              
                 {/* Summary Cards */}
                 <div className="mb-6">
                   <div className="bg-blue-50 rounded-lg p-4 max-w-xs">
                     <p className="text-sm font-medium text-blue-900 mb-1">Total Paid Amount</p>
                     <p className="text-xl font-bold text-blue-700">
                       EGP {totalPaid.toFixed(2)}
-                    </p>
-                  </div>
+                  </p>
                 </div>
+              </div>
 
                 {/* Payment Timeline */}
-                <div className="mt-6">
+              <div className="mt-6">
                   <h5 className="font-medium text-gray-900 mb-4">Payment History Timeline</h5>
-                  <div className="space-y-3">
+                <div className="space-y-3">
                     {paymentTimeline.length > 0 ? (
                       paymentTimeline.map((payment, idx) => (
                         <div key={payment.id} className={`flex items-center space-x-4 p-4 rounded-lg ${
@@ -2366,10 +2366,10 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                           <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
                             payment.type === 'refund' ? 'bg-red-500' : 
                             payment.isPaid ? 'bg-green-500' : 'bg-yellow-500'
-                          }`}></div>
+                        }`}></div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
-                              <div>
+                        <div>
                                 <p className={`font-medium ${
                                   payment.type === 'refund' ? 'text-red-900' : 'text-gray-900'
                                 }`}>
@@ -2383,8 +2383,8 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                                 }`}>
                                   {new Date(payment.date).toLocaleDateString()} at {new Date(payment.date).toLocaleTimeString()}
                                 </p>
-                              </div>
-                              <div className="text-right">
+                      </div>
+                      <div className="text-right">
                                 <p className={`font-semibold ${
                                   payment.type === 'refund' ? 'text-red-900' : 'text-gray-900'
                                 }`}>
@@ -2395,21 +2395,21 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                                   payment.isPaid ? 'text-green-600' : 'text-yellow-600'
                                 }`}>
                                   {payment.status}
-                                </p>
-                              </div>
-                            </div>
+                        </p>
+                      </div>
+                    </div>
                             {payment.type === 'installment' && (
                               <div className="mt-2 text-xs text-gray-500">
                                 Installment payment
-                              </div>
-                            )}
+                    </div>
+                  )}
                             {payment.type === 'refund' && (
                               <div className="mt-2 text-xs text-red-600">
                                 Refund processed
-                              </div>
+                </div>
                             )}
-                          </div>
-                        </div>
+              </div>
+            </div>
                       ))
                     ) : (
                       <div className="text-center py-8 text-gray-500">
@@ -2610,8 +2610,8 @@ function CheckinsTab({ client }: { client: Client }) {
           })}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+      <div className="text-center py-12">
+        <ClipboardDocumentListIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Check-in Forms</h3>
           <p className="text-gray-500">This client hasn't submitted any check-in forms yet.</p>
         </div>

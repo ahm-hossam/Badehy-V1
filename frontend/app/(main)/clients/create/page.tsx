@@ -463,15 +463,20 @@ export default function CreateClientPage() {
           // Create team member assignments if any are selected
           if (selectedTeamMembers.length > 0) {
             for (const teamMemberId of selectedTeamMembers) {
-              await fetch('/api/client-assignments', {
+              const assignmentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/client-assignments`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  clientId: data.id,
+                  clientId: data.client.id,
                   teamMemberId: teamMemberId,
                   assignedBy: user.id,
                 }),
               });
+              if (!assignmentResponse.ok) {
+                const errorData = await assignmentResponse.json();
+                console.error('Failed to create team assignment:', errorData);
+                throw new Error(`Failed to create team assignment: ${JSON.stringify(errorData)}`);
+              }
             }
           }
           
@@ -939,32 +944,6 @@ export default function CreateClientPage() {
                   </Select>
                 </div>
               )}
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Assign to Team Members</label>
-                <div className="border rounded-lg p-3 border-zinc-950/10">
-                  {teamMembers.length === 0 ? (
-                    <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
-                  ) : (
-                    teamMembers.map((member) => (
-                      <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
-                        <input
-                          type="checkbox"
-                          checked={selectedTeamMembers.includes(member.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedTeamMembers(prev => [...prev, member.id]);
-                            } else {
-                              setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
-                            }
-                          }}
-                          className="rounded border-zinc-950/20"
-                        />
-                        <span className="text-sm">{member.fullName} ({member.role})</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
               {['paid', 'installments'].includes(subscription.paymentStatus) && (
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Price Before Discount</label>
@@ -1152,6 +1131,34 @@ export default function CreateClientPage() {
                 </div>
               </div>
             )}
+
+            {/* Team Members Assignment Section */}
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Assign Team Members</h2>
+              <div className="border rounded-lg p-3 border-zinc-950/10">
+                {teamMembers.length === 0 ? (
+                  <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
+                ) : (
+                  teamMembers.map((member) => (
+                    <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedTeamMembers.includes(member.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTeamMembers(prev => [...prev, member.id]);
+                          } else {
+                            setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
+                          }
+                        }}
+                        className="rounded border-zinc-950/20"
+                      />
+                      <span className="text-sm">{member.fullName} ({member.role})</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
 
             {/* Extras Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

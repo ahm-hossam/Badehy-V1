@@ -321,10 +321,9 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     // Check team assignment (required)
-    const teamAssignments = await prisma.clientTeamAssignment.findMany({
-      where: { clientId: client.id },
-    });
+    const teamAssignments = client.teamAssignments || [];
     const teamAssignmentComplete = teamAssignments.length > 0;
+    console.log(`Client ${client.id} team assignments:`, teamAssignments);
 
     // Check subscription details (required)
     let subscriptionComplete = false;
@@ -397,6 +396,7 @@ router.get('/', async (req: Request, res: Response) => {
     const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
       return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission };
     }));
+    console.log('Backend - Clients with completion data:', clientsWithCompletion.map(c => ({ id: c.id, teamAssignments: c.teamAssignments })));
     res.json(clientsWithCompletion);
   } catch (error) {
     console.error(error);
@@ -486,10 +486,9 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
 
     // Check team assignment (required)
-    const teamAssignments = await prisma.clientTeamAssignment.findMany({
-      where: { clientId: client.id },
-    });
+    const teamAssignments = client.teamAssignments || [];
     const teamAssignmentComplete = teamAssignments.length > 0;
+    console.log(`Client ${client.id} team assignments:`, teamAssignments);
 
     // Check subscription details (required)
     let subscriptionComplete = false;
@@ -557,7 +556,39 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
-    res.json({ ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission });
+    
+    // Map check-in answers to client fields for frontend use
+    const mappedClient = { ...client };
+    const coreFieldsToMap = ['fullName', 'phone', 'email', 'gender', 'age', 'source'];
+    
+    // Only map core fields to client data if they're NOT present in the check-in form
+    for (const field of coreFieldsToMap) {
+      const value = getValue(field);
+      // Only set the client field if it's not already populated AND the field exists in check-in answers
+      if (value !== undefined && value !== null && value !== '' && 
+          (client as any)[field] === undefined || (client as any)[field] === null || (client as any)[field] === '') {
+        (mappedClient as any)[field] = value;
+      }
+    }
+    
+    // Map answers with proper labels for frontend display
+    let mappedAnswers: Record<string, any> = {};
+    if (latestSubmission && latestSubmission.answers) {
+      const answers = latestSubmission.answers as Record<string, any>;
+      for (const q of formQuestions) {
+        if (answers.hasOwnProperty(String(q.id))) {
+          mappedAnswers[q.label] = answers[String(q.id)];
+        }
+      }
+    }
+    
+    // Update the latestSubmission with mapped answers
+    const mappedLatestSubmission = latestSubmission ? {
+      ...latestSubmission,
+      answers: mappedAnswers
+    } : null;
+    
+    res.json({ ...mappedClient, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission: mappedLatestSubmission });
   } catch (error) {
     console.error('Error fetching client:', error);
     res.status(500).json({ error: 'Failed to fetch client' });

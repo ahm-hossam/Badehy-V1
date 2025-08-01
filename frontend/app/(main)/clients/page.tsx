@@ -182,9 +182,12 @@ export default function ClientsPage() {
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
       const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}&page=${page}&pageSize=${pageSize}`;
+      console.log('Loading clients from URL:', url);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
+        console.log('Clients data received:', data);
+        console.log('First client team assignments:', data.clients?.[0]?.teamAssignments || data[0]?.teamAssignments);
         setClients(data.clients || data); // support both array and paginated
         setTotal(data.total || (Array.isArray(data) ? data.length : 0));
       } else {

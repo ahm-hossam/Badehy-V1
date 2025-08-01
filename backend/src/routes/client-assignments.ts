@@ -60,9 +60,13 @@ router.get('/', async (req: Request, res: Response) => {
 // POST /api/client-assignments - Assign client to team member
 router.post('/', async (req: Request, res: Response) => {
   try {
+    console.log('Backend - Received request body:', req.body);
+    console.log('Backend - Request headers:', req.headers);
     const { clientId, teamMemberId, assignedBy } = req.body;
+    console.log('Backend - Extracted values:', { clientId, teamMemberId, assignedBy });
 
     if (!clientId || !teamMemberId || !assignedBy) {
+      console.log('Backend - Missing required fields:', { clientId, teamMemberId, assignedBy });
       return res.status(400).json({
         error: 'Client ID, team member ID, and assigned by are required',
       });
