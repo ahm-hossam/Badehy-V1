@@ -939,32 +939,6 @@ export default function CreateClientPage() {
                   </Select>
                 </div>
               )}
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Assign to Team Members</label>
-                <div className="border rounded-lg p-3 border-zinc-950/10">
-                  {teamMembers.length === 0 ? (
-                    <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
-                  ) : (
-                    teamMembers.map((member) => (
-                      <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
-                        <input
-                          type="checkbox"
-                          checked={selectedTeamMembers.includes(member.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedTeamMembers(prev => [...prev, member.id]);
-                            } else {
-                              setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
-                            }
-                          }}
-                          className="rounded border-zinc-950/20"
-                        />
-                        <span className="text-sm">{member.fullName} ({member.role})</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
               {['paid', 'installments'].includes(subscription.paymentStatus) && (
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Price Before Discount</label>
@@ -1152,6 +1126,37 @@ export default function CreateClientPage() {
                 </div>
               </div>
             )}
+
+            {/* Team Members Assignment Section */}
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Team Members Assignment</h2>
+              <div className="flex flex-col">
+                <label className="text-sm font-medium mb-1">Assign to Team Members</label>
+                <div className="border rounded-lg p-3 border-zinc-950/10">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
+                  ) : (
+                    teamMembers.map((member) => (
+                      <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamMembers.includes(member.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTeamMembers(prev => [...prev, member.id]);
+                            } else {
+                              setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
+                            }
+                          }}
+                          className="rounded border-zinc-950/20"
+                        />
+                        <span className="text-sm">{member.fullName} ({member.role})</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* Extras Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

@@ -120,9 +120,47 @@ export default function EditClientPage() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<number[]>([]);
   const [clientAssignments, setClientAssignments] = useState<any[]>([]);
+  const subscriptionLoadedRef = useRef(false);
+
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
+
+  // Reset subscription loaded ref when clientId changes
+  useEffect(() => {
+    subscriptionLoadedRef.current = false;
+  }, [clientId]);
+
+  // Fetch team members
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/team-members?trainerId=${user.id}`)
+      .then(res => res.json())
+      .then(data => setTeamMembers(data || []))
+      .catch(() => console.error("Failed to load team members."));
+  }, [user?.id]);
+
+  // Fetch client's team assignments
+  useEffect(() => {
+    if (!user?.id || !clientId) return;
+    console.log('Fetching team assignments for client:', clientId);
+    fetch(`/api/client-assignments?trainerId=${user.id}&clientId=${clientId}`)
+      .then(res => {
+        console.log('Team assignments response status:', res.status);
+        return res.json();
+      })
+      .then(data => {
+        console.log('Team assignments data:', data);
+        setClientAssignments(data || []);
+        // Set selected team members from assignments
+        const assignedMemberIds = data.map((assignment: any) => assignment.teamMemberId);
+        setSelectedTeamMembers(assignedMemberIds);
+      })
+      .catch(err => {
+        console.error('Failed to fetch team assignments:', err);
+        setClientAssignments([]);
+      });
+  }, [user?.id, clientId]);
 
   // Fetch the check-in form for this client (assume client data includes checkInFormId or similar)
   useEffect(() => {
@@ -1561,32 +1599,6 @@ export default function EditClientPage() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Assign to Team Members</label>
-                <div className="border rounded-lg p-3 border-zinc-950/10">
-                  {teamMembers.length === 0 ? (
-                    <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
-                  ) : (
-                    teamMembers.map((member) => (
-                      <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
-                        <input
-                          type="checkbox"
-                          checked={selectedTeamMembers.includes(member.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedTeamMembers(prev => [...prev, member.id]);
-                            } else {
-                              setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
-                            }
-                          }}
-                          className="rounded border-zinc-950/20"
-                        />
-                        <span className="text-sm">{member.fullName} ({member.role})</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
               {showPaymentMethod && (
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Payment Method</label>
@@ -1701,7 +1713,7 @@ export default function EditClientPage() {
                   </TableHead>
                   <TableBody>
                     {installments.map((inst, idx) => (
-                      <TableRow key={inst.id || `installment-${idx}`}>
+                      <TableRow key={inst.id || idx}>
                         <TableCell>
                           <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
                         </TableCell>
@@ -1729,6 +1741,37 @@ export default function EditClientPage() {
               </div>
             </div>
           )}
+
+          {/* Team Members Assignment Section */}
+          <div className="mb-6 bg-white rounded-xl shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">Team Members Assignment</h2>
+            <div className="flex flex-col">
+              <label className="text-sm font-medium mb-1">Assign to Team Members</label>
+              <div className="border rounded-lg p-3 border-zinc-950/10">
+                {teamMembers.length === 0 ? (
+                  <p className="text-sm text-gray-500">No team members available. Create team members first.</p>
+                ) : (
+                  teamMembers.map((member) => (
+                    <label key={member.id} className="flex items-center gap-2 mb-2 last:mb-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedTeamMembers.includes(member.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTeamMembers(prev => [...prev, member.id]);
+                          } else {
+                            setSelectedTeamMembers(prev => prev.filter(id => id !== member.id));
+                          }
+                        }}
+                        className="rounded border-zinc-950/20"
+                      />
+                      <span className="text-sm">{member.fullName} ({member.role})</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* Extras Section */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
