@@ -53,7 +53,7 @@ router.get('/', async (req: Request, res: Response) => {
     // Transform assignments to handle trainer's team member record
     const transformedAssignments = assignments.map(assignment => {
       // If the team member is the trainer (role is 'Owner'), mark it as 'me'
-      if (assignment.teamMember && assignment.teamMember.role === 'Owner' && assignment.teamMember.id === assignment.assignedBy) {
+      if (assignment.teamMember && assignment.teamMember.role === 'Owner') {
         return {
           ...assignment,
           teamMember: {
@@ -77,6 +77,8 @@ router.get('/', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { clientId, teamMemberId, assignedBy } = req.body;
+    
+    console.log('Creating client assignment:', { clientId, teamMemberId, assignedBy });
 
     if (!clientId || !teamMemberId || !assignedBy) {
       return res.status(400).json({
@@ -98,6 +100,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Check if this is the trainer assigning themselves
     if (parseInt(teamMemberId) === parseInt(assignedBy)) {
+      console.log('Trainer is assigning themselves');
       // Trainer is assigning themselves - check if they have a team member record
       let trainerTeamMember = await prisma.teamMember.findFirst({
         where: {
@@ -106,8 +109,11 @@ router.post('/', async (req: Request, res: Response) => {
         },
       });
       
+      console.log('Existing trainer team member:', trainerTeamMember);
+      
       // If no team member record exists for the trainer, create one
       if (!trainerTeamMember) {
+        console.log('Creating new trainer team member record');
         const trainer = await prisma.registered.findUnique({
           where: { id: parseInt(assignedBy) },
         });
@@ -126,10 +132,12 @@ router.post('/', async (req: Request, res: Response) => {
             phone: trainer.phoneNumber,
           },
         });
+        console.log('Created trainer team member:', trainerTeamMember);
       }
       
       // Use the trainer's team member ID for the assignment
       const actualTeamMemberId = trainerTeamMember.id;
+      console.log('Using actual team member ID:', actualTeamMemberId);
       
       // Check if assignment already exists
       const existingAssignment = await prisma.clientTeamAssignment.findUnique({
@@ -171,6 +179,7 @@ router.post('/', async (req: Request, res: Response) => {
         },
       });
 
+      console.log('Assignment created successfully:', assignment);
       return res.status(201).json(assignment);
     } else {
       // Check if team member exists and belongs to trainer

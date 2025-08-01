@@ -321,10 +321,7 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     // Check team assignment (required)
-    const teamAssignments = await prisma.clientTeamAssignment.findMany({
-      where: { clientId: client.id },
-    });
-    const teamAssignmentComplete = teamAssignments.length > 0;
+    const teamAssignmentComplete = client.teamAssignments && client.teamAssignments.length > 0;
 
     // Check subscription details (required)
     let subscriptionComplete = false;
@@ -486,10 +483,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
 
     // Check team assignment (required)
-    const teamAssignments = await prisma.clientTeamAssignment.findMany({
-      where: { clientId: client.id },
-    });
-    const teamAssignmentComplete = teamAssignments.length > 0;
+    const teamAssignmentComplete = client.teamAssignments && client.teamAssignments.length > 0;
 
     // Check subscription details (required)
     let subscriptionComplete = false;

@@ -153,7 +153,7 @@ export default function EditClientPage() {
         console.log('Team assignments data:', data);
         setClientAssignments(data || []);
         // Set selected team members from assignments
-        const assignedMemberIds = data.map((assignment: any) => assignment.teamMemberId);
+        const assignedMemberIds = data.map((assignment: any) => assignment.teamMember.id);
         setSelectedTeamMembers(assignedMemberIds);
       })
       .catch(err => {
@@ -175,6 +175,13 @@ export default function EditClientPage() {
         console.log('EditClientPage - submissions:', data?.submissions);
         console.log('EditClientPage - latestSubmission:', data?.latestSubmission);
         console.log('EditClientPage - latestSubmission answers:', data?.latestSubmission?.answers);
+        
+        // Process the answers from latestSubmission
+        if (data?.latestSubmission?.answers) {
+          console.log('EditClientPage - Setting answers from latestSubmission:', data.latestSubmission.answers);
+          setAnswers(data.latestSubmission.answers);
+        }
+        
         setFormData(data || {});
         // Initialize selected labels from client data
         if (data?.labels && Array.isArray(data.labels)) {
@@ -343,17 +350,7 @@ export default function EditClientPage() {
     }
   }, [user?.id, clientId]);
 
-  // Fetch client's team assignments
-  useEffect(() => {
-    if (!user?.id || !clientId) return;
-    fetch(`/api/client-assignments?trainerId=${user.id}&clientId=${clientId}`)
-      .then(res => res.json())
-      .then(data => {
-        setClientAssignments(data || []);
-        setSelectedTeamMembers(data.map((assignment: any) => assignment.teamMember.id));
-      })
-      .catch(() => console.error("Failed to load client assignments."));
-  }, [user?.id, clientId]);
+
 
   // Helper: map static question labels to field keys (with label variations)
   const staticLabelToKey: Record<string, string> = {};
@@ -1300,20 +1297,17 @@ export default function EditClientPage() {
                 {checkInFields.map((field, fieldIndex) => {
                   // Use a unique key for each field
                   const checkinFieldKey = `${field.key || field.label || `checkin-field-${fieldIndex}`}-checkin`;
-                  // Determine the correct value and update handler for each field
-                  const isCoreField = coreKeys.has(field.key);
-                  const value = isCoreField ? (formData[field.key] ?? '') : (answers[field.id] ?? '');
+                  // For check-in fields, always use answers[field.id] since these come from the form submission
+                  const value = answers[field.id] ?? '';
                   
                   // Debug: log the field categorization
-                  console.log(`Field: ${field.label}, Key: ${field.key}, IsCore: ${isCoreField}, Value:`, value);
+                  console.log(`Field: ${field.label}, Key: ${field.key}, ID: ${field.id}, Value:`, value);
+                  console.log(`Answers state:`, answers);
+                  console.log(`FormData state:`, formData);
                   
-                  // Create a unified change handler
+                  // Create a unified change handler - always update answers for check-in fields
                   const handleFieldChange = (newValue: any) => {
-                    if (isCoreField) {
-                      setFormData((prev: any) => ({ ...prev, [field.key]: newValue }));
-                    } else {
-                      setAnswers((prev: any) => ({ ...prev, [field.id]: newValue }));
-                    }
+                    setAnswers((prev: any) => ({ ...prev, [field.id]: newValue }));
                   };
                   
                   // Render custom questions

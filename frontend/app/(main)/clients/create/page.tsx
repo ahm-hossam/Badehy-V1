@@ -470,18 +470,29 @@ export default function CreateClientPage() {
           
           // Create team member assignments if any are selected
           if (selectedTeamMembers.length > 0) {
+            console.log('Creating team assignments for:', selectedTeamMembers);
             for (const teamMemberId of selectedTeamMembers) {
               // Handle 'me' case by sending trainer's ID instead
               const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
-              await fetch('/api/client-assignments', {
+              console.log('Creating assignment with teamMemberId:', actualTeamMemberId, 'for client:', data.client.id);
+              
+              const assignmentResponse = await fetch('/api/client-assignments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  clientId: data.id,
+                  clientId: data.client.id,
                   teamMemberId: actualTeamMemberId,
                   assignedBy: user.id,
                 }),
               });
+              
+              if (assignmentResponse.ok) {
+                const assignmentData = await assignmentResponse.json();
+                console.log('Assignment created successfully:', assignmentData);
+              } else {
+                const errorData = await assignmentResponse.json();
+                console.error('Failed to create assignment:', errorData);
+              }
             }
           }
           
