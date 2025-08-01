@@ -37,28 +37,58 @@ router.post('/', async (req: Request, res: Response) => {
       let clientPhone = client.phone;
       
       if (answers) {
-        // Look for name and phone in answers
-        Object.entries(answers).forEach(([key, value]) => {
+        console.log('Form answers for client creation:', answers);
+        
+        // First, try to find name fields by looking for specific patterns
+        const nameFields = ['fullName', 'name', 'firstName', 'first_name', 'full_name'];
+        for (const [key, value] of Object.entries(answers)) {
           if (value && value !== 'undefined' && value !== '') {
-            // Check if this is a name field (common patterns)
-            if (!clientName && (
-              typeof value === 'string' && 
-              value.length > 2 && 
-              !value.includes('@') && 
-              !value.includes('+') &&
-              !value.match(/^\d+$/)
-            )) {
+            // Check if this key contains name-related terms
+            const keyLower = key.toLowerCase();
+            if (nameFields.some(nameField => keyLower.includes(nameField.toLowerCase()))) {
+              console.log('Found name field:', key, 'with value:', value);
               clientName = value;
-            }
-            // Check if this is a phone field (contains numbers and possibly +)
-            if (!clientPhone && (
-              typeof value === 'string' && 
-              (value.includes('+') || value.match(/^\d+$/) || value.match(/^\d+[\d\s\-\(\)]+$/))
-            )) {
-              clientPhone = value;
+              break;
             }
           }
-        });
+        }
+        
+        // If no name found by key patterns, look for values that look like names
+        if (!clientName || clientName === 'Unknown Client') {
+          for (const [key, value] of Object.entries(answers)) {
+            if (value && value !== 'undefined' && value !== '') {
+              // Check if this is a name field (common patterns)
+              if (
+                typeof value === 'string' && 
+                value.length > 2 && 
+                !value.includes('@') && 
+                !value.includes('+') &&
+                !value.match(/^\d+$/) &&
+                !['male', 'female', 'other'].includes(value.toLowerCase()) &&
+                !['facebook ads', 'instagram', 'google', 'referral', 'other'].includes(value.toLowerCase())
+              ) {
+                console.log('Found potential name value:', key, 'with value:', value);
+                clientName = value;
+                break;
+              }
+            }
+          }
+        }
+        
+        // Look for phone field
+        for (const [key, value] of Object.entries(answers)) {
+          if (value && value !== 'undefined' && value !== '') {
+            // Check if this is a phone field (contains numbers and possibly +)
+            if (
+              typeof value === 'string' && 
+              (value.includes('+') || value.match(/^\d+$/) || value.match(/^\d+[\d\s\-\(\)]+$/))
+            ) {
+              console.log('Found phone field:', key, 'with value:', value);
+              clientPhone = value;
+              break;
+            }
+          }
+        }
       }
       
       clientName = clientName || 'Unknown Client';
@@ -161,7 +191,11 @@ router.post('/', async (req: Request, res: Response) => {
           discountApplied: discountApplied,
           discountType: discountType,
           discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-          priceAfterDisc: null, // Temporarily set to null to fix TypeScript error
+          priceAfterDisc: discountApplied && subscription.priceBeforeDisc && subscription.discountValue 
+            ? (subscription.discountType === 'percentage' 
+                ? subscription.priceBeforeDisc * (1 - subscription.discountValue / 100)
+                : subscription.priceBeforeDisc - subscription.discountValue)
+            : null,
           // Initialize hold fields
           isOnHold: false,
           holdStartDate: null,
@@ -306,8 +340,56 @@ router.get('/', async (req: Request, res: Response) => {
       // Helper function to get value from client or answers
       const getValue = (field: string) => {
         let value = (client as any)[field];
-        if (value === undefined || value === null || value === '') {
-          value = answerByLabel[normalize(field)];
+        
+        // Special handling for fullName field - if it's gender, try to find actual name
+        if (field === 'fullName' && (value === 'Male' || value === 'Female' || value === 'Other')) {
+          console.log('Client fullName is gender, looking for actual name in form answers');
+          // Look for name-related fields in form answers
+          const nameFields = ['fullName', 'name', 'firstName', 'first_name', 'full_name'];
+          for (const q of formQuestions) {
+            const questionLabel = q.label.toLowerCase();
+            if (nameFields.some(nameField => questionLabel.includes(nameField.toLowerCase()))) {
+              const answerValue = answers[String(q.id)];
+              if (answerValue && answerValue !== 'undefined' && answerValue !== '') {
+                console.log('Found actual name in form:', q.label, '=', answerValue);
+                value = answerValue;
+                break;
+              }
+            }
+          }
+          
+          // If still no name found, look for any value that looks like a name
+          if (value === 'Male' || value === 'Female' || value === 'Other') {
+            for (const q of formQuestions) {
+              const answerValue = answers[String(q.id)];
+              if (answerValue && answerValue !== 'undefined' && answerValue !== '') {
+                // Check if this looks like a name (not gender, not email, not phone, etc.)
+                if (
+                  typeof answerValue === 'string' && 
+                  answerValue.length > 2 && 
+                  !answerValue.includes('@') && 
+                  !answerValue.includes('+') &&
+                  !answerValue.match(/^\d+$/) &&
+                  !['male', 'female', 'other'].includes(answerValue.toLowerCase()) &&
+                  !['facebook ads', 'instagram', 'google', 'referral', 'other'].includes(answerValue.toLowerCase())
+                ) {
+                  console.log('Found potential name value:', q.label, '=', answerValue);
+                  value = answerValue;
+                  break;
+                }
+              }
+            }
+          }
+        } else if (value === undefined || value === null || value === '') {
+          // Try to find the answer by matching field name to question label
+          for (const q of formQuestions) {
+            const normalizedLabel = normalize(q.label);
+            const normalizedField = normalize(field);
+            if (normalizedLabel === normalizedField) {
+              value = answers[String(q.id)];
+              break;
+            }
+          }
         }
         return value;
       };
@@ -469,7 +551,15 @@ router.get('/:id', async (req: Request, res: Response) => {
     const getValue = (field: string) => {
       let value = (client as any)[field];
       if (value === undefined || value === null || value === '') {
-        value = answerByLabel[normalize(field)];
+        // Try to find the answer by matching field name to question label
+        for (const q of formQuestions) {
+          const normalizedLabel = normalize(q.label);
+          const normalizedField = normalize(field);
+          if (normalizedLabel === normalizedField) {
+            value = answersObj[String(q.id)];
+            break;
+          }
+        }
       }
       return value;
     };
@@ -648,7 +738,12 @@ router.put('/:id', async (req: Request, res: Response) => {
               discountApplied: Boolean(subscription.discountApplied),
               discountType: subscription.discountType,
               discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : 
+                (Boolean(subscription.discountApplied) && subscription.priceBeforeDisc && subscription.discountValue 
+                  ? (subscription.discountType === 'percentage' 
+                      ? subscription.priceBeforeDisc * (1 - subscription.discountValue / 100)
+                      : subscription.priceBeforeDisc - subscription.discountValue)
+                  : null),
             },
           });
           console.log('Updated subscription:', updatedSubscription);
@@ -669,7 +764,12 @@ router.put('/:id', async (req: Request, res: Response) => {
               discountApplied: Boolean(subscription.discountApplied),
               discountType: subscription.discountType,
               discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : 
+                (Boolean(subscription.discountApplied) && subscription.priceBeforeDisc && subscription.discountValue 
+                  ? (subscription.discountType === 'percentage' 
+                      ? subscription.priceBeforeDisc * (1 - subscription.discountValue / 100)
+                      : subscription.priceBeforeDisc - subscription.discountValue)
+                  : null),
               // Initialize hold fields
               isOnHold: false,
               holdStartDate: null,

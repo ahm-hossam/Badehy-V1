@@ -311,11 +311,29 @@ export default function ClientDetailsPage() {
     // Otherwise, try to get name from form answers
     if (client.latestSubmission?.answers) {
       const answers = client.latestSubmission.answers;
+      
+      // Prioritize name-related fields
+      const nameFields = ['fullName', 'name', 'firstName', 'first_name', 'full_name'];
+      for (const field of nameFields) {
+        for (const key in answers) {
+          if (key.toLowerCase().includes(field.toLowerCase()) && 
+              answers[key] && 
+              answers[key] !== 'undefined' &&
+              answers[key] !== '') {
+            return answers[key];
+          }
+        }
+      }
+      
+      // If no name fields found, look for any field that might contain a name
       const nameKeys = Object.keys(answers).filter(key => 
         key !== 'filledByTrainer' && 
         answers[key] && 
         answers[key] !== 'undefined' &&
-        answers[key] !== ''
+        answers[key] !== '' &&
+        !['gender', 'age', 'email', 'phone', 'source'].some(excludeField => 
+          key.toLowerCase().includes(excludeField.toLowerCase())
+        )
       );
       
       if (nameKeys.length > 0) {
