@@ -1971,30 +1971,32 @@ function ProfileTab({ client, editing, onSave, saving }: {
   onSave: () => void;
   saving: boolean;
 }) {
-  const [selectedForm, setSelectedForm] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch the form data based on selectedFormId
-  useEffect(() => {
-    const fetchFormData = async () => {
-      if (client.selectedFormId) {
-        setLoading(true);
-        try {
-          const response = await fetch(`/api/checkins/${client.selectedFormId}`);
-          if (response.ok) {
-            const form = await response.json();
-            setSelectedForm(form);
-          }
-        } catch (error) {
-          console.error('Error fetching form data:', error);
-        } finally {
-          setLoading(false);
+  // Get all unique form submissions to show data from all forms
+  const getAllFormData = () => {
+    if (!client.submissions || client.submissions.length === 0) {
+      return [];
+    }
+
+    // Group submissions by form to avoid duplicates
+    const formGroups = new Map();
+    
+    client.submissions.forEach(submission => {
+      if (submission.form && submission.answers) {
+        const formId = submission.form.id;
+        if (!formGroups.has(formId)) {
+          formGroups.set(formId, {
+            form: submission.form,
+            submission: submission,
+            answers: submission.answers
+          });
         }
       }
-    };
+    });
 
-    fetchFormData();
-  }, [client.selectedFormId, client.id]); // Add client.id as dependency to refresh when client data changes
+    return Array.from(formGroups.values());
+  };
 
   return (
     <div className="p-6">
@@ -2058,16 +2060,27 @@ function ProfileTab({ client, editing, onSave, saving }: {
                   </div>
                 );
               })}
-              
-              {/* Form responses - only show non-core questions to avoid duplication */}
-              {selectedForm && client.latestSubmission?.answers && selectedForm.questions?.map((question: any, index: number) => {
+            </div>
+          </div>
+        )}
+
+        {/* Form Responses from All Forms */}
+        {!loading && getAllFormData().map((formData, formIndex) => (
+          <div key={formData.form.id} className="bg-white border border-gray-200 rounded-lg p-6">
+            <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
+              <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
+              {formData.form.name} Responses
+            </h4>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {formData.form.questions?.map((question: any) => {
                 // Skip core questions that are already displayed above
                 const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender', 'Age', 'Source'];
                 if (coreQuestionLabels.includes(question.label)) {
                   return null; // Skip this question as it's already shown in core fields
                 }
                 
-                const answer = client.latestSubmission?.answers?.[String(question.id)];
+                const answer = formData.answers?.[String(question.id)];
                 const hasAnswer = answer && answer !== 'Not specified' && answer !== '' && answer !== 'undefined';
                 
                 return (
@@ -2081,7 +2094,7 @@ function ProfileTab({ client, editing, onSave, saving }: {
                         </p>
                         {!hasAnswer && (
                           <p className="text-xs text-gray-500 mt-1">
-                            This answer was not stored when the client was created
+                            This answer was not provided in {formData.form.name}
                           </p>
                         )}
                       </div>
@@ -2091,19 +2104,16 @@ function ProfileTab({ client, editing, onSave, saving }: {
               })}
             </div>
           </div>
-        )}
+        ))}
 
         {/* No Form Data Message */}
-        {!loading && (!selectedForm || !client.latestSubmission?.answers || Object.keys(client.latestSubmission?.answers || {}).length === 0) && (
+        {!loading && getAllFormData().length === 0 && (
           <div className="bg-white border border-gray-200 rounded-lg p-6">
             <div className="text-center py-8">
               <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Form Responses</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Form Data Available</h3>
               <p className="text-gray-500">
-                {client.selectedFormId 
-                  ? "This client hasn't filled out the selected form yet."
-                  : "No form was selected for this client."
-                }
+                This client hasn't filled out any forms yet, or the form data is not available.
               </p>
             </div>
           </div>
