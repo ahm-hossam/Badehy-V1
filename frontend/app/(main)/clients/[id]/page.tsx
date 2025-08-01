@@ -2103,99 +2103,67 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
   getPaymentStatusColor: (status: string) => string;
 }) {
   // Helper functions for payment calculations
-          const calculateTotalPaidAmount = (subscription: any) => {
-          console.log('=== calculateTotalPaidAmount DEBUG ===');
-          console.log('Payment status:', subscription.paymentStatus);
-          console.log('Price after disc:', subscription.priceAfterDisc);
-          console.log('Price before disc:', subscription.priceBeforeDisc);
-          console.log('Discount applied:', subscription.discountApplied);
-          console.log('Discount type:', subscription.discountType);
-          console.log('Discount value:', subscription.discountValue);
-          
-          let totalAmount = 0;
-          
-          // Calculate original subscription amount
-          if (subscription.paymentStatus?.toLowerCase() === 'paid') {
-            console.log('Processing PAID subscription...');
-            // For paid subscriptions, return the final amount (with discount if applied)
-            // If priceAfterDisc is null but discount is applied, calculate it
-            let amount = 0;
-            if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
-              amount = subscription.priceAfterDisc;
-              console.log('Using priceAfterDisc:', amount);
-            } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
-              console.log('Calculating discount...');
-              // Calculate the discounted amount
-              if (subscription.discountType === 'percentage') {
-                amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
-                console.log('Percentage discount calculation:', subscription.priceBeforeDisc, '-', (subscription.priceBeforeDisc * subscription.discountValue / 100), '=', amount);
-              } else {
-                amount = subscription.priceBeforeDisc - subscription.discountValue;
-                console.log('Fixed discount calculation:', subscription.priceBeforeDisc, '-', subscription.discountValue, '=', amount);
-              }
+  const calculateTotalPaidAmount = (subscription: any) => {
+    let totalAmount = 0;
+    
+    // Calculate original subscription amount
+    if (subscription.paymentStatus?.toLowerCase() === 'paid') {
+      // For paid subscriptions, return the final amount (with discount if applied)
+      let amount = 0;
+      if (subscription.discountApplied && subscription.priceBeforeDisc) {
+        // Calculate the discounted amount
+        if (subscription.discountType === 'percentage') {
+          amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
+        } else {
+          amount = subscription.priceBeforeDisc - subscription.discountValue;
+        }
+      } else {
+        amount = subscription.priceBeforeDisc || 0;
+      }
+      totalAmount += amount;
+    } else if (subscription.installments && subscription.installments.length > 0) {
+      // For installment subscriptions, sum all paid installments
+      const amount = subscription.installments
+        .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
+        .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
+      totalAmount += amount;
+    }
+    // For free subscriptions, amount is always 0
+    
+    // Add renewal amounts
+    if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
+      subscription.renewalHistory.forEach((renewal: any) => {
+        if (renewal.paymentStatus?.toLowerCase() === 'paid') {
+          let renewalAmount = 0;
+          if (renewal.discountApplied && renewal.priceBeforeDisc) {
+            if (renewal.discountType === 'percentage') {
+              renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
             } else {
-              amount = subscription.priceBeforeDisc || 0;
-              console.log('Using priceBeforeDisc:', amount);
+              renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
             }
-            console.log('Final PAID amount:', amount);
-            totalAmount += amount;
-          } else if (subscription.installments && subscription.installments.length > 0) {
-            console.log('Processing INSTALLMENT subscription...');
-            // For installment subscriptions, sum all paid installments
-            const amount = subscription.installments
-              .filter((inst: any) => inst.status?.toLowerCase() === 'paid')
-              .reduce((sum: number, inst: any) => sum + (inst.amount || 0), 0);
-            console.log('INSTALLMENT amount:', amount);
-            totalAmount += amount;
-          } else if (subscription.paymentStatus?.toLowerCase() === 'free') {
-            console.log('Processing FREE subscription...');
-            // For free subscriptions, amount is always 0
-            console.log('FREE subscription amount: 0');
-            // totalAmount += 0; // No need to add 0
+          } else {
+            renewalAmount = renewal.priceBeforeDisc || 0;
           }
-          
-          // Add renewal amounts
-          if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory)) {
-            console.log('Processing renewal history...');
-            subscription.renewalHistory.forEach((renewal: any) => {
-              if (renewal.paymentStatus?.toLowerCase() === 'paid') {
-                let renewalAmount = 0;
-                if (renewal.priceAfterDisc !== null && renewal.priceAfterDisc !== undefined) {
-                  renewalAmount = renewal.priceAfterDisc;
-                } else if (renewal.discountApplied && renewal.priceBeforeDisc) {
-                  if (renewal.discountType === 'percentage') {
-                    renewalAmount = renewal.priceBeforeDisc - (renewal.priceBeforeDisc * renewal.discountValue / 100);
-                  } else {
-                    renewalAmount = renewal.priceBeforeDisc - renewal.discountValue;
-                  }
-                } else {
-                  renewalAmount = renewal.priceBeforeDisc || 0;
-                }
-                console.log('Renewal amount:', renewalAmount);
-                totalAmount += renewalAmount;
-              }
-            });
-          }
+          totalAmount += renewalAmount;
+        }
+      });
+    }
 
-          // Subtract refund amount if subscription was canceled and refund was given
-          if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
-            console.log('Subtracting refund amount:', subscription.refundAmount);
-            totalAmount -= subscription.refundAmount;
-            // Ensure total doesn't go below 0
-            if (totalAmount < 0) totalAmount = 0;
-            console.log('Amount after refund deduction:', totalAmount);
-          }
-          
-          console.log('Total amount including renewals and refunds:', totalAmount);
-          return totalAmount;
-        };
+    // Subtract refund amount if subscription was canceled and refund was given
+    if (subscription.isCanceled && subscription.refundAmount && subscription.refundAmount > 0) {
+      totalAmount -= subscription.refundAmount;
+      // Ensure total doesn't go below 0
+      if (totalAmount < 0) totalAmount = 0;
+    }
+    
+    return totalAmount;
+  };
 
   const getFinalAmount = (subscription: any) => {
-    // Always return the price after discount if available, otherwise price before discount
+    // Always calculate the discount properly, don't rely on priceAfterDisc from database
     let amount = 0;
-    if (subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined) {
-      amount = subscription.priceAfterDisc;
-    } else if (subscription.discountApplied && subscription.priceBeforeDisc) {
+    
+    if (subscription.discountApplied && subscription.priceBeforeDisc) {
       // Calculate the discounted amount
       if (subscription.discountType === 'percentage') {
         amount = subscription.priceBeforeDisc - (subscription.priceBeforeDisc * subscription.discountValue / 100);
@@ -2205,12 +2173,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
     } else {
       amount = subscription.priceBeforeDisc || 0;
     }
-    console.log('getFinalAmount - priceAfterDisc:', subscription.priceAfterDisc);
-    console.log('getFinalAmount - priceBeforeDisc:', subscription.priceBeforeDisc);
-    console.log('getFinalAmount - discountApplied:', subscription.discountApplied);
-    console.log('getFinalAmount - discountType:', subscription.discountType);
-    console.log('getFinalAmount - discountValue:', subscription.discountValue);
-    console.log('getFinalAmount - final amount:', amount);
+    
     return amount;
   };
 
@@ -2226,9 +2189,6 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
 
   const getPaymentTimeline = (subscription: any) => {
     const timeline = [];
-    
-    console.log('=== getPaymentTimeline DEBUG ===');
-    console.log('Subscription:', subscription);
     
     // Add subscription creation - use startDate instead of current date
     timeline.push({
@@ -2288,22 +2248,8 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       });
     }
 
-    console.log('Timeline before sorting:', timeline.map(item => ({
-      id: item.id,
-      date: item.date,
-      description: item.description,
-      type: item.type
-    })));
-
     // Sort by date (newest first)
     const sortedTimeline = timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    console.log('Timeline after sorting:', sortedTimeline.map(item => ({
-      id: item.id,
-      date: item.date,
-      description: item.description,
-      type: item.type
-    })));
     
     return sortedTimeline;
   };
@@ -2321,26 +2267,10 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       ) : (
         <div className="space-y-6">
           {client.subscriptions.map((subscription, index) => {
-            console.log('=== SUBSCRIPTION DEBUG ===');
-            console.log('Full subscription object:', JSON.stringify(subscription, null, 2));
-            console.log('Payment status:', subscription.paymentStatus);
-            console.log('Price before disc:', subscription.priceBeforeDisc);
-            console.log('Price after disc:', subscription.priceAfterDisc);
-            console.log('Discount applied:', subscription.discountApplied);
-            console.log('Discount type:', subscription.discountType);
-            console.log('Discount value:', subscription.discountValue);
-            console.log('Type of priceAfterDisc:', typeof subscription.priceAfterDisc);
-            console.log('Is priceAfterDisc null?', subscription.priceAfterDisc === null);
-            console.log('Is priceAfterDisc undefined?', subscription.priceAfterDisc === undefined);
-            
             const totalPaid = calculateTotalPaidAmount(subscription);
             const totalInstallmentsPaid = calculateTotalInstallmentsPaid(subscription);
             const remainingInstallments = calculateRemainingInstallments(subscription);
             const paymentTimeline = getPaymentTimeline(subscription);
-            
-            console.log('Calculated total paid:', totalPaid);
-            console.log('Final amount:', getFinalAmount(subscription));
-            console.log('=== END DEBUG ===');
 
             return (
               <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -2353,7 +2283,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                     <div>
                       <h4 className="font-semibold text-gray-900">Subscription #{subscription.id}</h4>
                       <p className="text-sm text-gray-600">
-                        Created on {new Date().toLocaleDateString()}
+                        Created on {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString() : 'Unknown date'}
                       </p>
                     </div>
                   </div>
@@ -2363,12 +2293,75 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                 </div>
                 
                 {/* Summary Cards */}
-                <div className="mb-6">
-                  <div className="bg-blue-50 rounded-lg p-4 max-w-xs">
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-blue-50 rounded-lg p-4">
                     <p className="text-sm font-medium text-blue-900 mb-1">Total Paid Amount</p>
                     <p className="text-xl font-bold text-blue-700">
                       EGP {totalPaid.toFixed(2)}
                     </p>
+                  </div>
+                  
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-green-900 mb-1">Subscription Amount</p>
+                    <p className="text-xl font-bold text-green-700">
+                      EGP {getFinalAmount(subscription).toFixed(2)}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-purple-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-purple-900 mb-1">Payment Method</p>
+                    <p className="text-xl font-bold text-purple-700">
+                      {subscription.paymentMethod || 'Not specified'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Subscription Details */}
+                <div className="mt-6 mb-6">
+                  <h5 className="font-medium text-gray-900 mb-4">Subscription Details</h5>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Start Date</p>
+                        <p className="text-sm text-gray-900">
+                          {subscription.startDate ? new Date(subscription.startDate).toLocaleDateString() : 'Not set'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">End Date</p>
+                        <p className="text-sm text-gray-900">
+                          {subscription.endDate ? new Date(subscription.endDate).toLocaleDateString() : 'Not set'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Duration</p>
+                        <p className="text-sm text-gray-900">
+                          {subscription.durationValue} {subscription.durationUnit}(s)
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Original Price</p>
+                        <p className="text-sm text-gray-900">
+                          EGP {subscription.priceBeforeDisc?.toFixed(2) || '0.00'}
+                        </p>
+                      </div>
+                      {subscription.discountApplied && (
+                        <>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Discount</p>
+                            <p className="text-sm text-gray-900">
+                              {subscription.discountType === 'percentage' ? `${subscription.discountValue}%` : `EGP ${subscription.discountValue}`}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Final Price</p>
+                            <p className="text-sm text-gray-900">
+                              EGP {getFinalAmount(subscription).toFixed(2)}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
