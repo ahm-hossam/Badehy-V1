@@ -130,7 +130,7 @@ export default function EditClientPage() {
     paymentStatus: '',
     paymentMethod: '',
     packageId: '',
-    discount: 'no',
+    discount: '',
     priceBeforeDisc: '',
     discountValue: '',
     discountType: 'fixed',
@@ -159,6 +159,15 @@ export default function EditClientPage() {
   // Registration date
   const [registrationDate, setRegistrationDate] = useState('');
 
+  // Debug subscription state changes
+  useEffect(() => {
+    console.log('Subscription state changed:', subscription);
+    console.log('Discount field value:', subscription.discount);
+    console.log('showDiscountFields:', showDiscountFields);
+    console.log('showDiscountValue:', showDiscountValue);
+    console.log('Stack trace:', new Error().stack);
+  }, [subscription, showDiscountFields, showDiscountValue]);
+
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
@@ -185,6 +194,9 @@ export default function EditClientPage() {
         if (data?.subscriptions && data.subscriptions.length > 0) {
           const latestSubscription = data.subscriptions[0];
           console.log('Loading subscription data:', latestSubscription);
+          console.log('discountApplied:', latestSubscription.discountApplied);
+          console.log('discountValue:', latestSubscription.discountValue);
+          console.log('discountType:', latestSubscription.discountType);
           
           // Format dates properly for input fields
           const formattedSubscription = {
@@ -200,7 +212,18 @@ export default function EditClientPage() {
             discountType: latestSubscription.discountType || 'fixed',
           };
           
+          console.log('Formatted subscription discount field:', formattedSubscription.discount);
+          console.log('About to set subscription state with discount:', formattedSubscription.discount);
+          console.log('discountApplied from backend:', latestSubscription.discountApplied);
+          console.log('Type of discountApplied:', typeof latestSubscription.discountApplied);
+          
+          // Set all states together to ensure proper timing
           setSubscription(formattedSubscription);
+          setShowDiscountFields(true);
+          setShowDiscountValue(formattedSubscription.discount === 'yes');
+          setShowPriceFields(['paid', 'installments'].includes(formattedSubscription.paymentStatus));
+          setShowPaymentMethod(formattedSubscription.paymentStatus !== 'free' && formattedSubscription.paymentStatus !== 'free_trial');
+          setDiscountType(formattedSubscription.discountType || 'fixed');
           
           // Set registration date from client data
           if (data.registrationDate) {
@@ -224,11 +247,12 @@ export default function EditClientPage() {
               endDate = startDate.add(duration, 'month'); // Default to months
             }
             
-            setSubscription(prev => ({
-              ...prev,
-              endDate: endDate.format('YYYY-MM-DD')
-            }));
+            // Update the formatted subscription with the calculated end date
+            formattedSubscription.endDate = endDate.format('YYYY-MM-DD');
           }
+          
+          // Set the subscription state once with all the data
+          setSubscription(formattedSubscription);
           
           // Load installments
           if (latestSubscription.installments && latestSubscription.installments.length > 0) {
@@ -278,7 +302,7 @@ export default function EditClientPage() {
       })
       .catch(() => setError("Failed to load client data."))
       .finally(() => setLoading(false));
-  }, [clientId]);
+  }, [clientId]); // Add dependency array to prevent multiple runs
 
   // Fetch client's team assignments
   useEffect(() => {
@@ -580,7 +604,13 @@ export default function EditClientPage() {
 
   // Subscription handlers
   const handleSubscriptionChange = (key: string, value: any) => {
-    setSubscription((prev: any) => ({ ...prev, [key]: value }));
+    console.log('handleSubscriptionChange called:', key, value);
+    console.log('Previous subscription state:', subscription);
+    setSubscription((prev: any) => {
+      const newState = { ...prev, [key]: value };
+      console.log('New subscription state:', newState);
+      return newState;
+    });
   };
 
   // Form handlers
@@ -707,14 +737,10 @@ export default function EditClientPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Edit Client</h1>
-          <Button onClick={() => router.push("/clients")} variant="outline">
-            Back to Clients
-          </Button>
-        </div>
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
+        <p className="mb-6 text-zinc-600">Update client information and manage their subscription details.</p>
 
         {success && (
           <Alert className="mb-6">
@@ -722,10 +748,73 @@ export default function EditClientPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Check-In Data Section */}
+          {formData.latestSubmission && formData.latestSubmission.answers && (
+            <div className="mb-6 bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Object.entries(formData.latestSubmission.answers).map(([key, value]) => {
+                  // Skip if value is empty or null
+                  if (!value || value === '') return null;
+                  
+                  // Get the question config for this field
+                  const questionConfig = QUESTION_CONFIGS[key];
+                  const fieldType = questionConfig ? mapFormTypeToInputType(questionConfig.type) : 'text';
+                  
+                  return (
+                    <div key={key} className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">{key}</label>
+                      {fieldType === 'select' && questionConfig?.options ? (
+                        <Select
+                          value={Array.isArray(value) ? value[0] : value}
+                          onChange={e => handleChange(key, e.target.value)}
+                          className="w-full"
+                        >
+                          <option value="">Select...</option>
+                          {questionConfig.options.map((opt: string) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </Select>
+                      ) : fieldType === 'multiselect' && questionConfig?.options ? (
+                        <MultiSelect
+                          value={Array.isArray(value) ? value : [value]}
+                          onChange={(selectedValues) => handleChange(key, selectedValues)}
+                          placeholder={`Select ${key}...`}
+                          className="w-full"
+                        >
+                          {questionConfig.options.map((opt: string) => (
+                            <MultiSelectOption key={opt} value={opt}>
+                              {opt}
+                            </MultiSelectOption>
+                          ))}
+                        </MultiSelect>
+                      ) : fieldType === 'textarea' ? (
+                        <Textarea
+                          value={value}
+                          onChange={e => handleChange(key, e.target.value)}
+                          placeholder={key}
+                          className="w-full"
+                        />
+                      ) : (
+                        <Input
+                          type="text"
+                          value={value}
+                          onChange={e => handleChange(key, e.target.value)}
+                          placeholder={key}
+                          className="w-full"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Basic Information */}
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
+            <h2 className="text-lg font-semibold mb-4">Core Questions</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Only show core fields that are NOT in the check-in form */}
               {(!formData.latestSubmission?.answers || !formData.latestSubmission.answers['Full Name']) && (
@@ -913,12 +1002,22 @@ export default function EditClientPage() {
                 <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Discount</label>
                   <Select
-                    value={subscription.discount}
-                    onChange={e => handleSubscriptionChange('discount', e.target.value)}
+                    key={`discount-${subscription.discount}-${showDiscountFields}`}
+                    value={subscription.discount || ''}
+                    onChange={e => {
+                      handleSubscriptionChange('discount', e.target.value);
+                      setShowDiscountValue(e.target.value === 'yes');
+                      setShowPriceFields(e.target.value === 'yes');
+                    }}
                   >
+                    <option value="">Select...</option>
                     <option value="no">No</option>
                     <option value="yes">Yes</option>
                   </Select>
+                  {/* Debug info */}
+                  <div className="text-xs text-gray-500 mt-1">
+                    Debug: subscription.discount = "{subscription.discount}" (type: {typeof subscription.discount})
+                  </div>
                 </div>
               )}
               {['paid', 'installments'].includes(subscription.paymentStatus) && (
@@ -1016,69 +1115,6 @@ export default function EditClientPage() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
-            </div>
-          )}
-
-          {/* Check-In Data Section */}
-          {formData.latestSubmission && formData.latestSubmission.answers && (
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {Object.entries(formData.latestSubmission.answers).map(([key, value]) => {
-                  // Skip if value is empty or null
-                  if (!value || value === '') return null;
-                  
-                  // Get the question config for this field
-                  const questionConfig = QUESTION_CONFIGS[key];
-                  const fieldType = questionConfig ? mapFormTypeToInputType(questionConfig.type) : 'text';
-                  
-                  return (
-                    <div key={key} className="flex flex-col">
-                      <label className="text-sm font-medium mb-1">{key}</label>
-                      {fieldType === 'select' && questionConfig?.options ? (
-                        <Select
-                          value={Array.isArray(value) ? value[0] : value}
-                          onChange={e => handleChange(key, e.target.value)}
-                          className="w-full"
-                        >
-                          <option value="">Select...</option>
-                          {questionConfig.options.map((opt: string) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </Select>
-                      ) : fieldType === 'multiselect' && questionConfig?.options ? (
-                        <MultiSelect
-                          value={Array.isArray(value) ? value : [value]}
-                          onChange={(selectedValues) => handleChange(key, selectedValues)}
-                          placeholder={`Select ${key}...`}
-                          className="w-full"
-                        >
-                          {questionConfig.options.map((opt: string) => (
-                            <MultiSelectOption key={opt} value={opt}>
-                              {opt}
-                            </MultiSelectOption>
-                          ))}
-                        </MultiSelect>
-                      ) : fieldType === 'textarea' ? (
-                        <Textarea
-                          value={value}
-                          onChange={e => handleChange(key, e.target.value)}
-                          placeholder={key}
-                          className="w-full"
-                        />
-                      ) : (
-                        <Input
-                          type="text"
-                          value={value}
-                          onChange={e => handleChange(key, e.target.value)}
-                          placeholder={key}
-                          className="w-full"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
               </div>
             </div>
           )}
@@ -1293,14 +1329,9 @@ export default function EditClientPage() {
             </div>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline" onClick={() => router.push("/clients")}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Updating..." : "Update Client"}
-            </Button>
+          <div className="flex gap-4 justify-end mt-8">
+            <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
+            <Button type="submit" disabled={loading}>{loading ? 'Updating...' : 'Update Client'}</Button>
           </div>
         </form>
       </div>

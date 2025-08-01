@@ -4,6 +4,16 @@ import { Router, Request, Response } from 'express'
 const prisma = new PrismaClient()
 const router = Router()
 
+// Helper function to calculate priceAfterDisc
+const calculatePriceAfterDisc = (priceBeforeDisc: number, discountValue: number, discountType: string) => {
+  if (discountType === 'percentage') {
+    return priceBeforeDisc - (priceBeforeDisc * discountValue / 100);
+  } else if (discountType === 'fixed') {
+    return priceBeforeDisc - discountValue;
+  }
+  return priceBeforeDisc;
+};
+
 // POST /api/clients
 router.post('/', async (req: Request, res: Response) => {
   /*
@@ -147,6 +157,19 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
+      // Calculate priceAfterDisc if discount is applied
+      let priceAfterDisc = null;
+      if (discountApplied && subscription.priceBeforeDisc && subscription.discountValue) {
+        const priceBefore = Number(subscription.priceBeforeDisc);
+        const discountValue = Number(subscription.discountValue);
+        
+        if (discountType === 'percentage') {
+          priceAfterDisc = priceBefore - (priceBefore * discountValue / 100);
+        } else if (discountType === 'fixed') {
+          priceAfterDisc = priceBefore - discountValue;
+        }
+      }
+
       const createdSubscription = await tx.subscription.create({
         data: {
           clientId: createdClient.id,
@@ -161,7 +184,7 @@ router.post('/', async (req: Request, res: Response) => {
           discountApplied: discountApplied,
           discountType: discountType,
           discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-          priceAfterDisc: null, // Temporarily set to null to fix TypeScript error
+          priceAfterDisc: priceAfterDisc,
           // Initialize hold fields
           isOnHold: false,
           holdStartDate: null,
@@ -357,11 +380,18 @@ router.get('/', async (req: Request, res: Response) => {
       if (subscription.paymentStatus?.toLowerCase() !== 'free' && subscription.paymentStatus?.toLowerCase() !== 'free trial') {
         priceComplete = subscription.priceBeforeDisc !== null && subscription.priceBeforeDisc !== undefined;
         if (subscription.discountApplied) {
-          priceComplete = priceComplete && subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined;
+          // If priceAfterDisc is missing but we have the data to calculate it, consider it complete
+          if (subscription.priceAfterDisc === null && subscription.priceBeforeDisc && subscription.discountValue && subscription.discountType) {
+            const calculatedPriceAfterDisc = calculatePriceAfterDisc(
+              subscription.priceBeforeDisc, 
+              subscription.discountValue, 
+              subscription.discountType
+            );
+            priceComplete = priceComplete && calculatedPriceAfterDisc !== null;
+          } else {
+            priceComplete = priceComplete && subscription.priceAfterDisc !== null && subscription.priceAfterDisc !== undefined;
+          }
         }
-      } else {
-        // For free subscriptions, price fields are not required
-        priceComplete = true;
       }
 
       // Check installment fields (conditional based on payment status)
@@ -669,6 +699,19 @@ router.put('/:id', async (req: Request, res: Response) => {
       // 2. Update or create subscription (assume only one active subscription)
       let updatedSubscription = null;
       if (subscription) {
+        // Calculate priceAfterDisc if discount is applied
+        let priceAfterDisc = null;
+        if (subscription.discountApplied && subscription.priceBeforeDisc && subscription.discountValue) {
+          const priceBefore = Number(subscription.priceBeforeDisc);
+          const discountValue = Number(subscription.discountValue);
+          
+          if (subscription.discountType === 'percentage') {
+            priceAfterDisc = priceBefore - (priceBefore * discountValue / 100);
+          } else if (subscription.discountType === 'fixed') {
+            priceAfterDisc = priceBefore - discountValue;
+          }
+        }
+
         if (subscription.id) {
           console.log('Updating subscription:', subscription);
           updatedSubscription = await tx.subscription.update({
@@ -685,7 +728,7 @@ router.put('/:id', async (req: Request, res: Response) => {
               discountApplied: Boolean(subscription.discountApplied),
               discountType: subscription.discountType,
               discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+              priceAfterDisc: priceAfterDisc,
             },
           });
           console.log('Updated subscription:', updatedSubscription);
@@ -706,7 +749,7 @@ router.put('/:id', async (req: Request, res: Response) => {
               discountApplied: Boolean(subscription.discountApplied),
               discountType: subscription.discountType,
               discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-              priceAfterDisc: subscription.priceAfterDisc ? Number(subscription.priceAfterDisc) : null,
+              priceAfterDisc: priceAfterDisc,
               // Initialize hold fields
               isOnHold: false,
               holdStartDate: null,

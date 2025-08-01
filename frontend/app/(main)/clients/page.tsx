@@ -94,15 +94,61 @@ export default function ClientsPage() {
     // Otherwise, try to get name from form answers
     if (client.latestSubmission?.answers) {
       const answers = client.latestSubmission.answers;
-      const nameKeys = Object.keys(answers).filter(key => 
+      
+      // Look for name-related fields first
+      const nameFields = Object.keys(answers).filter(key => 
         key !== 'filledByTrainer' && 
         answers[key] && 
         answers[key] !== 'undefined' &&
-        answers[key] !== ''
+        answers[key] !== '' &&
+        (
+          key.toLowerCase().includes('name') ||
+          key.toLowerCase().includes('full') ||
+          key.toLowerCase().includes('first') ||
+          key.toLowerCase().includes('last')
+        )
       );
       
-      if (nameKeys.length > 0) {
-        return answers[nameKeys[0]];
+      if (nameFields.length > 0) {
+        return answers[nameFields[0]];
+      }
+      
+      // If no name fields found, look for any field that looks like a name
+      const allFields = Object.keys(answers).filter(key => 
+        key !== 'filledByTrainer' && 
+        answers[key] && 
+        answers[key] !== 'undefined' &&
+        answers[key] !== '' &&
+        // Exclude fields that are clearly not names
+        !key.toLowerCase().includes('phone') &&
+        !key.toLowerCase().includes('email') &&
+        !key.toLowerCase().includes('gender') &&
+        !key.toLowerCase().includes('age') &&
+        !key.toLowerCase().includes('source') &&
+        !key.toLowerCase().includes('height') &&
+        !key.toLowerCase().includes('weight') &&
+        !key.toLowerCase().includes('goal') &&
+        !key.toLowerCase().includes('preference') &&
+        !key.toLowerCase().includes('allergy') &&
+        !key.toLowerCase().includes('equipment') &&
+        !key.toLowerCase().includes('training') &&
+        !key.toLowerCase().includes('nutrition') &&
+        !key.toLowerCase().includes('diet') &&
+        !key.toLowerCase().includes('meal') &&
+        !key.toLowerCase().includes('food') &&
+        !key.toLowerCase().includes('ingredient') &&
+        !key.toLowerCase().includes('plan') &&
+        // Check if the value looks like a name (not just numbers, not too short, not too long)
+        typeof answers[key] === 'string' &&
+        answers[key].length > 2 &&
+        answers[key].length < 50 &&
+        !answers[key].match(/^\d+$/) && // Not just numbers
+        !answers[key].match(/^[0-9\s\-\(\)]+$/) && // Not a phone number
+        !answers[key].match(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/) // Not an email
+      );
+      
+      if (allFields.length > 0) {
+        return answers[allFields[0]];
       }
     }
     
@@ -449,7 +495,7 @@ export default function ClientsPage() {
             <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
             <div className="flex justify-end gap-2 mt-6">
               <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-              <Button type="button" onClick={confirmDeleteClient} className="bg-red-600 hover:bg-red-700 text-white">Delete</Button>
+              <Button color="red" type="button" onClick={confirmDeleteClient}>Delete</Button>
             </div>
           </div>
         </Dialog>
