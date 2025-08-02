@@ -266,6 +266,31 @@ export default function ClientsPage() {
     router.push("/clients/create");
   };
 
+  // Function to trigger automatic task generation
+  const triggerAutomaticTasks = async () => {
+    try {
+      const user = getStoredUser();
+      if (!user?.id) return;
+
+      await fetch('/api/tasks/generate-automated', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trainerId: user.id }),
+      });
+    } catch (error) {
+      console.error('Error generating automatic tasks:', error);
+    }
+  };
+
+  // Trigger automatic tasks when clients are loaded
+  useEffect(() => {
+    if (clients.length > 0) {
+      triggerAutomaticTasks();
+    }
+  }, [clients.length]);
+
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
