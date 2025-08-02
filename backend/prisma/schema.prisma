@@ -30,6 +30,7 @@ model Registered {
   supportRequests SupportRequest[]
   teamMembers    TeamMember[]
   clientAssignments ClientTeamAssignment[]
+  tasks          Task[]
 }
 
 model TrainerClient {
@@ -72,6 +73,7 @@ model TrainerClient {
   submissions   CheckInSubmission[]
   selectedForm  CheckInForm?   @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
   teamAssignments ClientTeamAssignment[]
+  tasks          Task[]
 
   @@index([trainerId])
 }
@@ -439,6 +441,8 @@ model TeamMember {
   updatedAt   DateTime @updatedAt
   trainer     Registered @relation(fields: [trainerId], references: [id])
   clientAssignments ClientTeamAssignment[]
+  assignedTasks   Task[]
+  taskComments    TaskComment[]
 
   @@index([trainerId])
 }
@@ -457,4 +461,61 @@ model ClientTeamAssignment {
   @@index([clientId])
   @@index([teamMemberId])
   @@index([assignedBy])
+}
+
+model Task {
+  id            Int           @id @default(autoincrement())
+  trainerId     Int
+  title         String
+  description   String?
+  taskType      String        // "manual" or "automatic"
+  category      String        // "Payment", "Subscription", "Profile", "Manual", "Workout", "Nutrition"
+  status        String        @default("open") // "open", "done", "delayed"
+  assignedTo    Int?          // TeamMember ID
+  dueDate       DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // For automatic tasks - reference to the client that triggered the task
+  clientId      Int?
+  
+  // Relations
+  trainer       Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  assignedTeamMember TeamMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  client        TrainerClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  comments      TaskComment[]
+
+  @@index([trainerId])
+  @@index([assignedTo])
+  @@index([clientId])
+  @@index([status])
+  @@index([taskType])
+  @@index([category])
+}
+
+model TaskComment {
+  id          Int      @id @default(autoincrement())
+  taskId      Int
+  teamMemberId Int
+  comment     String
+  createdAt   DateTime @default(now())
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  teamMember  TeamMember @relation(fields: [teamMemberId], references: [id])
+
+  @@index([taskId])
+  @@index([teamMemberId])
+}
+
+model ManuallyDeletedTask {
+  id            Int      @id @default(autoincrement())
+  trainerId     Int
+  clientId      Int?
+  category      String
+  taskType      String
+  originalTaskId Int
+  deletedAt     DateTime @default(now())
+
+  @@index([trainerId])
+  @@index([clientId])
+  @@index([trainerId, clientId, category, taskType])
 }

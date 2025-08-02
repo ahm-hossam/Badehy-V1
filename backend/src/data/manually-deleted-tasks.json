@@ -1,0 +1,114 @@
+[
+  {
+    "trainerId": 1,
+    "clientId": 15,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:24:50.222Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 14,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:37.542Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 14,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:41.236Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 14,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:44.883Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 13,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:48.204Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 12,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:51.664Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 11,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:54.933Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 10,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:27:58.006Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 8,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:01.323Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 7,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:05.290Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 6,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:08.924Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 5,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:12.168Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 3,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:16.295Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 4,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:18.874Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 2,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:30.788Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 9,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-02T12:28:33.400Z"
+  }
+]

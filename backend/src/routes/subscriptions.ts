@@ -99,6 +99,9 @@ router.post('/', async (req: Request, res: Response) => {
         renewalCount: existingHistory.length,
       });
 
+      // Generate automatic tasks after subscription renewal
+      await generateAutomaticTasksForClient(updatedSubscription.clientId);
+
       res.status(200).json({ 
         success: true, 
         subscription: updatedSubscription,
@@ -122,6 +125,11 @@ router.post('/', async (req: Request, res: Response) => {
           discountType: discountType || null,
           discountValue: discountValue ? Number(discountValue) : null,
           priceAfterDisc: priceAfterDisc ? Number(priceAfterDisc) : null,
+          isOnHold: false,
+          holdStartDate: null,
+          holdEndDate: null,
+          holdDuration: null,
+          holdDurationUnit: null,
           renewalHistory: [],
         },
         include: {
@@ -130,22 +138,26 @@ router.post('/', async (req: Request, res: Response) => {
         },
       });
 
-      console.log('Subscription created successfully:', {
+      console.log('New subscription created:', {
         subscriptionId: newSubscription.id,
         clientId: newSubscription.clientId,
-        packageId: newSubscription.packageId,
         paymentStatus: newSubscription.paymentStatus,
+        startDate: newSubscription.startDate,
+        endDate: newSubscription.endDate,
       });
+
+      // Generate automatic tasks after subscription creation
+      await generateAutomaticTasksForClient(newSubscription.clientId);
 
       res.status(201).json({ 
         success: true, 
         subscription: newSubscription,
-        message: 'Subscription created successfully' 
+        message: 'Subscription created successfully'
       });
     }
   } catch (error) {
-    console.error('Error creating/renewing subscription:', error);
-    res.status(500).json({ error: 'Failed to create/renew subscription' });
+    console.error('Error creating subscription:', error);
+    res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
 
@@ -293,5 +305,82 @@ router.post('/:id/cancel', async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 });
+
+// Helper function to generate automatic tasks for a client
+async function generateAutomaticTasksForClient(clientId: number) {
+  try {
+    const client = await prisma.trainerClient.findUnique({
+      where: { id: clientId },
+      include: {
+        subscriptions: true,
+      },
+    });
+
+    if (!client) return;
+
+    // Check for incomplete profile
+    const isProfileIncomplete = !client.fullName || client.fullName === 'Unknown Client' || 
+                               !client.email || !client.phone || !client.gender || !client.age || !client.source;
+
+    if (isProfileIncomplete) {
+      // Check if task already exists
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          trainerId: client.trainerId,
+          clientId: client.id,
+          category: 'Profile',
+          title: {
+            contains: 'incomplete profile',
+          },
+        },
+      });
+
+      if (!existingTask) {
+        await prisma.task.create({
+          data: {
+            trainerId: client.trainerId,
+            title: `Complete profile for ${client.fullName}`,
+            description: `Client profile is incomplete. Please gather missing information.`,
+            taskType: 'automatic',
+            category: 'Profile',
+            status: 'open',
+            clientId: client.id,
+          },
+        });
+      }
+    }
+
+    // Check for pending payments
+    const pendingSubscriptions = client.subscriptions.filter(sub => sub.paymentStatus === 'pending');
+    for (const subscription of pendingSubscriptions) {
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          trainerId: client.trainerId,
+          clientId: client.id,
+          category: 'Payment',
+          title: {
+            contains: 'pending payment',
+          },
+        },
+      });
+
+      if (!existingTask) {
+        await prisma.task.create({
+          data: {
+            trainerId: client.trainerId,
+            title: `Follow up with ${client.fullName} for pending payment`,
+            description: `Payment status is pending for ${client.fullName}. Please follow up.`,
+            taskType: 'automatic',
+            category: 'Payment',
+            status: 'open',
+            clientId: client.id,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error generating automatic tasks for client:', error);
+  }
+}
 
 export default router; 

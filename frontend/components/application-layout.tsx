@@ -43,12 +43,49 @@ import {
   UsersIcon,
   FireIcon,
   UserGroupIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getStoredUser, removeUser } from '../lib/auth'
 import { Disclosure } from '@headlessui/react';
 import Link from 'next/link';
+
+// TaskCounter Component
+function TaskCounter({ trainerId }: { trainerId?: number }) {
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (!trainerId) return
+
+    const fetchCount = async () => {
+      try {
+        const response = await fetch(`/api/tasks/count?trainerId=${trainerId}`)
+        if (response.ok) {
+          const data = await response.json()
+          setCount(data.count)
+        }
+      } catch (error) {
+        console.error('Error fetching task count:', error)
+      }
+    }
+
+    fetchCount()
+    
+    // Set up polling for real-time updates
+    const interval = setInterval(fetchCount, 30000) // Poll every 30 seconds
+    
+    return () => clearInterval(interval)
+  }, [trainerId])
+
+  if (count === 0) return null
+
+  return (
+    <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[16px] h-4 flex items-center justify-center text-[10px] font-medium">
+      {count}
+    </span>
+  )
+}
 
 function CheckInsCollapsible({ pathname }: { pathname: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -266,6 +303,11 @@ export function ApplicationLayout({
               <SidebarItem href="/team-members" current={pathname.startsWith('/team-members')}>
                 <UserGroupIcon />
                 <SidebarLabel>Team Members</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/tasks" current={pathname.startsWith('/tasks')}>
+                <ClipboardDocumentListIcon />
+                <SidebarLabel>Tasks</SidebarLabel>
+                <TaskCounter trainerId={user?.id} />
               </SidebarItem>
               {/* Workout Programs collapsible section */}
               <WorkoutProgramsCollapsible pathname={pathname} />

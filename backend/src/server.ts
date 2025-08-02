@@ -21,6 +21,7 @@ import debugClientRoute from './routes/debug-client';
 import subscriptionsRoute from './routes/subscriptions';
 import teamMembersRoute from './routes/team-members';
 import clientAssignmentsRoute from './routes/client-assignments';
+import tasksRoute from './routes/tasks';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -62,6 +63,7 @@ app.use('/api/debug-client', debugClientRoute);
 app.use('/api/subscriptions', subscriptionsRoute);
 app.use('/api/team-members', teamMembersRoute);
 app.use('/api/client-assignments', clientAssignmentsRoute);
+app.use('/api/tasks', tasksRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');
