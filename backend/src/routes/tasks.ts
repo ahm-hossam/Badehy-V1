@@ -630,6 +630,101 @@ router.post('/generate-automated', async (req, res) => {
       }
     }
 
+    // 4. Check for installments due today
+    console.log('Checking installments due today for trainer:', trainerId);
+
+    // First, get all installments for this trainer
+    const allInstallments = await prisma.installment.findMany({
+      where: {
+        subscription: {
+          client: {
+            trainerId: Number(trainerId),
+          },
+        },
+      },
+      include: {
+        subscription: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('Total installments found:', allInstallments.length);
+
+    // Filter for installments due today
+    const today = new Date();
+    const installmentsDueToday = allInstallments.filter(installment => {
+      if (!installment.nextInstallment) return false;
+      
+      // Convert to date and compare only the date part (ignore time)
+      const installmentDate = new Date(installment.nextInstallment);
+      
+      const isSameDate = installmentDate.getFullYear() === today.getFullYear() &&
+                        installmentDate.getMonth() === today.getMonth() &&
+                        installmentDate.getDate() === today.getDate();
+      
+      console.log('Checking installment:', {
+        id: installment.id,
+        nextInstallment: installment.nextInstallment,
+        installmentDate: installmentDate.toISOString(),
+        today: today.toISOString(),
+        isSameDate,
+        shouldInclude: isSameDate
+      });
+      
+      return isSameDate;
+    });
+
+    console.log('Installments due today:', installmentsDueToday.length);
+
+    for (const installment of installmentsDueToday) {
+      // Check if this task was manually deleted
+      const manuallyDeleted = isTaskManuallyDeleted(Number(trainerId), installment.subscription.clientId, 'Installment', 'automatic');
+
+      if (manuallyDeleted) {
+        console.log('Installment task was manually deleted for client:', installment.subscription.client.fullName);
+        continue; // Skip creating this task
+      }
+
+      // Check if a task already exists for this installment
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          trainerId: Number(trainerId),
+          clientId: installment.subscription.clientId,
+          category: 'Installment',
+          taskType: 'automatic',
+          status: 'open',
+        },
+      });
+
+      if (!existingTask) {
+        const task = await prisma.task.create({
+          data: {
+            trainerId: Number(trainerId),
+            title: `Installment due today for ${installment.subscription.client.fullName}`,
+            description: `Installment of ${installment.amount} is due today for ${installment.subscription.client.fullName}. Please follow up for payment.`,
+            taskType: 'automatic',
+            category: 'Installment',
+            status: 'open',
+            clientId: installment.subscription.clientId,
+            dueDate: installment.nextInstallment,
+          },
+        });
+        generatedTasks.push(task);
+        console.log('Created installment task for client:', installment.subscription.client.fullName);
+      } else {
+        console.log('Installment task already exists for client:', installment.subscription.client.fullName);
+      }
+    }
+
     // Get total existing tasks for response
     const totalExistingTasks = await prisma.task.count({
       where: {
@@ -648,6 +743,80 @@ router.post('/generate-automated', async (req, res) => {
   } catch (error) {
     console.error('Error generating automatic tasks:', error);
     res.status(500).json({ error: 'Failed to generate automatic tasks' });
+  }
+});
+
+// GET /api/tasks/test-installments - Test installment data
+router.get('/test-installments', async (req, res) => {
+  try {
+    const { trainerId } = req.query;
+    
+    if (!trainerId) {
+      return res.status(400).json({ error: 'Trainer ID is required' });
+    }
+
+    console.log('Testing installments for trainer:', trainerId);
+
+    // Get all installments for this trainer
+    const allInstallments = await prisma.installment.findMany({
+      where: {
+        subscription: {
+          client: {
+            trainerId: Number(trainerId),
+          },
+        },
+      },
+      include: {
+        subscription: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('Total installments found:', allInstallments.length);
+
+    const today = new Date();
+    const installmentsDueToday = allInstallments.filter(installment => {
+      if (!installment.nextInstallment) return false;
+      
+      const installmentDate = new Date(installment.nextInstallment);
+      
+      const isSameDate = installmentDate.getFullYear() === today.getFullYear() &&
+                        installmentDate.getMonth() === today.getMonth() &&
+                        installmentDate.getDate() === today.getDate();
+      
+      return isSameDate;
+    });
+
+    res.json({
+      totalInstallments: allInstallments.length,
+      installmentsDueTodayCount: installmentsDueToday.length,
+      allInstallments: allInstallments.map(i => ({
+        id: i.id,
+        nextInstallment: i.nextInstallment,
+        status: i.status,
+        clientName: i.subscription?.client?.fullName,
+        clientId: i.subscription?.clientId
+      })),
+      installmentsDueToday: installmentsDueToday.map(i => ({
+        id: i.id,
+        nextInstallment: i.nextInstallment,
+        status: i.status,
+        clientName: i.subscription?.client?.fullName,
+        clientId: i.subscription?.clientId
+      }))
+    });
+  } catch (error) {
+    console.error('Error testing installments:', error);
+    res.status(500).json({ error: 'Failed to test installments' });
   }
 });
 

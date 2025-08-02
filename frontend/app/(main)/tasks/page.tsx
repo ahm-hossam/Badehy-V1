@@ -97,17 +97,10 @@ export default function TasksPage() {
       fetchTeamMembers()
       fetchClients()
       fetchTaskCount()
-      // DISABLED: Automatic task generation to prevent recreation of deleted tasks
-      // const hasGenerated = localStorage.getItem(`tasks_generated_${user.id}`)
-      // if (!hasGenerated) {
-      //   console.log('Generating automatic tasks for first time')
-      //   generateAutomaticTasks()
-      //   localStorage.setItem(`tasks_generated_${user.id}`, 'true')
-      // } else {
-      //   console.log('Automatic tasks already generated for this session')
-      // }
+      // Enable automatic task generation on page load
+      generateAutomaticTasks()
     }
-  }, [user?.id]) // Remove hasGeneratedTasks from dependency array
+  }, [user?.id])
 
   // Reset the flag when user changes
   useEffect(() => {
