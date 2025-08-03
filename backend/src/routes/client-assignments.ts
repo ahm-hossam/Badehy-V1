@@ -155,9 +155,9 @@ router.post('/', async (req: Request, res: Response) => {
 
       const assignment = await prisma.clientTeamAssignment.create({
         data: {
+          trainerId: parseInt(assignedBy),
           clientId: parseInt(clientId),
           teamMemberId: actualTeamMemberId,
-          assignedBy: parseInt(assignedBy),
         },
         include: {
           client: {
@@ -211,9 +211,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     const assignment = await prisma.clientTeamAssignment.create({
       data: {
+        trainerId: parseInt(assignedBy),
         clientId: parseInt(clientId),
         teamMemberId: parseInt(teamMemberId),
-        assignedBy: parseInt(assignedBy),
       },
       include: {
         client: {
@@ -257,7 +257,7 @@ router.delete('/:clientId/:teamMemberId', async (req: Request, res: Response) =>
       where: {
         clientId: parseInt(clientId),
         teamMemberId: parseInt(teamMemberId),
-        assignedBy: parseInt(trainerId as string),
+        trainerId: parseInt(trainerId as string),
       },
     });
 
@@ -294,7 +294,7 @@ router.get('/client/:clientId', async (req: Request, res: Response) => {
     const assignments = await prisma.clientTeamAssignment.findMany({
       where: {
         clientId: parseInt(clientId),
-        assignedBy: parseInt(trainerId as string),
+        trainerId: parseInt(trainerId as string),
       },
       include: {
         teamMember: {

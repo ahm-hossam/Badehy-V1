@@ -660,22 +660,22 @@ router.post('/generate-automated', async (req, res) => {
     console.log('Total installments found:', allInstallments.length);
 
     // Filter for installments due today
-    const today = new Date();
+    const todayForInstallments = new Date();
     const installmentsDueToday = allInstallments.filter(installment => {
       if (!installment.nextInstallment) return false;
       
       // Convert to date and compare only the date part (ignore time)
       const installmentDate = new Date(installment.nextInstallment);
       
-      const isSameDate = installmentDate.getFullYear() === today.getFullYear() &&
-                        installmentDate.getMonth() === today.getMonth() &&
-                        installmentDate.getDate() === today.getDate();
+      const isSameDate = installmentDate.getFullYear() === todayForInstallments.getFullYear() &&
+                        installmentDate.getMonth() === todayForInstallments.getMonth() &&
+                        installmentDate.getDate() === todayForInstallments.getDate();
       
       console.log('Checking installment:', {
         id: installment.id,
         nextInstallment: installment.nextInstallment,
         installmentDate: installmentDate.toISOString(),
-        today: today.toISOString(),
+        today: todayForInstallments.toISOString(),
         isSameDate,
         shouldInclude: isSameDate
       });
@@ -722,6 +722,108 @@ router.post('/generate-automated', async (req, res) => {
         console.log('Created installment task for client:', installment.subscription.client.fullName);
       } else {
         console.log('Installment task already exists for client:', installment.subscription.client.fullName);
+      }
+    }
+
+    // 5. Check for program updates due today
+    console.log('Checking program updates due today for trainer:', trainerId);
+
+    const programUpdatesDueToday = await prisma.clientProgramAssignment.findMany({
+      where: {
+        trainerId: Number(trainerId),
+        nextUpdateDate: {
+          not: null,
+        },
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        program: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    console.log('Total program assignments found:', programUpdatesDueToday.length);
+
+    // Filter for program updates due in the next 3 days
+    const todayForUpdates = new Date();
+    const threeDaysFromNowForPrograms = new Date(todayForUpdates);
+    threeDaysFromNowForPrograms.setDate(threeDaysFromNowForPrograms.getDate() + 3);
+    
+    const updatesDueSoon = programUpdatesDueToday.filter(assignment => {
+      if (!assignment.nextUpdateDate) return false;
+      
+      const updateDate = new Date(assignment.nextUpdateDate);
+      
+      // Compare only the date part (ignore time)
+      const updateDateOnly = new Date(updateDate.getFullYear(), updateDate.getMonth(), updateDate.getDate());
+      const todayOnly = new Date(todayForUpdates.getFullYear(), todayForUpdates.getMonth(), todayForUpdates.getDate());
+      const threeDaysFromNowOnly = new Date(threeDaysFromNowForPrograms.getFullYear(), threeDaysFromNowForPrograms.getMonth(), threeDaysFromNowForPrograms.getDate());
+      
+      // Check if the update date is within the next 3 days
+      const isWithinNextThreeDays = updateDateOnly >= todayOnly && updateDateOnly <= threeDaysFromNowOnly;
+      
+      console.log('Checking program update:', {
+        id: assignment.id,
+        nextUpdateDate: assignment.nextUpdateDate,
+        updateDate: updateDate.toISOString(),
+        updateDateOnly: updateDateOnly.toISOString(),
+        todayOnly: todayOnly.toISOString(),
+        threeDaysFromNowOnly: threeDaysFromNowOnly.toISOString(),
+        isWithinNextThreeDays
+      });
+      
+      return isWithinNextThreeDays;
+    });
+
+    console.log('Program updates due in next 3 days:', updatesDueSoon.length);
+
+    for (const assignment of updatesDueSoon) {
+      // Check if this task was manually deleted
+      const manuallyDeleted = isTaskManuallyDeleted(Number(trainerId), assignment.clientId, 'Program', 'automatic');
+
+      if (manuallyDeleted) {
+        console.log('Program update task was manually deleted for client:', assignment.client.fullName);
+        continue; // Skip creating this task
+      }
+
+      // Check if a task already exists for this program update
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          trainerId: Number(trainerId),
+          clientId: assignment.clientId,
+          category: 'Program',
+          taskType: 'automatic',
+          status: 'open',
+        },
+      });
+
+      if (!existingTask) {
+        const task = await prisma.task.create({
+          data: {
+            trainerId: Number(trainerId),
+            title: `Program update due for ${assignment.client.fullName}`,
+            description: `Program "${assignment.program.name}" update is due on ${assignment.nextUpdateDate ? new Date(assignment.nextUpdateDate).toLocaleDateString() : 'unknown date'} for ${assignment.client.fullName}. Please review and update the program.`,
+            taskType: 'automatic',
+            category: 'Program',
+            status: 'open',
+            clientId: assignment.clientId,
+            dueDate: assignment.nextUpdateDate,
+          },
+        });
+        generatedTasks.push(task);
+        console.log('Created program update task for client:', assignment.client.fullName);
+      } else {
+        console.log('Program update task already exists for client:', assignment.client.fullName);
       }
     }
 
