@@ -1,8 +1,43 @@
 import { PrismaClient } from '@prisma/client'
 import { Router, Request, Response } from 'express'
+import fs from 'fs'
+import path from 'path'
 
 const prisma = new PrismaClient()
 const router = Router()
+
+// File to track manually deleted tasks
+const DELETED_TASKS_FILE = path.join(__dirname, '../data/manually-deleted-tasks.json');
+
+// Ensure the data directory exists
+const dataDir = path.dirname(DELETED_TASKS_FILE);
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Load manually deleted tasks
+function loadManuallyDeletedTasks(): any[] {
+  try {
+    if (fs.existsSync(DELETED_TASKS_FILE)) {
+      const data = fs.readFileSync(DELETED_TASKS_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('Error loading manually deleted tasks:', error);
+  }
+  return [];
+}
+
+// Check if a task was manually deleted
+async function checkIfTaskManuallyDeleted(trainerId: number, clientId: number, category: string, taskType: string): Promise<boolean> {
+  const deletedTasks = loadManuallyDeletedTasks();
+  return deletedTasks.some((task: any) => 
+    task.trainerId === trainerId && 
+    task.clientId === clientId && 
+    task.category === category && 
+    task.taskType === taskType
+  );
+}
 
 // POST /api/clients
 router.post('/', async (req: Request, res: Response) => {
@@ -223,6 +258,47 @@ router.post('/', async (req: Request, res: Response) => {
             },
           });
           createdInstallments.push(createdInstallment);
+          
+          // Generate automatic task for installment if nextInstallment is set
+          if (nextInstallment) {
+            const today = new Date();
+            const installmentDate = new Date(nextInstallment);
+            
+            // Only create task if next installment date is today or in the future
+            if (installmentDate >= today) {
+              // Check if this task was manually deleted
+              const manuallyDeleted = await checkIfTaskManuallyDeleted(createdClient.trainerId, createdClient.id, 'Installment', 'automatic');
+              
+              if (!manuallyDeleted) {
+                // Check if a task already exists for this installment
+                const existingTask = await tx.task.findFirst({
+                  where: {
+                    trainerId: createdClient.trainerId,
+                    clientId: createdClient.id,
+                    category: 'Installment',
+                    taskType: 'automatic',
+                    status: 'open',
+                  },
+                });
+
+                if (!existingTask) {
+                  await tx.task.create({
+                    data: {
+                      trainerId: createdClient.trainerId,
+                      title: `Installment due for ${createdClient.fullName}`,
+                      description: `Installment of ${inst.amount} is due on ${installmentDate.toLocaleDateString()} for ${createdClient.fullName}. Please follow up for payment.`,
+                      taskType: 'automatic',
+                      category: 'Installment',
+                      status: 'open',
+                      clientId: createdClient.id,
+                      dueDate: installmentDate,
+                    },
+                  });
+                  console.log('Created installment task for client:', createdClient.fullName);
+                }
+              }
+            }
+          }
         }
       }
       return {
@@ -916,6 +992,47 @@ router.put('/:id', async (req: Request, res: Response) => {
               },
             });
             updatedInstallments.push(updatedInst);
+            
+            // Generate automatic task for updated installment if nextInstallment is set
+            if (nextInstallment) {
+              const today = new Date();
+              const installmentDate = new Date(nextInstallment);
+              
+              // Only create task if next installment date is today or in the future
+              if (installmentDate >= today) {
+                // Check if this task was manually deleted
+                const manuallyDeleted = await checkIfTaskManuallyDeleted(updatedClient.trainerId, updatedClient.id, 'Installment', 'automatic');
+                
+                if (!manuallyDeleted) {
+                  // Check if a task already exists for this installment
+                  const existingTask = await tx.task.findFirst({
+                    where: {
+                      trainerId: updatedClient.trainerId,
+                      clientId: updatedClient.id,
+                      category: 'Installment',
+                      taskType: 'automatic',
+                      status: 'open',
+                    },
+                  });
+
+                  if (!existingTask) {
+                    await tx.task.create({
+                      data: {
+                        trainerId: updatedClient.trainerId,
+                        title: `Installment due for ${updatedClient.fullName}`,
+                        description: `Installment of ${inst.amount} is due on ${installmentDate.toLocaleDateString()} for ${updatedClient.fullName}. Please follow up for payment.`,
+                        taskType: 'automatic',
+                        category: 'Installment',
+                        status: 'open',
+                        clientId: updatedClient.id,
+                        dueDate: installmentDate,
+                      },
+                    });
+                    console.log('Created installment task for updated client:', updatedClient.fullName);
+                  }
+                }
+              }
+            }
           } else {
             // Create new installment
             // Validate dates before creating
@@ -944,6 +1061,47 @@ router.put('/:id', async (req: Request, res: Response) => {
               },
             });
             updatedInstallments.push(newInst);
+            
+            // Generate automatic task for new installment if nextInstallment is set
+            if (nextInstallment) {
+              const today = new Date();
+              const installmentDate = new Date(nextInstallment);
+              
+              // Only create task if next installment date is today or in the future
+              if (installmentDate >= today) {
+                // Check if this task was manually deleted
+                const manuallyDeleted = await checkIfTaskManuallyDeleted(updatedClient.trainerId, updatedClient.id, 'Installment', 'automatic');
+                
+                if (!manuallyDeleted) {
+                  // Check if a task already exists for this installment
+                  const existingTask = await tx.task.findFirst({
+                    where: {
+                      trainerId: updatedClient.trainerId,
+                      clientId: updatedClient.id,
+                      category: 'Installment',
+                      taskType: 'automatic',
+                      status: 'open',
+                    },
+                  });
+
+                  if (!existingTask) {
+                    await tx.task.create({
+                      data: {
+                        trainerId: updatedClient.trainerId,
+                        title: `Installment due for ${updatedClient.fullName}`,
+                        description: `Installment of ${inst.amount} is due on ${installmentDate.toLocaleDateString()} for ${updatedClient.fullName}. Please follow up for payment.`,
+                        taskType: 'automatic',
+                        category: 'Installment',
+                        status: 'open',
+                        clientId: updatedClient.id,
+                        dueDate: installmentDate,
+                      },
+                    });
+                    console.log('Created installment task for new client:', updatedClient.fullName);
+                  }
+                }
+              }
+            }
           }
         }
       }
