@@ -44,6 +44,7 @@ import {
   FireIcon,
   UserGroupIcon,
   ClipboardDocumentListIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -297,7 +298,7 @@ export function ApplicationLayout({
               {/* Check-ins collapsible section */}
               <CheckInsCollapsible pathname={pathname} />
               <SidebarItem href="/packages" current={pathname.startsWith('/packages')}>
-                <FireIcon />
+                <CurrencyDollarIcon />
                 <SidebarLabel>Packages</SidebarLabel>
               </SidebarItem>
               <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
