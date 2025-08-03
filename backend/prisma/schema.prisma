@@ -25,12 +25,14 @@ model Registered {
   checkInForms   CheckInForm[]
   exercises      Exercise[]
   programs       Program[]
+  nutritionPrograms NutritionProgram[]
   brandingSettings BrandingSettings[]
   pdfTemplates   PDFTemplate[]
   supportRequests SupportRequest[]
   teamMembers    TeamMember[]
   clientAssignments ClientTeamAssignment[]
   clientProgramAssignments ClientProgramAssignment[]
+  clientNutritionAssignments ClientNutritionAssignment[]
   tasks          Task[]
 }
 
@@ -75,6 +77,7 @@ model TrainerClient {
   selectedForm  CheckInForm?   @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
   teamAssignments ClientTeamAssignment[]
   programAssignments ClientProgramAssignment[]
+  nutritionAssignments ClientNutritionAssignment[]
   tasks          Task[]
 
   @@index([trainerId])
@@ -335,6 +338,28 @@ model Program {
   @@index([trainerId])
 }
 
+// Nutrition Program Models
+model NutritionProgram {
+  id          Int      @id @default(autoincrement())
+  trainerId   Int
+  name        String
+  description String?
+  template    String?  // PDF template URL or design template
+  branding    Json?    // Branding settings (colors, logo, etc.)
+  pdfUrl      String?  // Generated PDF URL
+  // New fields for imported programs
+  isImported  Boolean  @default(false)
+  importedPdfUrl String? // URL to the uploaded PDF file
+  programDuration Int? // Duration in days/weeks/months
+  durationUnit String? // "days", "weeks", "months"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  trainer     Registered @relation(fields: [trainerId], references: [id])
+  clientAssignments ClientNutritionAssignment[]
+
+  @@index([trainerId])
+}
+
 model ProgramWeek {
   id        Int      @id @default(autoincrement())
   programId Int
@@ -497,6 +522,27 @@ model ClientProgramAssignment {
   @@index([trainerId])
   @@index([clientId])
   @@index([programId])
+}
+
+model ClientNutritionAssignment {
+  id            Int         @id @default(autoincrement())
+  trainerId     Int
+  clientId      Int
+  nutritionProgramId Int
+  assignedAt    DateTime    @default(now())
+  startDate     DateTime
+  endDate       DateTime?
+  nextUpdateDate DateTime?
+  isActive      Boolean     @default(true)
+  status        String      @default("active") // "active", "completed", "paused"
+  notes         String?
+  trainer       Registered  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  nutritionProgram NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId])
+  @@index([clientId])
+  @@index([nutritionProgramId])
 }
 
 model Task {

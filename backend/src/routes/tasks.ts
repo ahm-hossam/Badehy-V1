@@ -827,6 +827,108 @@ router.post('/generate-automated', async (req, res) => {
       }
     }
 
+    // 6. Check for nutrition program updates due today
+    console.log('Checking nutrition program updates due today for trainer:', trainerId);
+
+    const nutritionProgramUpdatesDueToday = await prisma.clientNutritionAssignment.findMany({
+      where: {
+        trainerId: Number(trainerId),
+        nextUpdateDate: {
+          not: null,
+        },
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        nutritionProgram: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    console.log('Total nutrition program assignments found:', nutritionProgramUpdatesDueToday.length);
+
+    // Filter for nutrition program updates due in the next 3 days
+    const todayForNutritionUpdates = new Date();
+    const threeDaysFromNowForNutritionPrograms = new Date(todayForNutritionUpdates);
+    threeDaysFromNowForNutritionPrograms.setDate(threeDaysFromNowForNutritionPrograms.getDate() + 3);
+    
+    const nutritionUpdatesDueSoon = nutritionProgramUpdatesDueToday.filter(assignment => {
+      if (!assignment.nextUpdateDate) return false;
+      
+      const updateDate = new Date(assignment.nextUpdateDate);
+      
+      // Compare only the date part (ignore time)
+      const updateDateOnly = new Date(updateDate.getFullYear(), updateDate.getMonth(), updateDate.getDate());
+      const todayOnly = new Date(todayForNutritionUpdates.getFullYear(), todayForNutritionUpdates.getMonth(), todayForNutritionUpdates.getDate());
+      const threeDaysFromNowOnly = new Date(threeDaysFromNowForNutritionPrograms.getFullYear(), threeDaysFromNowForNutritionPrograms.getMonth(), threeDaysFromNowForNutritionPrograms.getDate());
+      
+      // Check if the update date is within the next 3 days
+      const isWithinNextThreeDays = updateDateOnly >= todayOnly && updateDateOnly <= threeDaysFromNowOnly;
+      
+      console.log('Checking nutrition program update:', {
+        id: assignment.id,
+        nextUpdateDate: assignment.nextUpdateDate,
+        updateDate: updateDate.toISOString(),
+        updateDateOnly: updateDateOnly.toISOString(),
+        todayOnly: todayOnly.toISOString(),
+        threeDaysFromNowOnly: threeDaysFromNowOnly.toISOString(),
+        isWithinNextThreeDays
+      });
+      
+      return isWithinNextThreeDays;
+    });
+
+    console.log('Nutrition program updates due in next 3 days:', nutritionUpdatesDueSoon.length);
+
+    for (const assignment of nutritionUpdatesDueSoon) {
+      // Check if this task was manually deleted
+      const manuallyDeleted = isTaskManuallyDeleted(Number(trainerId), assignment.clientId, 'Nutrition', 'automatic');
+
+      if (manuallyDeleted) {
+        console.log('Nutrition program update task was manually deleted for client:', assignment.client.fullName);
+        continue; // Skip creating this task
+      }
+
+      // Check if a task already exists for this nutrition program update
+      const existingTask = await prisma.task.findFirst({
+        where: {
+          trainerId: Number(trainerId),
+          clientId: assignment.clientId,
+          category: 'Nutrition',
+          taskType: 'automatic',
+          status: 'open',
+        },
+      });
+
+      if (!existingTask) {
+        const task = await prisma.task.create({
+          data: {
+            trainerId: Number(trainerId),
+            title: `Nutrition program update due for ${assignment.client.fullName}`,
+            description: `Nutrition program "${assignment.nutritionProgram.name}" update is due on ${assignment.nextUpdateDate ? new Date(assignment.nextUpdateDate).toLocaleDateString() : 'unknown date'} for ${assignment.client.fullName}. Please review and update the nutrition program.`,
+            taskType: 'automatic',
+            category: 'Nutrition',
+            status: 'open',
+            clientId: assignment.clientId,
+            dueDate: assignment.nextUpdateDate,
+          },
+        });
+        generatedTasks.push(task);
+        console.log('Created nutrition program update task for client:', assignment.client.fullName);
+      } else {
+        console.log('Nutrition program update task already exists for client:', assignment.client.fullName);
+      }
+    }
+
     // Get total existing tasks for response
     const totalExistingTasks = await prisma.task.count({
       where: {

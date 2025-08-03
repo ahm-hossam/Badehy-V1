@@ -45,6 +45,7 @@ import {
   UserGroupIcon,
   ClipboardDocumentListIcon,
   CurrencyDollarIcon,
+  HeartIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -316,6 +317,11 @@ export function ApplicationLayout({
               </SidebarItem>
               {/* Workout Programs collapsible section */}
               <WorkoutProgramsCollapsible pathname={pathname} />
+              {/* Nutrition Programs section */}
+              <SidebarItem href="/nutrition-programs" current={pathname.startsWith('/nutrition-programs')}>
+                <HeartIcon />
+                <SidebarLabel>Nutrition Programs</SidebarLabel>
+              </SidebarItem>
               {/* Branding & Templates collapsible section */}
               <BrandingCollapsible pathname={pathname} />
             </SidebarSection>
