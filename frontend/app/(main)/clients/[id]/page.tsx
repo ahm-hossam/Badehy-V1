@@ -956,7 +956,8 @@ export default function ClientDetailsPage() {
     { id: 'overview', name: 'Overview', icon: ChartBarIcon, count: null },
     { id: 'profile', name: 'Profile', icon: UserIcon, count: null },
     { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: null },
-    { id: 'workout-programs', name: 'Workout Programs', icon: FireIcon, count: null },
+    { id: 'workout-programs', name: 'Workout', icon: FireIcon, count: null },
+    { id: 'nutrition-programs', name: 'Nutrition', icon: HeartIcon, count: null },
     { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
@@ -1090,16 +1091,16 @@ export default function ClientDetailsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <tab.icon className="h-4 w-4 mr-2" />
-                {tab.name}
+                <tab.icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span className="flex-shrink-0">{tab.name}</span>
                 {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                  <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs flex-shrink-0">
                     {tab.count}
                   </span>
                 )}
@@ -1114,6 +1115,7 @@ export default function ClientDetailsPage() {
           {activeTab === 'profile' && <ProfileTab key={`profile-${client.id}-${clientDataVersion}`} client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
           {activeTab === 'subscriptions' && <SubscriptionsTab client={client} getPaymentStatusColor={getPaymentStatusColor} />}
           {activeTab === 'workout-programs' && <WorkoutProgramsTab client={client} />}
+          {activeTab === 'nutrition-programs' && <NutritionProgramsTab client={client} />}
           {activeTab === 'checkins' && <CheckinsTab client={client} />}
           {activeTab === 'notes' && <NotesTab client={client} onNotesChange={() => setClientDataVersion(prev => prev + 1)} />}
         </div>
@@ -3438,6 +3440,492 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
                 disabled={!assignmentData.programId || !assignmentData.startDate || assignLoading}
               >
                 {assignLoading ? 'Assigning...' : 'Assign Program'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Dialog>
+    </div>
+  );
+} 
+
+function NutritionProgramsTab({ client }: { client: Client }) {
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [nutritionPrograms, setNutritionPrograms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignmentData, setAssignmentData] = useState({
+    nutritionProgramId: '',
+    startDate: '',
+    endDate: '',
+    nextUpdateDate: '',
+    notes: ''
+  });
+
+  useEffect(() => {
+    loadNutritionProgramAssignments();
+    loadNutritionPrograms();
+  }, [client.id]);
+
+  const loadNutritionProgramAssignments = async () => {
+    try {
+      const user = getStoredUser();
+      if (!user) return;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/client-nutrition-assignments/client/${client.id}?trainerId=${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAssignments(data);
+      }
+    } catch (error) {
+      console.error('Error loading nutrition program assignments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadNutritionPrograms = async () => {
+    try {
+      const user = getStoredUser();
+      if (!user) return;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/nutrition-programs?trainerId=${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNutritionPrograms(data);
+      }
+    } catch (error) {
+      console.error('Error loading nutrition programs:', error);
+    }
+  };
+
+  const handleAssignNutritionProgram = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setAssignLoading(true);
+      const user = getStoredUser();
+      if (!user) return;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/client-nutrition-assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainerId: user.id,
+          clientId: client.id,
+          nutritionProgramId: assignmentData.nutritionProgramId,
+          startDate: assignmentData.startDate,
+          endDate: assignmentData.endDate || null,
+          nextUpdateDate: assignmentData.nextUpdateDate || null,
+          notes: assignmentData.notes || null,
+        }),
+      });
+
+      if (response.ok) {
+        await loadNutritionProgramAssignments();
+        setShowAssignModal(false);
+        setAssignmentData({
+          nutritionProgramId: '',
+          startDate: '',
+          endDate: '',
+          nextUpdateDate: '',
+          notes: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error assigning nutrition program:', error);
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const getActiveAssignment = () => {
+    return assignments.find(assignment => assignment.isActive);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'completed':
+        return 'bg-gray-100 text-gray-800';
+      case 'paused':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getAssignmentStatus = (assignment: any) => {
+    if (assignment.status === 'completed') return 'Completed';
+    if (assignment.status === 'paused') return 'Paused';
+    if (assignment.endDate && new Date(assignment.endDate) < new Date()) {
+      return 'Expired';
+    }
+    return 'Active';
+  };
+
+  const getStatusColorWithExpiration = (assignment: any) => {
+    if (assignment.endDate && new Date(assignment.endDate) < new Date()) {
+      return 'bg-red-100 text-red-800';
+    }
+    return getStatusColor(assignment.status);
+  };
+
+  const calculateEndDate = (startDate: string, program: any) => {
+    if (!startDate || !program.programDuration || !program.durationUnit) return '';
+    
+    const start = new Date(startDate);
+    const duration = program.programDuration;
+    
+    switch (program.durationUnit) {
+      case 'days':
+        start.setDate(start.getDate() + duration);
+        break;
+      case 'weeks':
+        start.setDate(start.getDate() + (duration * 7));
+        break;
+      case 'months':
+        start.setMonth(start.getMonth() + duration);
+        break;
+    }
+    
+    return start.toISOString().split('T')[0];
+  };
+
+  const calculateNextUpdateDate = (startDate: string, program: any) => {
+    if (!startDate || !program.programDuration || !program.durationUnit) return '';
+    
+    const start = new Date(startDate);
+    const duration = program.programDuration;
+    
+    switch (program.durationUnit) {
+      case 'days':
+        start.setDate(start.getDate() + duration);
+        break;
+      case 'weeks':
+        start.setDate(start.getDate() + (duration * 7));
+        break;
+      case 'months':
+        start.setMonth(start.getMonth() + duration);
+        break;
+    }
+    
+    return start.toISOString().split('T')[0];
+  };
+
+  const handleProgramChange = (programId: string) => {
+    setAssignmentData(prev => ({ ...prev, nutritionProgramId: programId }));
+    
+    if (programId && assignmentData.startDate) {
+      const selectedProgram = nutritionPrograms.find(p => p.id.toString() === programId);
+      if (selectedProgram) {
+        const endDate = calculateEndDate(assignmentData.startDate, selectedProgram);
+        const nextUpdateDate = calculateNextUpdateDate(assignmentData.startDate, selectedProgram);
+        setAssignmentData(prev => ({
+          ...prev,
+          endDate,
+          nextUpdateDate
+        }));
+      }
+    }
+  };
+
+  const handleStartDateChange = (startDate: string) => {
+    setAssignmentData(prev => ({ ...prev, startDate }));
+    
+    if (startDate && assignmentData.nutritionProgramId) {
+      const selectedProgram = nutritionPrograms.find(p => p.id.toString() === assignmentData.nutritionProgramId);
+      if (selectedProgram) {
+        const endDate = calculateEndDate(startDate, selectedProgram);
+        const nextUpdateDate = calculateNextUpdateDate(startDate, selectedProgram);
+        setAssignmentData(prev => ({
+          ...prev,
+          endDate,
+          nextUpdateDate
+        }));
+      }
+    }
+  };
+
+  const isAssignmentExpired = (assignment: any) => {
+    if (!assignment.endDate) return false;
+    return new Date(assignment.endDate) < new Date();
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
+      </div>
+    );
+  }
+
+  const activeAssignment = getActiveAssignment();
+
+  return (
+    <div className="p-6">
+      {/* Current Program Section */}
+      {activeAssignment && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Nutrition Program</h3>
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="text-xl font-medium text-gray-900">
+                    {activeAssignment.nutritionProgram.name}
+                  </h4>
+                  {activeAssignment.nutritionProgram.isImported && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Imported
+                    </span>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <span className="text-sm text-gray-500">Start Date</span>
+                    <p className="font-medium">{formatDate(activeAssignment.startDate)}</p>
+                  </div>
+                  {activeAssignment.endDate && (
+                    <div>
+                      <span className="text-sm text-gray-500">End Date</span>
+                      <p className="font-medium">{formatDate(activeAssignment.endDate)}</p>
+                    </div>
+                  )}
+                  {activeAssignment.nextUpdateDate && (
+                    <div>
+                      <span className="text-sm text-gray-500">Next Update</span>
+                      <p className="font-medium">{formatDate(activeAssignment.nextUpdateDate)}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {activeAssignment.notes && (
+                  <div className="mb-4">
+                    <span className="text-sm text-gray-500">Notes</span>
+                    <p className="text-gray-900">{activeAssignment.notes}</p>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColorWithExpiration(activeAssignment)}`}>
+                    {getAssignmentStatus(activeAssignment)}
+                  </span>
+                  {activeAssignment.nutritionProgram.isImported && activeAssignment.nutritionProgram.importedPdfUrl && (
+                    <a
+                      href={`${process.env.NEXT_PUBLIC_API_URL}${activeAssignment.nutritionProgram.importedPdfUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      <DocumentArrowUpIcon className="h-4 w-4" />
+                      View Program PDF
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Program History Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Nutrition Program History</h3>
+          <Button
+            onClick={() => setShowAssignModal(true)}
+            className="flex items-center gap-2"
+          >
+            <PlusIcon className="h-4 w-4" />
+            Assign Program
+          </Button>
+        </div>
+        
+        <div className="bg-white border border-gray-200 rounded-lg">
+          {assignments.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No nutrition programs assigned yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {assignments.map((assignment) => (
+                <div key={assignment.id} className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="text-lg font-medium text-gray-900">
+                          {assignment.nutritionProgram.name}
+                        </h4>
+                        {assignment.nutritionProgram.isImported && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Imported
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
+                        <div>
+                          <span className="text-sm text-gray-500">Assigned</span>
+                          <p className="font-medium">{formatDate(assignment.assignedAt)}</p>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-500">Start Date</span>
+                          <p className="font-medium">{formatDate(assignment.startDate)}</p>
+                        </div>
+                        {assignment.endDate && (
+                          <div>
+                            <span className="text-sm text-gray-500">End Date</span>
+                            <p className="font-medium">{formatDate(assignment.endDate)}</p>
+                          </div>
+                        )}
+                        {assignment.nextUpdateDate && (
+                          <div>
+                            <span className="text-sm text-gray-500">Next Update</span>
+                            <p className="font-medium">{formatDate(assignment.nextUpdateDate)}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {assignment.notes && (
+                        <p className="text-gray-600 text-sm mb-2">{assignment.notes}</p>
+                      )}
+                      
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColorWithExpiration(assignment)}`}>
+                          {getAssignmentStatus(assignment)}
+                        </span>
+                        {assignment.nutritionProgram.isImported && assignment.nutritionProgram.importedPdfUrl && (
+                          <a
+                            href={`${process.env.NEXT_PUBLIC_API_URL}${assignment.nutritionProgram.importedPdfUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            <DocumentArrowUpIcon className="h-4 w-4" />
+                            View PDF
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Assign Program Modal */}
+      <Dialog open={showAssignModal} onClose={() => setShowAssignModal(false)}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Assign Nutrition Program</h2>
+            <button
+              onClick={() => setShowAssignModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <form onSubmit={handleAssignNutritionProgram} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Nutrition Program
+              </label>
+              <select
+                value={assignmentData.nutritionProgramId}
+                onChange={(e) => handleProgramChange(e.target.value)}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              >
+                <option value="">Choose a nutrition program...</option>
+                {nutritionPrograms.map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.name} {program.isImported ? '(Imported)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date
+                </label>
+                <input
+                  type="date"
+                  value={assignmentData.startDate}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={assignmentData.endDate}
+                  onChange={(e) => setAssignmentData(prev => ({ ...prev, endDate: e.target.value }))}
+                  className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Next Update Date (Optional)
+              </label>
+              <input
+                type="date"
+                value={assignmentData.nextUpdateDate}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, nextUpdateDate: e.target.value }))}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                value={assignmentData.notes}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, notes: e.target.value }))}
+                rows={3}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Add any notes about this nutrition program assignment..."
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                type="button"
+                outline
+                onClick={() => setShowAssignModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!assignmentData.nutritionProgramId || !assignmentData.startDate || assignLoading}
+              >
+                {assignLoading ? 'Assigning...' : 'Assign Nutrition Program'}
               </Button>
             </div>
           </form>

@@ -382,6 +382,26 @@ router.get('/', async (req: Request, res: Response) => {
             },
           },
         },
+        programAssignments: {
+          include: {
+            program: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+        nutritionAssignments: {
+          include: {
+            nutritionProgram: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
     // Enhanced profile completion logic for clients list
