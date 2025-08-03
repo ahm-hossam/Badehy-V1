@@ -535,6 +535,23 @@ export default function EditClientPage() {
   }, [subscription]);
   const handleSubscriptionChange = (key: string, value: any) => {
     setSubscription((prev: any) => ({ ...prev, [key]: value }));
+    
+    // Auto-fill subscription fields when package is selected
+    if (key === 'packageId' && value) {
+      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(value));
+      if (selectedPackage) {
+        setSubscription((prev: any) => ({
+          ...prev,
+          durationValue: selectedPackage.durationValue?.toString() || '',
+          durationUnit: selectedPackage.durationUnit || 'month',
+          priceBeforeDisc: selectedPackage.priceBeforeDisc?.toString() || '',
+          discountApplied: selectedPackage.discountApplied || false,
+          discountType: selectedPackage.discountType || 'fixed',
+          discountValue: selectedPackage.discountValue?.toString() || '',
+          priceAfterDisc: selectedPackage.priceAfterDisc?.toString() || '',
+        }));
+      }
+    }
   };
 
   // Handler to assign a check-in form to a client
@@ -1625,7 +1642,7 @@ export default function EditClientPage() {
               )}
               {['paid', 'installments'].includes(subscription.paymentStatus) && (
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                                          <label className="text-sm font-medium mb-1">Price Before Discount (EGP)</label>
                   <Input
                     type="number"
                     value={subscription.priceBeforeDisc || ''}
@@ -1655,7 +1672,7 @@ export default function EditClientPage() {
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Price After Discount</label>
+                                            <label className="text-sm font-medium mb-1">Price After Discount (EGP)</label>
                     <Input
                       type="number"
                       value={(() => {

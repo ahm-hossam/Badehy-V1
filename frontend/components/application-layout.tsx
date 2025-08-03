@@ -296,6 +296,10 @@ export function ApplicationLayout({
               </SidebarItem>
               {/* Check-ins collapsible section */}
               <CheckInsCollapsible pathname={pathname} />
+              <SidebarItem href="/packages" current={pathname.startsWith('/packages')}>
+                <FireIcon />
+                <SidebarLabel>Packages</SidebarLabel>
+              </SidebarItem>
               <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
                 <UsersIcon />
                 <SidebarLabel>Clients</SidebarLabel>

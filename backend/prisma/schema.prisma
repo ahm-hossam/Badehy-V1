@@ -82,6 +82,13 @@ model Package {
   id            Int            @id @default(autoincrement())
   trainerId     Int
   name          String
+  durationValue Int            @default(1)
+  durationUnit  String         @default("month")
+  priceBeforeDisc Float        @default(0)
+  discountApplied Boolean       @default(false)
+  discountType    String?
+  discountValue   Float?
+  priceAfterDisc  Float?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   trainer       Registered     @relation(fields: [trainerId], references: [id])

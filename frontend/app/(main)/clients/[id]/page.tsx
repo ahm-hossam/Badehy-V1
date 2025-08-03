@@ -724,6 +724,27 @@ export default function ClientDetailsPage() {
   const handleRenewalDataChange = (key: string, value: any) => {
     setRenewalData((prev: any) => ({ ...prev, [key]: value }));
     
+    // Auto-fill subscription fields when package is selected
+    if (key === 'packageId' && value) {
+      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(value));
+      if (selectedPackage) {
+        setRenewalData((prev: any) => ({
+          ...prev,
+          durationValue: selectedPackage.durationValue?.toString() || '',
+          durationUnit: selectedPackage.durationUnit || 'month',
+          priceBeforeDisc: selectedPackage.priceBeforeDisc?.toString() || '',
+          discount: selectedPackage.discountApplied ? 'yes' : 'no',
+          discountType: selectedPackage.discountType || 'fixed',
+          discountValue: selectedPackage.discountValue?.toString() || '',
+          priceAfterDisc: selectedPackage.priceAfterDisc?.toString() || '',
+        }));
+        
+        // Update UI states based on package data
+        setShowDiscountFields(selectedPackage.discountApplied);
+        setShowDiscountValue(selectedPackage.discountApplied);
+      }
+    }
+    
     // Handle special cases
     if (key === 'paymentStatus') {
       setShowPaymentMethod(['paid', 'installments'].includes(value));
@@ -1255,7 +1276,7 @@ export default function ClientDetailsPage() {
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      placeholder="Enter refund amount"
+                                              placeholder="Enter refund amount in EGP"
                       min="0"
                       step="0.01"
                     />
@@ -1380,7 +1401,7 @@ export default function ClientDetailsPage() {
                 )}
                 {['paid', 'installments'].includes(renewalData.paymentStatus) && (
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Price Before Discount</label>
+                                            <label className="text-sm font-medium mb-1">Price Before Discount (EGP)</label>
                     <Input
                       type="number"
                       value={renewalData.priceBeforeDisc}
@@ -1424,7 +1445,7 @@ export default function ClientDetailsPage() {
                       </div>
                     </div>
                     <div className="flex flex-col">
-                      <label className="text-sm font-medium mb-1">Price After Discount</label>
+                                              <label className="text-sm font-medium mb-1">Price After Discount (EGP)</label>
                       <Input
                         type="number"
                         value={(() => {
