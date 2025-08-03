@@ -379,7 +379,7 @@ export default function TasksPage() {
             }}
             outline
           >
-            Regenerate Tasks
+            Generate Tasks
           </Button>
           <Button onClick={() => setShowCreateModal(true)}>
             <PlusIcon />
@@ -428,6 +428,8 @@ export default function TasksPage() {
                 <option value="Payment">Payment</option>
                 <option value="Subscription">Subscription</option>
                 <option value="Profile">Profile</option>
+                <option value="Program">Program</option>
+                <option value="Installment">Installment</option>
                 <option value="Manual">Manual</option>
                 <option value="Workout">Workout</option>
                 <option value="Nutrition">Nutrition</option>

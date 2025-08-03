@@ -11,6 +11,8 @@ import {
   TableRow 
 } from '@/components/table';
 import { Dialog } from '@/components/dialog';
+import { Input } from '@/components/input';
+import { Select } from '@/components/select';
 import { getStoredUser } from '@/lib/auth';
 import { 
   PlusIcon, 
@@ -19,7 +21,8 @@ import {
   MagnifyingGlassIcon,
   FireIcon,
   CalendarIcon,
-  ClockIcon
+  ClockIcon,
+  DocumentArrowUpIcon
 } from '@heroicons/react/20/solid';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,6 +35,10 @@ interface Program {
   template?: string;
   branding?: any;
   pdfUrl?: string;
+  isImported?: boolean;
+  importedPdfUrl?: string;
+  programDuration?: number;
+  durationUnit?: string;
   createdAt: string;
   updatedAt: string;
   weeks: ProgramWeek[];
@@ -81,6 +88,16 @@ export default function ProgramsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showCreatedToast, setShowCreatedToast] = useState(false);
+  
+  // Import program state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importData, setImportData] = useState({
+    programName: '',
+    programDuration: '',
+    durationUnit: 'weeks'
+  });
 
   useEffect(() => {
     const storedUser = getStoredUser();
@@ -182,7 +199,71 @@ export default function ProgramsPage() {
   };
 
   const handleCreateProgram = () => {
-    router.push("/workout-programs/create");
+    router.push('/workout-programs/create');
+  };
+
+  const handleImportProgram = () => {
+    setShowImportModal(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      // Auto-fill program name from filename
+      const fileName = file.name.replace('.pdf', '');
+      setImportData(prev => ({ ...prev, programName: fileName }));
+    } else {
+      setErrorMessage('Please select a valid PDF file');
+      setShowErrorToast(true);
+    }
+  };
+
+  const handleImportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile || !user) return;
+
+    console.log('User object:', user);
+    console.log('User ID being sent:', user.id);
+
+    setImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('pdf', selectedFile);
+      formData.append('trainerId', user.id.toString());
+      formData.append('programName', importData.programName);
+      formData.append('programDuration', importData.programDuration);
+      formData.append('durationUnit', importData.durationUnit);
+
+      console.log('FormData contents:');
+      for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/programs/import`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        setShowImportModal(false);
+        setSelectedFile(null);
+        setImportData({ programName: '', programDuration: '', durationUnit: 'weeks' });
+        setShowCreatedToast(true);
+        fetchPrograms(user.id);
+      } else {
+        const error = await response.json();
+        console.error('Import failed:', error);
+        setErrorMessage(error.error || 'Failed to import program');
+        setShowErrorToast(true);
+      }
+    } catch (error) {
+      console.error('Error importing program:', error);
+      setErrorMessage('Failed to import program');
+      setShowErrorToast(true);
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   if (loading && programs.length === 0) {
@@ -218,10 +299,16 @@ export default function ProgramsPage() {
               className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <Button onClick={handleCreateProgram} className="px-4">
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Create Program
-          </Button>
+          <div className="flex gap-2">
+            <Button outline onClick={handleImportProgram} className="px-4">
+              <DocumentArrowUpIcon className="h-5 w-5 mr-2" />
+              Import Program
+            </Button>
+            <Button onClick={handleCreateProgram} className="px-4">
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Create Program
+            </Button>
+          </div>
         </div>
 
         {/* Table */}
@@ -231,8 +318,8 @@ export default function ProgramsPage() {
               <TableRow>
                 <TableHeader>ID</TableHeader>
                 <TableHeader>Program Name</TableHeader>
-                <TableHeader>Weeks</TableHeader>
-                <TableHeader>Exercises</TableHeader>
+                <TableHeader>Type/Duration</TableHeader>
+                <TableHeader>Details</TableHeader>
                 <TableHeader>Created</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
@@ -259,26 +346,45 @@ export default function ProgramsPage() {
                   </TableCell>
                 </TableRow>
               ) : programs.map((program) => (
-                <TableRow key={program.id}>
+                <TableRow key={program.id} className={program.isImported ? 'bg-blue-50' : ''}>
                   <TableCell className="font-mono text-xs text-zinc-500">{program.id}</TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{program.name}</div>
-                      {program.description && (
-                        <div className="text-sm text-gray-500 line-clamp-1">{program.description}</div>
+                      <div className="font-medium flex items-center">
+                        {program.name}
+                        {program.isImported && (
+                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Imported
+                          </span>
+                        )}
+                      </div>
+                      {program.isImported && program.programDuration && (
+                        <div className="text-sm text-gray-500">
+                          Duration: {program.programDuration} {program.durationUnit}
+                        </div>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center">
                       <CalendarIcon className="w-4 h-4 mr-1 text-gray-400" />
-                      <span className="text-sm">{getTotalWeeks(program)} weeks</span>
+                      <span className="text-sm">
+                        {program.isImported 
+                          ? (program.programDuration ? `${program.programDuration} ${program.durationUnit}` : 'PDF Program')
+                          : `${getTotalWeeks(program)} weeks`
+                        }
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center">
                       <ClockIcon className="w-4 h-4 mr-1 text-gray-400" />
-                      <span className="text-sm">{getTotalExercises(program)} exercises</span>
+                      <span className="text-sm">
+                        {program.isImported 
+                          ? 'Imported PDF'
+                          : `${getTotalExercises(program)} exercises`
+                        }
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-500">
@@ -286,19 +392,16 @@ export default function ProgramsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
-                      {program.pdfUrl && (
-                        <a
-                          href={program.pdfUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm px-2 py-1 rounded hover:bg-blue-50"
-                        >
-                          View PDF
-                        </a>
+                      {program.isImported && program.importedPdfUrl && (
+                        <Button outline onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${program.importedPdfUrl}`, '_blank')} className="px-3 py-1">
+                          <DocumentArrowUpIcon className="h-4 w-4 mr-1" />View PDF
+                        </Button>
                       )}
-                      <Button outline onClick={() => router.push(`/workout-programs/${program.id}/edit`)} className="px-3 py-1">
-                        <PencilIcon className="h-4 w-4 mr-1" />Edit
-                      </Button>
+                      {!program.isImported && (
+                        <Button outline onClick={() => router.push(`/workout-programs/${program.id}/edit`)} className="px-3 py-1">
+                          <PencilIcon className="h-4 w-4 mr-1" />Edit
+                        </Button>
+                      )}
                       <Button outline onClick={() => handleDelete(program.id, program.name)} className="px-3 py-1 text-red-600 hover:text-red-700">
                         <TrashIcon className="h-4 w-4 mr-1" />Delete
                       </Button>
@@ -318,54 +421,147 @@ export default function ProgramsPage() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Delete Confirmation Dialog */}
-      {confirmDelete && (
-        <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
-          <div className="p-6 z-[9999]">
-            <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
-            <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
-            <div className="flex justify-end gap-2 mt-6">
-              <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-              <Button color="red" type="button" onClick={confirmDeleteProgram}>Delete</Button>
+        {/* Import Program Modal */}
+        <Dialog open={showImportModal} onClose={() => setShowImportModal(false)}>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Import Program</h2>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
+            
+            <form onSubmit={handleImportSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Program PDF
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  required
+                />
+                {selectedFile && (
+                  <p className="mt-1 text-sm text-gray-600">Selected: {selectedFile.name}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Program Name
+                </label>
+                <Input
+                  type="text"
+                  value={importData.programName}
+                  onChange={(e) => setImportData(prev => ({ ...prev, programName: e.target.value }))}
+                  placeholder="Enter program name"
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duration
+                  </label>
+                  <Input
+                    type="number"
+                    value={importData.programDuration}
+                    onChange={(e) => setImportData(prev => ({ ...prev, programDuration: e.target.value }))}
+                    placeholder="Enter duration"
+                    min="1"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duration Unit
+                  </label>
+                  <Select
+                    value={importData.durationUnit}
+                    onChange={(e) => setImportData(prev => ({ ...prev, durationUnit: e.target.value }))}
+                  >
+                    <option value="days">Days</option>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 mt-6">
+                <Button
+                  type="button"
+                  outline
+                  onClick={() => setShowImportModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!selectedFile || importLoading}
+                >
+                  {importLoading ? 'Importing...' : 'Import Program'}
+                </Button>
+              </div>
+            </form>
           </div>
         </Dialog>
-      )}
 
-      {/* Success Toast */}
-      {showDeletedToast && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Program deleted successfully!
-          </div>
-        </div>
-      )}
+        {/* Delete Confirmation Dialog */}
+        {confirmDelete && (
+          <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+            <div className="p-6 z-[9999]">
+              <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
+              <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
+              <div className="flex justify-end gap-2 mt-6">
+                <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+                <Button color="red" type="button" onClick={confirmDeleteProgram}>Delete</Button>
+              </div>
+            </div>
+          </Dialog>
+        )}
 
-      {/* Error Toast */}
-      {showErrorToast && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            {errorMessage}
+        {/* Success Toast */}
+        {showDeletedToast && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Program deleted successfully!
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showCreatedToast && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Program created successfully!
+        {/* Error Toast */}
+        {showErrorToast && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {errorMessage}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {showCreatedToast && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              Program created successfully!
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

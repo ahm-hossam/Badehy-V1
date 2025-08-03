@@ -30,6 +30,7 @@ model Registered {
   supportRequests SupportRequest[]
   teamMembers    TeamMember[]
   clientAssignments ClientTeamAssignment[]
+  clientProgramAssignments ClientProgramAssignment[]
   tasks          Task[]
 }
 
@@ -73,6 +74,7 @@ model TrainerClient {
   submissions   CheckInSubmission[]
   selectedForm  CheckInForm?   @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
   teamAssignments ClientTeamAssignment[]
+  programAssignments ClientProgramAssignment[]
   tasks          Task[]
 
   @@index([trainerId])
@@ -319,10 +321,16 @@ model Program {
   template    String?  // PDF template URL or design template
   branding    Json?    // Branding settings (colors, logo, etc.)
   pdfUrl      String?  // Generated PDF URL
+  // New fields for imported programs
+  isImported  Boolean  @default(false)
+  importedPdfUrl String? // URL to the uploaded PDF file
+  programDuration Int? // Duration in days/weeks/months
+  durationUnit String? // "days", "weeks", "months"
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   trainer     Registered @relation(fields: [trainerId], references: [id])
   weeks       ProgramWeek[]
+  clientAssignments ClientProgramAssignment[]
 
   @@index([trainerId])
 }
@@ -455,19 +463,40 @@ model TeamMember {
 }
 
 model ClientTeamAssignment {
-  id           Int        @id @default(autoincrement())
-  clientId     Int
-  teamMemberId Int
-  assignedAt   DateTime   @default(now())
-  assignedBy   Int        // Owner's trainer ID
-  client       TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
-  assignedByTrainer Registered @relation(fields: [assignedBy], references: [id])
+  id            Int         @id @default(autoincrement())
+  trainerId     Int
+  clientId      Int
+  teamMemberId  Int
+  assignedAt    DateTime    @default(now())
+  trainer       Registered  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  teamMember    TeamMember  @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, teamMemberId])
+  @@index([trainerId])
   @@index([clientId])
   @@index([teamMemberId])
-  @@index([assignedBy])
+}
+
+model ClientProgramAssignment {
+  id            Int         @id @default(autoincrement())
+  trainerId     Int
+  clientId      Int
+  programId     Int
+  assignedAt    DateTime    @default(now())
+  startDate     DateTime
+  endDate       DateTime?
+  nextUpdateDate DateTime?
+  isActive      Boolean     @default(true)
+  status        String      @default("active") // "active", "completed", "paused"
+  notes         String?
+  trainer       Registered  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  program       Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([trainerId])
+  @@index([clientId])
+  @@index([programId])
 }
 
 model Task {

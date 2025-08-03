@@ -8,6 +8,7 @@ import { Textarea } from '@/components/textarea';
 import { Select } from '@/components/select';
 import { Dialog } from '@/components/dialog';
 import { Toast } from '@/components/toast';
+import { getStoredUser } from '@/lib/auth';
 import { 
   UserIcon, 
   CreditCardIcon, 
@@ -35,7 +36,9 @@ import {
   TrashIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  PlusIcon,
+  DocumentArrowUpIcon
 } from '@heroicons/react/24/outline';
 
 interface Client {
@@ -953,6 +956,7 @@ export default function ClientDetailsPage() {
     { id: 'overview', name: 'Overview', icon: ChartBarIcon, count: null },
     { id: 'profile', name: 'Profile', icon: UserIcon, count: null },
     { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: null },
+    { id: 'workout-programs', name: 'Workout Programs', icon: FireIcon, count: null },
     { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
@@ -1109,6 +1113,7 @@ export default function ClientDetailsPage() {
           {activeTab === 'overview' && <OverviewTab client={client} onHoldSubscription={handleHoldSubscription} onCancelSubscription={handleCancelSubscription} onAddRenew={handleAddRenew} getDisplayName={getDisplayName} />}
           {activeTab === 'profile' && <ProfileTab key={`profile-${client.id}-${clientDataVersion}`} client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
           {activeTab === 'subscriptions' && <SubscriptionsTab client={client} getPaymentStatusColor={getPaymentStatusColor} />}
+          {activeTab === 'workout-programs' && <WorkoutProgramsTab client={client} />}
           {activeTab === 'checkins' && <CheckinsTab client={client} />}
           {activeTab === 'notes' && <NotesTab client={client} onNotesChange={() => setClientDataVersion(prev => prev + 1)} />}
         </div>
@@ -2962,6 +2967,482 @@ function NotesTab({ client, onNotesChange }: { client: Client; onNotesChange: ()
           </div>
         </div>
       )}
+    </div>
+  );
+} 
+
+function WorkoutProgramsTab({ client }: { client: Client }) {
+  const [programAssignments, setProgramAssignments] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignmentData, setAssignmentData] = useState({
+    programId: '',
+    startDate: '',
+    endDate: '',
+    nextUpdateDate: '',
+    notes: ''
+  });
+
+  useEffect(() => {
+    loadProgramAssignments();
+    loadPrograms();
+  }, [client.id]);
+
+  const loadProgramAssignments = async () => {
+    try {
+      const user = getStoredUser();
+      if (!user) return;
+
+      const response = await fetch(`/api/client-program-assignments/client/${client.id}?trainerId=${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProgramAssignments(data);
+      }
+    } catch (error) {
+      console.error('Error loading program assignments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPrograms = async () => {
+    try {
+      const user = getStoredUser();
+      if (!user) return;
+
+      const response = await fetch(`/api/programs?trainerId=${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPrograms(data);
+      }
+    } catch (error) {
+      console.error('Error loading programs:', error);
+    }
+  };
+
+  const handleAssignProgram = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignmentData.programId || !assignmentData.startDate) return;
+
+    setAssignLoading(true);
+    try {
+      const user = getStoredUser();
+      if (!user) return;
+
+      const response = await fetch('/api/client-program-assignments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainerId: user.id,
+          clientId: client.id,
+          programId: assignmentData.programId,
+          startDate: assignmentData.startDate,
+          endDate: assignmentData.endDate || null,
+          nextUpdateDate: assignmentData.nextUpdateDate || null,
+          notes: assignmentData.notes || null
+        }),
+      });
+
+      if (response.ok) {
+        setShowAssignModal(false);
+        setAssignmentData({
+          programId: '',
+          startDate: '',
+          endDate: '',
+          nextUpdateDate: '',
+          notes: ''
+        });
+        loadProgramAssignments();
+      } else {
+        const error = await response.json();
+        console.error('Error assigning program:', error);
+      }
+    } catch (error) {
+      console.error('Error assigning program:', error);
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const getActiveAssignment = () => {
+    return programAssignments.find(assignment => assignment.isActive);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      case 'paused':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Get status with expiration check
+  const getAssignmentStatus = (assignment: any) => {
+    if (assignment.status === 'active' && isAssignmentExpired(assignment)) {
+      return 'expired';
+    }
+    return assignment.status;
+  };
+
+  // Get status color with expiration check
+  const getStatusColorWithExpiration = (assignment: any) => {
+    const status = getAssignmentStatus(assignment);
+    switch (status) {
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'completed':
+        return 'bg-blue-100 text-blue-800';
+      case 'paused':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'expired':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Calculate end date based on start date and program duration
+  const calculateEndDate = (startDate: string, program: any) => {
+    if (!startDate || !program || !program.programDuration || !program.durationUnit) {
+      return '';
+    }
+
+    const start = new Date(startDate);
+    const duration = program.programDuration;
+    const unit = program.durationUnit;
+
+    const end = new Date(start);
+    switch (unit) {
+      case 'days':
+        end.setDate(end.getDate() + duration);
+        break;
+      case 'weeks':
+        end.setDate(end.getDate() + (duration * 7));
+        break;
+      case 'months':
+        end.setMonth(end.getMonth() + duration);
+        break;
+      default:
+        return '';
+    }
+
+    return end.toISOString().split('T')[0];
+  };
+
+  // Calculate next update date (same as end date for now)
+  const calculateNextUpdateDate = (startDate: string, program: any) => {
+    return calculateEndDate(startDate, program);
+  };
+
+  // Handle program selection change
+  const handleProgramChange = (programId: string) => {
+    setAssignmentData(prev => ({ ...prev, programId }));
+    
+    // Auto-calculate dates if start date is already set
+    if (assignmentData.startDate) {
+      const selectedProgram = programs.find(p => p.id.toString() === programId);
+      if (selectedProgram && selectedProgram.programDuration) {
+        const endDate = calculateEndDate(assignmentData.startDate, selectedProgram);
+        const nextUpdateDate = calculateNextUpdateDate(assignmentData.startDate, selectedProgram);
+        setAssignmentData(prev => ({ 
+          ...prev, 
+          programId,
+          endDate,
+          nextUpdateDate
+        }));
+      }
+    }
+  };
+
+  // Handle start date change
+  const handleStartDateChange = (startDate: string) => {
+    setAssignmentData(prev => ({ ...prev, startDate }));
+    
+    // Auto-calculate dates if program is selected
+    if (assignmentData.programId) {
+      const selectedProgram = programs.find(p => p.id.toString() === assignmentData.programId);
+      if (selectedProgram && selectedProgram.programDuration) {
+        const endDate = calculateEndDate(startDate, selectedProgram);
+        const nextUpdateDate = calculateNextUpdateDate(startDate, selectedProgram);
+        setAssignmentData(prev => ({ 
+          ...prev, 
+          startDate,
+          endDate,
+          nextUpdateDate
+        }));
+      }
+    }
+  };
+
+  // Check if a program assignment is expired
+  const isAssignmentExpired = (assignment: any) => {
+    if (!assignment.endDate) return false;
+    const endDate = new Date(assignment.endDate);
+    const now = new Date();
+    return endDate < now;
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+        <div className="h-64 bg-gray-200 rounded"></div>
+      </div>
+    );
+  }
+
+  const activeAssignment = getActiveAssignment();
+
+  return (
+    <div className="space-y-6">
+      {/* Current Program Section */}
+      <div className="bg-white rounded-xl shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Current Program</h3>
+          <Button onClick={() => setShowAssignModal(true)}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Assign Program
+          </Button>
+        </div>
+
+        {activeAssignment ? (
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-lg font-medium text-gray-900">
+                {activeAssignment.program.name}
+                {activeAssignment.program.isImported && (
+                  <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Imported
+                  </span>
+                )}
+              </h4>
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColorWithExpiration(activeAssignment)}`}>
+                {getAssignmentStatus(activeAssignment)}
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500">Start Date:</span>
+                <div className="font-medium">{formatDate(activeAssignment.startDate)}</div>
+              </div>
+              {activeAssignment.endDate && (
+                <div>
+                  <span className="text-gray-500">End Date:</span>
+                  <div className="font-medium">{formatDate(activeAssignment.endDate)}</div>
+                </div>
+              )}
+              {activeAssignment.nextUpdateDate && (
+                <div>
+                  <span className="text-gray-500">Next Update:</span>
+                  <div className="font-medium">{formatDate(activeAssignment.nextUpdateDate)}</div>
+                </div>
+              )}
+            </div>
+
+            {activeAssignment.notes && (
+              <div className="mt-3">
+                <span className="text-gray-500">Notes:</span>
+                <div className="text-sm mt-1">{activeAssignment.notes}</div>
+              </div>
+            )}
+
+            {activeAssignment.program.isImported && activeAssignment.program.importedPdfUrl && (
+              <div className="mt-4">
+                <a
+                  href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${activeAssignment.program.importedPdfUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <DocumentArrowUpIcon className="h-4 w-4 mr-2" />
+                  View Program PDF
+                </a>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <FireIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>No program currently assigned</p>
+            <Button onClick={() => setShowAssignModal(true)} className="mt-4">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Assign Program
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Program History Section */}
+      <div className="bg-white rounded-xl shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Program History</h3>
+        
+        {programAssignments.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <ClockIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>No program history yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {programAssignments.map((assignment) => (
+              <div key={assignment.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-gray-900">
+                    {assignment.program.name}
+                    {assignment.program.isImported && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Imported
+                      </span>
+                    )}
+                  </h4>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColorWithExpiration(assignment)}`}>
+                    {getAssignmentStatus(assignment)}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Assigned:</span>
+                    <div className="font-medium">{formatDate(assignment.assignedAt)}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Start Date:</span>
+                    <div className="font-medium">{formatDate(assignment.startDate)}</div>
+                  </div>
+                  {assignment.endDate && (
+                    <div>
+                      <span className="text-gray-500">End Date:</span>
+                      <div className="font-medium">{formatDate(assignment.endDate)}</div>
+                    </div>
+                  )}
+                </div>
+
+                {assignment.notes && (
+                  <div className="mt-2">
+                    <span className="text-gray-500">Notes:</span>
+                    <div className="text-sm mt-1">{assignment.notes}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Assign Program Modal */}
+      <Dialog open={showAssignModal} onClose={() => setShowAssignModal(false)}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Assign Program</h2>
+            <button
+              onClick={() => setShowAssignModal(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          <form onSubmit={handleAssignProgram} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Program
+              </label>
+              <Select
+                value={assignmentData.programId}
+                onChange={(e) => handleProgramChange(e.target.value)}
+                required
+              >
+                <option value="">Choose a program...</option>
+                {programs.map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.name} {program.isImported ? '(Imported)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Start Date
+                </label>
+                <Input
+                  type="date"
+                  value={assignmentData.startDate}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Date (Optional)
+                </label>
+                <Input
+                  type="date"
+                  value={assignmentData.endDate}
+                  onChange={(e) => setAssignmentData(prev => ({ ...prev, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Next Update Date (Optional)
+              </label>
+              <Input
+                type="date"
+                value={assignmentData.nextUpdateDate}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, nextUpdateDate: e.target.value }))}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                value={assignmentData.notes}
+                onChange={(e) => setAssignmentData(prev => ({ ...prev, notes: e.target.value }))}
+                rows={3}
+                className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Add any notes about this program assignment..."
+              />
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                type="button"
+                outline
+                onClick={() => setShowAssignModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!assignmentData.programId || !assignmentData.startDate || assignLoading}
+              >
+                {assignLoading ? 'Assigning...' : 'Assign Program'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </Dialog>
     </div>
   );
 } 
