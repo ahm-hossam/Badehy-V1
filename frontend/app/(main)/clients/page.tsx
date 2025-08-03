@@ -60,6 +60,24 @@ interface Client {
       role: string;
     };
   }>;
+  programAssignments?: Array<{
+    id: number;
+    isActive: boolean;
+    endDate: string;
+    program: {
+      id: number;
+      name: string;
+    };
+  }>;
+  nutritionAssignments?: Array<{
+    id: number;
+    isActive: boolean;
+    endDate: string;
+    nutritionProgram: {
+      id: number;
+      name: string;
+    };
+  }>;
 }
 
 export default function ClientsPage() {
@@ -82,6 +100,8 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [profileCompletionFilter, setProfileCompletionFilter] = useState<string>("all");
   const [assignedToFilter, setAssignedToFilter] = useState<string>("all");
+  const [workoutProgramFilter, setWorkoutProgramFilter] = useState<string>("all");
+  const [nutritionProgramFilter, setNutritionProgramFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState<boolean>(false);
 
   // Helper function to get display name
@@ -138,6 +158,46 @@ export default function ClientsPage() {
   };
 
   // Helper function to get subscription status
+  const getWorkoutProgramStatus = (client: Client) => {
+    if (!client.programAssignments || client.programAssignments.length === 0) {
+      return { status: 'Not Assigned', color: 'gray' };
+    }
+    
+    const activeAssignment = client.programAssignments.find(assignment => assignment.isActive);
+    if (!activeAssignment) {
+      return { status: 'Not Assigned', color: 'gray' };
+    }
+    
+    const endDate = new Date(activeAssignment.endDate);
+    const today = new Date();
+    
+    if (endDate > today) {
+      return { status: 'Assigned', color: 'green' };
+    } else {
+      return { status: 'Expired', color: 'red' };
+    }
+  };
+
+  const getNutritionProgramStatus = (client: Client) => {
+    if (!client.nutritionAssignments || client.nutritionAssignments.length === 0) {
+      return { status: 'Not Assigned', color: 'gray' };
+    }
+    
+    const activeAssignment = client.nutritionAssignments.find(assignment => assignment.isActive);
+    if (!activeAssignment) {
+      return { status: 'Not Assigned', color: 'gray' };
+    }
+    
+    const endDate = new Date(activeAssignment.endDate);
+    const today = new Date();
+    
+    if (endDate > today) {
+      return { status: 'Assigned', color: 'green' };
+    } else {
+      return { status: 'Expired', color: 'red' };
+    }
+  };
+
   const getSubscriptionStatus = (client: Client) => {
     if (!client.subscriptions || client.subscriptions.length === 0) {
       return { status: 'No Subscription', color: 'gray' };
@@ -378,6 +438,32 @@ export default function ClientsPage() {
                   <option value="not_assigned">Not Assigned</option>
                 </select>
               </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Workout Program</label>
+                <select
+                  value={workoutProgramFilter}
+                  onChange={(e) => setWorkoutProgramFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Workout Programs</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="expired">Expired</option>
+                  <option value="not_assigned">Not Assigned</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nutrition Program</label>
+                <select
+                  value={nutritionProgramFilter}
+                  onChange={(e) => setNutritionProgramFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Nutrition Programs</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="expired">Expired</option>
+                  <option value="not_assigned">Not Assigned</option>
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -392,16 +478,18 @@ export default function ClientsPage() {
                 <TableHeader>Subscription Status</TableHeader>
                 <TableHeader>Assigned To</TableHeader>
                 <TableHeader>Profile Completion</TableHeader>
+                <TableHeader>Workout Program</TableHeader>
+                <TableHeader>Nutrition Program</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
               ) : errorMessage ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
               ) : clients.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-8 text-zinc-400">No clients found.</TableCell></TableRow>
               ) : clients
                 .filter(client => {
                   // Filter by search term
@@ -422,7 +510,21 @@ export default function ClientsPage() {
                     (assignedToFilter === "assigned" && isAssigned) ||
                     (assignedToFilter === "not_assigned" && !isAssigned);
                   
-                  return matchesSearch && matchesStatus && matchesProfileCompletion && matchesAssignment;
+                  // Filter by workout program status
+                  const workoutStatus = getWorkoutProgramStatus(client);
+                  const matchesWorkoutProgram = workoutProgramFilter === "all" || 
+                    (workoutProgramFilter === "assigned" && workoutStatus.status === "Assigned") ||
+                    (workoutProgramFilter === "expired" && workoutStatus.status === "Expired") ||
+                    (workoutProgramFilter === "not_assigned" && workoutStatus.status === "Not Assigned");
+                  
+                  // Filter by nutrition program status
+                  const nutritionStatus = getNutritionProgramStatus(client);
+                  const matchesNutritionProgram = nutritionProgramFilter === "all" || 
+                    (nutritionProgramFilter === "assigned" && nutritionStatus.status === "Assigned") ||
+                    (nutritionProgramFilter === "expired" && nutritionStatus.status === "Expired") ||
+                    (nutritionProgramFilter === "not_assigned" && nutritionStatus.status === "Not Assigned");
+                  
+                  return matchesSearch && matchesStatus && matchesProfileCompletion && matchesAssignment && matchesWorkoutProgram && matchesNutritionProgram;
                 })
                 .map((client) => (
                 <TableRow key={client.id}>
@@ -472,6 +574,40 @@ export default function ClientsPage() {
                     ) : (
                       <span className="inline-block px-2 py-1 text-xs rounded bg-yellow-100 text-yellow-700 font-semibold">Not Completed</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const status = getWorkoutProgramStatus(client);
+                      const colorClasses = {
+                        green: 'bg-green-100 text-green-700',
+                        red: 'bg-red-100 text-red-700',
+                        yellow: 'bg-yellow-100 text-yellow-700',
+                        orange: 'bg-orange-100 text-orange-700',
+                        gray: 'bg-gray-100 text-gray-700'
+                      };
+                      return (
+                        <span className={`inline-block px-2 py-1 text-xs rounded font-semibold ${colorClasses[status.color as keyof typeof colorClasses]}`}>
+                          {status.status}
+                        </span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const status = getNutritionProgramStatus(client);
+                      const colorClasses = {
+                        green: 'bg-green-100 text-green-700',
+                        red: 'bg-red-100 text-red-700',
+                        yellow: 'bg-yellow-100 text-yellow-700',
+                        orange: 'bg-orange-100 text-orange-700',
+                        gray: 'bg-gray-100 text-gray-700'
+                      };
+                      return (
+                        <span className={`inline-block px-2 py-1 text-xs rounded font-semibold ${colorClasses[status.color as keyof typeof colorClasses]}`}>
+                          {status.status}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
