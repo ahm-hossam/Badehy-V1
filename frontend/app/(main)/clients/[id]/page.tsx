@@ -956,8 +956,8 @@ export default function ClientDetailsPage() {
     { id: 'overview', name: 'Overview', icon: ChartBarIcon, count: null },
     { id: 'profile', name: 'Profile', icon: UserIcon, count: null },
     { id: 'subscriptions', name: 'Subscriptions', icon: CreditCardIcon, count: null },
-    { id: 'workout-programs', name: 'Workout Programs', icon: FireIcon, count: null },
-    { id: 'nutrition-programs', name: 'Nutrition Programs', icon: HeartIcon, count: null },
+    { id: 'workout-programs', name: 'Workout', icon: FireIcon, count: null },
+    { id: 'nutrition-programs', name: 'Nutrition', icon: HeartIcon, count: null },
     { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
@@ -1091,16 +1091,16 @@ export default function ClientDetailsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                <tab.icon className="h-4 w-4 mr-2" />
-                {tab.name}
+                <tab.icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span className="flex-shrink-0">{tab.name}</span>
                 {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                  <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs flex-shrink-0">
                     {tab.count}
                   </span>
                 )}
