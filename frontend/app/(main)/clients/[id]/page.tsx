@@ -216,6 +216,10 @@ export default function ClientDetailsPage() {
     { date: '', amount: '', image: null, nextDate: '' }
   ]);
 
+  // New state for package-based visibility in renewal
+  const [packageSelected, setPackageSelected] = useState(false);
+  const [showRenewalFields, setShowRenewalFields] = useState(false);
+
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ open: true, message, type });
@@ -723,6 +727,78 @@ export default function ClientDetailsPage() {
 
   const handleRenewalDataChange = (key: string, value: any) => {
     setRenewalData((prev: any) => ({ ...prev, [key]: value }));
+    
+    // Handle package selection
+    if (key === 'packageId' && value) {
+      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(value));
+      if (selectedPackage) {
+        // Calculate end date based on start date and package duration
+        let endDate = '';
+        if (renewalData.startDate && selectedPackage.durationValue) {
+          const startDate = new Date(renewalData.startDate);
+          const durationValue = selectedPackage.durationValue;
+          const durationUnit = selectedPackage.durationUnit || 'month';
+          
+          const endDateObj = new Date(startDate);
+          if (durationUnit === 'month') {
+            endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+          } else if (durationUnit === 'week') {
+            endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+          } else if (durationUnit === 'day') {
+            endDateObj.setDate(endDateObj.getDate() + durationValue);
+          }
+          endDate = endDateObj.toISOString().split('T')[0];
+        }
+        
+        setRenewalData((prev: any) => ({
+          ...prev,
+          durationValue: selectedPackage.durationValue?.toString() || '',
+          durationUnit: selectedPackage.durationUnit || 'month',
+          priceBeforeDisc: selectedPackage.priceBeforeDisc?.toString() || '',
+          discount: selectedPackage.discountApplied ? 'yes' : 'no',
+          discountType: selectedPackage.discountType || 'fixed',
+          discountValue: selectedPackage.discountValue?.toString() || '',
+          priceAfterDisc: selectedPackage.priceAfterDisc?.toString() || '',
+          endDate: endDate,
+        }));
+        
+        // Set discount type in local state
+        setDiscountType(selectedPackage.discountType || 'fixed');
+        
+        // Show all renewal fields after package selection
+        setPackageSelected(true);
+        setShowRenewalFields(true);
+        setShowPaymentMethod(['paid', 'installments'].includes(selectedPackage.paymentStatus || ''));
+        setShowDiscountFields(selectedPackage.discountApplied || false);
+        setShowTransactionImage(selectedPackage.paymentStatus === 'paid');
+        setShowDiscountValue(selectedPackage.discountApplied || false);
+      }
+    }
+    
+    // Handle start date change to recalculate end date if package is selected
+    if (key === 'startDate' && value && packageSelected) {
+      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(renewalData.packageId));
+      if (selectedPackage && selectedPackage.durationValue) {
+        const startDate = new Date(value);
+        const durationValue = selectedPackage.durationValue;
+        const durationUnit = selectedPackage.durationUnit || 'month';
+        
+        const endDateObj = new Date(startDate);
+        if (durationUnit === 'month') {
+          endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+        } else if (durationUnit === 'week') {
+          endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+        } else if (durationUnit === 'day') {
+          endDateObj.setDate(endDateObj.getDate() + durationValue);
+        }
+        const endDate = endDateObj.toISOString().split('T')[0];
+        
+        setRenewalData((prev: any) => ({
+          ...prev,
+          endDate: endDate,
+        }));
+      }
+    }
     
     // Handle special cases
     if (key === 'paymentStatus') {
@@ -1255,7 +1331,7 @@ export default function ClientDetailsPage() {
                       value={refundAmount}
                       onChange={(e) => setRefundAmount(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      placeholder="Enter refund amount"
+                                              placeholder="Enter refund amount in EGP"
                       min="0"
                       step="0.01"
                     />
@@ -1326,139 +1402,6 @@ export default function ClientDetailsPage() {
                   />
                 </div>
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Subscription Duration</label>
-                  <div className="flex gap-2">
-                    <Input 
-                      type="number" 
-                      min="1" 
-                      value={renewalData.durationValue} 
-                      onChange={e => handleRenewalDataChange('durationValue', e.target.value)} 
-                      className="w-1/2" 
-                      required
-                    />
-                    <Select 
-                      value={renewalData.durationUnit} 
-                      onChange={e => handleRenewalDataChange('durationUnit', e.target.value)} 
-                      className="w-1/2"
-                    >
-                      <option value="month">Month(s)</option>
-                      <option value="week">Week(s)</option>
-                      <option value="day">Day(s)</option>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Payment Status</label>
-                  <Select
-                    value={renewalData.paymentStatus}
-                    onChange={e => handleRenewalDataChange('paymentStatus', e.target.value)}
-                    required
-                  >
-                    <option value="">Select...</option>
-                    <option value="paid">Paid</option>
-                    <option value="free">Free</option>
-                    <option value="free_trial">Free Trial</option>
-                    <option value="pending">Pending</option>
-                    <option value="installments">Installments</option>
-                  </Select>
-                </div>
-                {showPaymentMethod && (
-                  <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Payment Method</label>
-                    <Select 
-                      value={renewalData.paymentMethod} 
-                      onChange={e => handleRenewalDataChange('paymentMethod', e.target.value)}
-                      required
-                    >
-                      <option value="">Select...</option>
-                      <option value="instapay">Instapay</option>
-                      <option value="vodafone_cash">Vodafone Cash</option>
-                      <option value="fawry">Fawry</option>
-                      <option value="bank_transfer">Bank Transfer</option>
-                    </Select>
-                  </div>
-                )}
-                {['paid', 'installments'].includes(renewalData.paymentStatus) && (
-                  <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Price Before Discount</label>
-                    <Input
-                      type="number"
-                      value={renewalData.priceBeforeDisc}
-                      onChange={e => handleRenewalDataChange('priceBeforeDisc', e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-                {showDiscountFields && (
-                  <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Discount</label>
-                    <Select
-                      value={renewalData.discount}
-                      onChange={e => handleRenewalDataChange('discount', e.target.value)}
-                    >
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </Select>
-                  </div>
-                )}
-                {showDiscountValue && (
-                  <>
-                    <div className="flex flex-col">
-                      <label className="text-sm font-medium mb-1">Discount Value</label>
-                      <div className="flex gap-2">
-                        <Input
-                          type="number"
-                          value={renewalData.discountValue}
-                          onChange={e => handleRenewalDataChange('discountValue', e.target.value)}
-                          className="w-1/2"
-                          required
-                        />
-                        <Select
-                          value={discountType}
-                          onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
-                          className="w-1/2"
-                        >
-                          <option value="fixed">Fixed Amount</option>
-                          <option value="percentage">Percentage</option>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="flex flex-col">
-                      <label className="text-sm font-medium mb-1">Price After Discount</label>
-                      <Input
-                        type="number"
-                        value={(() => {
-                          const before = Number(renewalData.priceBeforeDisc) || 0;
-                          const discount = Number(renewalData.discountValue) || 0;
-                          if (discountType === 'fixed') return before - discount;
-                          if (discountType === 'percentage') return before - (before * discount / 100);
-                          return before;
-                        })()}
-                        readOnly
-                        disabled
-                        className="bg-zinc-100"
-                      />
-                    </div>
-                  </>
-                )}
-                {showTransactionImage && (
-                  <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Transaction Image</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0] || null;
-                        setTransactionImage(file);
-                      }}
-                      className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                    />
-                    {transactionImage && (
-                      <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
-                    )}
-                  </div>
-                )}
-                <div className="flex flex-col">
                   <label className="text-sm font-medium mb-1">Package</label>
                   <Select
                     value={renewalData.packageId}
@@ -1471,6 +1414,155 @@ export default function ClientDetailsPage() {
                     ))}
                   </Select>
                 </div>
+                
+                {/* Show renewal fields only after package is selected */}
+                {showRenewalFields && (
+                  <>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Subscription Duration</label>
+                      <div className="flex gap-2">
+                        <Input 
+                          type="number" 
+                          min="1" 
+                          value={renewalData.durationValue} 
+                          onChange={e => handleRenewalDataChange('durationValue', e.target.value)} 
+                          className="w-1/2" 
+                          required
+                        />
+                        <Select 
+                          value={renewalData.durationUnit} 
+                          onChange={e => handleRenewalDataChange('durationUnit', e.target.value)} 
+                          className="w-1/2"
+                        >
+                          <option value="month">Month(s)</option>
+                          <option value="week">Week(s)</option>
+                          <option value="day">Day(s)</option>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
+                      <Input 
+                        type="date" 
+                        value={renewalData.endDate} 
+                        readOnly 
+                        disabled 
+                        className="bg-zinc-100" 
+                      />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Payment Status</label>
+                      <Select
+                        value={renewalData.paymentStatus}
+                        onChange={e => handleRenewalDataChange('paymentStatus', e.target.value)}
+                        required
+                      >
+                        <option value="">Select...</option>
+                        <option value="paid">Paid</option>
+                        <option value="free">Free</option>
+                        <option value="free_trial">Free Trial</option>
+                        <option value="pending">Pending</option>
+                        <option value="installments">Installments</option>
+                      </Select>
+                    </div>
+                    {showPaymentMethod && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Payment Method</label>
+                        <Select 
+                          value={renewalData.paymentMethod} 
+                          onChange={e => handleRenewalDataChange('paymentMethod', e.target.value)}
+                          required
+                        >
+                          <option value="">Select...</option>
+                          <option value="instapay">Instapay</option>
+                          <option value="vodafone_cash">Vodafone Cash</option>
+                          <option value="fawry">Fawry</option>
+                          <option value="bank_transfer">Bank Transfer</option>
+                        </Select>
+                      </div>
+                    )}
+                    {['paid', 'installments'].includes(renewalData.paymentStatus) && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Price Before Discount (EGP)</label>
+                        <Input
+                          type="number"
+                          value={renewalData.priceBeforeDisc}
+                          onChange={e => handleRenewalDataChange('priceBeforeDisc', e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+                    {showDiscountFields && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Discount</label>
+                        <Select
+                          value={renewalData.discount}
+                          onChange={e => handleRenewalDataChange('discount', e.target.value)}
+                        >
+                          <option value="no">No</option>
+                          <option value="yes">Yes</option>
+                        </Select>
+                      </div>
+                    )}
+                    {showDiscountValue && (
+                      <>
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium mb-1">Discount Value</label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              value={renewalData.discountValue}
+                              onChange={e => handleRenewalDataChange('discountValue', e.target.value)}
+                              className="w-1/2"
+                              required
+                            />
+                            <Select
+                              value={discountType}
+                              onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
+                              className="w-1/2"
+                            >
+                              <option value="fixed">Fixed Amount</option>
+                              <option value="percentage">Percentage</option>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium mb-1">Price After Discount (EGP)</label>
+                          <Input
+                            type="number"
+                            value={(() => {
+                              const before = Number(renewalData.priceBeforeDisc) || 0;
+                              const discount = Number(renewalData.discountValue) || 0;
+                              if (discountType === 'fixed') return before - discount;
+                              if (discountType === 'percentage') return before - (before * discount / 100);
+                              return before;
+                            })()}
+                            readOnly
+                            disabled
+                            className="bg-zinc-100"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {showTransactionImage && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Transaction Image</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0] || null;
+                            setTransactionImage(file);
+                          }}
+                          className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        />
+                        {transactionImage && (
+                          <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 

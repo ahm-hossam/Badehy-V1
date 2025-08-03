@@ -121,6 +121,10 @@ export default function EditClientPage() {
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<(number | string)[]>([]);
   const [clientAssignments, setClientAssignments] = useState<any[]>([]);
   const subscriptionLoadedRef = useRef(false);
+  
+  // New state for package-based visibility
+  const [packageSelected, setPackageSelected] = useState(false);
+  const [showSubscriptionFields, setShowSubscriptionFields] = useState(false);
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -532,9 +536,94 @@ export default function EditClientPage() {
     setShowDiscountValue(subscription.discount === 'yes');
     setShowPriceFields(subscription.discount === 'yes');
     if (subscription.discountType) setDiscountType(subscription.discountType);
+    
+    // Show subscription fields if package is already selected
+    if (subscription.packageId) {
+      setPackageSelected(true);
+      setShowSubscriptionFields(true);
+    }
   }, [subscription]);
   const handleSubscriptionChange = (key: string, value: any) => {
     setSubscription((prev: any) => ({ ...prev, [key]: value }));
+    
+    // Handle package selection
+    if (key === 'packageId' && value) {
+      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(value));
+      if (selectedPackage) {
+        // Calculate end date based on start date and package duration
+        let endDate = '';
+        if (subscription.startDate && selectedPackage.durationValue) {
+          const startDate = new Date(subscription.startDate);
+          const durationValue = selectedPackage.durationValue;
+          const durationUnit = selectedPackage.durationUnit || 'month';
+          
+          const endDateObj = new Date(startDate);
+          if (durationUnit === 'month') {
+            endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+          } else if (durationUnit === 'week') {
+            endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+          } else if (durationUnit === 'day') {
+            endDateObj.setDate(endDateObj.getDate() + durationValue);
+          }
+          endDate = endDateObj.toISOString().split('T')[0];
+        }
+        
+        setSubscription((prev: any) => ({
+          ...prev,
+          durationValue: selectedPackage.durationValue?.toString() || '',
+          durationUnit: selectedPackage.durationUnit || 'month',
+          priceBeforeDisc: selectedPackage.priceBeforeDisc?.toString() || '',
+          discountApplied: selectedPackage.discountApplied || false,
+          discountType: selectedPackage.discountType || 'fixed',
+          discountValue: selectedPackage.discountValue?.toString() || '',
+          priceAfterDisc: selectedPackage.priceAfterDisc?.toString() || '',
+          endDate: endDate,
+        }));
+        
+        // Set discount field correctly (form uses 'yes'/'no' values)
+        setSubscription((prev: any) => ({
+          ...prev,
+          discount: selectedPackage.discountApplied ? 'yes' : 'no',
+        }));
+        
+        // Set discount type in local state
+        setDiscountType(selectedPackage.discountType || 'fixed');
+        
+        // Show all subscription fields after package selection
+        setPackageSelected(true);
+        setShowSubscriptionFields(true);
+        setShowPaymentMethod(['paid', 'installments'].includes(selectedPackage.paymentStatus || ''));
+        setShowDiscountFields(selectedPackage.discountApplied || false);
+        setShowTransactionImage(selectedPackage.paymentStatus === 'paid');
+        setShowDiscountValue(selectedPackage.discountApplied || false);
+        setShowPriceFields(selectedPackage.discountApplied || false);
+      }
+    }
+    
+    // Handle start date change to recalculate end date if package is selected
+    if (key === 'startDate' && value && packageSelected) {
+      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(subscription.packageId));
+      if (selectedPackage && selectedPackage.durationValue) {
+        const startDate = new Date(value);
+        const durationValue = selectedPackage.durationValue;
+        const durationUnit = selectedPackage.durationUnit || 'month';
+        
+        const endDateObj = new Date(startDate);
+        if (durationUnit === 'month') {
+          endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+        } else if (durationUnit === 'week') {
+          endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+        } else if (durationUnit === 'day') {
+          endDateObj.setDate(endDateObj.getDate() + durationValue);
+        }
+        const endDate = endDateObj.toISOString().split('T')[0];
+        
+        setSubscription((prev: any) => ({
+          ...prev,
+          endDate: endDate,
+        }));
+      }
+    }
   };
 
   // Handler to assign a check-in form to a client
@@ -1507,188 +1596,151 @@ export default function EditClientPage() {
                 <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
               </div>
               <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Subscription Duration</label>
-                <div className="flex gap-2">
-                  <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
-                  <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
-                    <option value="month">Month(s)</option>
-                    <option value="week">Week(s)</option>
-                    <option value="day">Day(s)</option>
-                </Select>
-                </div>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
-                <Input type="date" value={subscription.endDate} readOnly disabled className="bg-zinc-100" />
-            </div>
-              <div className="flex flex-col">
-                <label className="text-sm font-medium mb-1">Payment Status</label>
-                <Select
-                  value={subscription.paymentStatus}
-                  onChange={e => {
-                    handleSubscriptionChange('paymentStatus', e.target.value);
-                    setShowPaymentMethod(['paid', 'installments'].includes(e.target.value));
-                    setShowDiscountFields(['paid', 'installments'].includes(e.target.value));
-                    setShowTransactionImage(e.target.value === 'paid');
-                  }}
-                >
-                  <option value="">Select...</option>
-                  <option value="paid">Paid</option>
-                  <option value="free">Free</option>
-                  <option value="free_trial">Free Trial</option>
-                  <option value="pending">Pending</option>
-                  <option value="installments">Installments</option>
-                </Select>
-              </div>
-              {/* Add package dropdown and inline add new package */}
-              <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Package</label>
-                <div className="flex gap-2 items-center">
-                  <Select
-                    value={subscription.packageId || ''}
-                    onChange={e => handleSubscriptionChange('packageId', e.target.value)}
-                    className="w-full"
-                  >
-                    <option value="">Select package...</option>
-                    {packages.map((pkg: any) => (
-                      <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
-                    ))}
-                  </Select>
-                  <Button
-                    type="button"
-                    outline
-                    className="min-w-[110px] text-xs"
-                    onClick={() => setShowAddPackage(v => !v)}
-                  >
-                    Add New
-                  </Button>
-                </div>
-                {showAddPackage && (
-                  <div className="mt-2 flex gap-2 items-center rounded p-2 bg-zinc-50">
-                    <Input
-                      type="text"
-                      value={newPackageName}
-                      onChange={e => setNewPackageName(e.target.value)}
-                      placeholder="Package Name"
-                      className="w-1/2"
-                    />
-                    <Button
-                      type="button"
-                      onClick={handleAddPackage}
-                      className="px-3"
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      type="button"
-                      outline
-                      onClick={() => {
-                        setShowAddPackage(false);
-                        setNewPackageName('');
-                        setPackageError('');
-                      }}
-                      className="px-3"
-                    >
-                      Cancel
-                    </Button>
-                    {packageError && <span className="text-red-500 text-xs ml-2">{packageError}</span>}
-                  </div>
-                )}
+                <Select
+                  value={subscription.packageId || ''}
+                  onChange={e => handleSubscriptionChange('packageId', e.target.value)}
+                  className="w-full"
+                >
+                  <option value="">Select package...</option>
+                  {packages.map((pkg: any) => (
+                    <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                  ))}
+                </Select>
               </div>
-              {showPaymentMethod && (
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Payment Method</label>
-                  <Select value={subscription.paymentMethod} onChange={e => handleSubscriptionChange('paymentMethod', e.target.value)}>
-                    <option value="">Select...</option>
-                    <option value="instapay">Instapay</option>
-                    <option value="vodafone_cash">Vodafone Cash</option>
-                    <option value="fawry">Fawry</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                  </Select>
-                </div>
-              )}
-              {showDiscountFields && (
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Discount</label>
-                  <Select
-                    value={subscription.discount}
-                    onChange={e => {
-                      handleSubscriptionChange('discount', e.target.value);
-                      setShowDiscountValue(e.target.value === 'yes');
-                      setShowPriceFields(e.target.value === 'yes');
-                    }}
-                  >
-                    <option value="no">No</option>
-                    <option value="yes">Yes</option>
-                  </Select>
-                </div>
-              )}
-              {['paid', 'installments'].includes(subscription.paymentStatus) && (
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Price Before Discount</label>
-                  <Input
-                    type="number"
-                    value={subscription.priceBeforeDisc || ''}
-                    onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
-                  />
-                </div>
-              )}
-              {showDiscountValue && (
+              
+              {/* Show subscription fields only after package is selected */}
+              {showSubscriptionFields && (
                 <>
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Discount Value</label>
+                    <label className="text-sm font-medium mb-1">Subscription Duration</label>
                     <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        value={subscription.discountValue || ''}
-                        onChange={e => handleSubscriptionChange('discountValue', e.target.value)}
-                        className="w-1/2"
-                      />
-                      <Select
-                        value={discountType}
-                        onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
-                        className="w-1/2"
-                      >
-                        <option value="fixed">Fixed Amount</option>
-                        <option value="percentage">Percentage</option>
+                      <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
+                      <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
+                        <option value="month">Month(s)</option>
+                        <option value="week">Week(s)</option>
+                        <option value="day">Day(s)</option>
                       </Select>
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <label className="text-sm font-medium mb-1">Price After Discount</label>
-                    <Input
-                      type="number"
-                      value={(() => {
-                        const before = Number(subscription.priceBeforeDisc) || 0;
-                        const discount = Number(subscription.discountValue) || 0;
-                        if (discountType === 'fixed') return before - discount;
-                        if (discountType === 'percentage') return before - (before * discount / 100);
-                        return before;
-                      })()}
-                      readOnly
-                      disabled
-                      className="bg-zinc-100"
-                    />
+                    <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
+                    <Input type="date" value={subscription.endDate} readOnly disabled className="bg-zinc-100" />
                   </div>
-                </>
-              )}
-              {showTransactionImage && (
-                <div className="flex flex-col">
-                  <label className="text-sm font-medium mb-1">Transaction Image</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      setTransactionImage(file);
-                    }}
-                    className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                  />
-                  {transactionImage && (
-                    <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
+                  <div className="flex flex-col">
+                    <label className="text-sm font-medium mb-1">Payment Status</label>
+                    <Select
+                      value={subscription.paymentStatus}
+                      onChange={e => {
+                        handleSubscriptionChange('paymentStatus', e.target.value);
+                        setShowPaymentMethod(['paid', 'installments'].includes(e.target.value));
+                        setShowDiscountFields(['paid', 'installments'].includes(e.target.value));
+                        setShowTransactionImage(e.target.value === 'paid');
+                      }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="paid">Paid</option>
+                      <option value="free">Free</option>
+                      <option value="free_trial">Free Trial</option>
+                      <option value="pending">Pending</option>
+                      <option value="installments">Installments</option>
+                    </Select>
+                  </div>
+                  {showPaymentMethod && (
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Payment Method</label>
+                      <Select value={subscription.paymentMethod} onChange={e => handleSubscriptionChange('paymentMethod', e.target.value)}>
+                        <option value="">Select...</option>
+                        <option value="instapay">Instapay</option>
+                        <option value="vodafone_cash">Vodafone Cash</option>
+                        <option value="fawry">Fawry</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                      </Select>
+                    </div>
                   )}
-                </div>
+                  {['paid', 'installments'].includes(subscription.paymentStatus) && (
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Price Before Discount (EGP)</label>
+                      <Input
+                        type="number"
+                        value={subscription.priceBeforeDisc || ''}
+                        onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                      />
+                    </div>
+                  )}
+                  {showDiscountFields && (
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Discount</label>
+                      <Select
+                        value={subscription.discount}
+                        onChange={e => {
+                          handleSubscriptionChange('discount', e.target.value);
+                          setShowDiscountValue(e.target.value === 'yes');
+                          setShowPriceFields(e.target.value === 'yes');
+                        }}
+                      >
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                      </Select>
+                    </div>
+                  )}
+                  {showDiscountValue && (
+                    <>
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Discount Value</label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            value={subscription.discountValue || ''}
+                            onChange={e => handleSubscriptionChange('discountValue', e.target.value)}
+                            className="w-1/2"
+                          />
+                          <Select
+                            value={discountType}
+                            onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
+                            className="w-1/2"
+                          >
+                            <option value="fixed">Fixed Amount</option>
+                            <option value="percentage">Percentage</option>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Price After Discount (EGP)</label>
+                        <Input
+                          type="number"
+                          value={(() => {
+                            const before = Number(subscription.priceBeforeDisc) || 0;
+                            const discount = Number(subscription.discountValue) || 0;
+                            if (discountType === 'fixed') return before - discount;
+                            if (discountType === 'percentage') return before - (before * discount / 100);
+                            return before;
+                          })()}
+                          readOnly
+                          disabled
+                          className="bg-zinc-100"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {showTransactionImage && (
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Transaction Image</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          setTransactionImage(file);
+                        }}
+                        className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                      />
+                      {transactionImage && (
+                        <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

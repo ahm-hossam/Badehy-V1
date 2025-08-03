@@ -110,5 +110,54 @@
     "category": "Profile",
     "taskType": "automatic",
     "deletedAt": "2025-08-02T12:28:33.400Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 25,
+    "category": "Installment",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:08.821Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 21,
+    "category": "Installment",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:12.270Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 17,
+    "category": "Installment",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:15.697Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 16,
+    "category": "Installment",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:18.720Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 20,
+    "category": "Subscription",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:21.830Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 19,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:25.580Z"
+  },
+  {
+    "trainerId": 1,
+    "clientId": 18,
+    "category": "Payment",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-03T06:09:28.919Z"
   }
 ]
