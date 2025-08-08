@@ -558,6 +558,8 @@ router.get('/', async (req: Request, res: Response) => {
     const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
       return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission };
     }));
+    // Prevent any intermediary caches from storing stale list
+    res.setHeader('Cache-Control', 'no-store');
     res.json(clientsWithCompletion);
   } catch (error) {
     console.error(error);
@@ -853,10 +855,34 @@ router.put('/:id', async (req: Request, res: Response) => {
       // 1. Update client details
       console.log('Backend - Received client data:', client);
       console.log('Backend - fullName from request:', client.fullName);
+
+      // If Full Name was edited inside the selected form answers, use it to override client.fullName
+      let overrideFullName: string | undefined;
+      try {
+        const incomingAnswers = (req.body as any).answers;
+        const selectedFormId = client.selectedFormId ? Number(client.selectedFormId) : undefined;
+        if (incomingAnswers && selectedFormId) {
+          const formDef = await tx.checkInForm.findUnique({
+            where: { id: selectedFormId },
+            include: { questions: true },
+          });
+          const fullNameQuestion = formDef?.questions.find(q => q.label.toLowerCase().includes('full name') || q.label.toLowerCase() === 'name');
+          if (fullNameQuestion) {
+            const ans = incomingAnswers[String(fullNameQuestion.id)];
+            if (ans && String(ans).trim() !== '' && ans !== 'undefined') {
+              overrideFullName = String(ans).trim();
+              console.log('Backend - Override fullName from answers:', overrideFullName);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Backend - Could not derive fullName from answers:', e);
+      }
+
       const updatedClient = await tx.trainerClient.update({
         where: { id: clientId },
         data: {
-          fullName: client.fullName,
+          fullName: overrideFullName ?? client.fullName,
           phone: client.phone,
           email: client.email,
           gender: client.gender,
@@ -889,18 +915,28 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
       // In PUT (edit), after updating client details
       const answers = req.body.answers;
+      console.log('Backend - Processing answers:', answers);
+      console.log('Backend - client.selectedFormId:', client.selectedFormId);
+      console.log('Backend - answers type:', typeof answers);
+      console.log('Backend - answers keys:', answers ? Object.keys(answers) : 'no answers');
       if (answers && client.selectedFormId) {
+        console.log('Backend - Found answers and selectedFormId, processing check-in submission');
+        console.log('Backend - answers object:', JSON.stringify(answers, null, 2));
         const latestSubmission = await tx.checkInSubmission.findFirst({
           where: { clientId, formId: Number(client.selectedFormId) },
           orderBy: { submittedAt: 'desc' },
         });
+        console.log('Backend - Latest submission found:', latestSubmission);
         if (latestSubmission) {
-          await tx.checkInSubmission.update({
+          console.log('Backend - Updating existing submission with answers');
+          const updatedSubmission = await tx.checkInSubmission.update({
             where: { id: latestSubmission.id },
             data: { answers: { ...answers, filledByTrainer: true }, submittedAt: new Date() }, // Mark as filled by trainer
           });
+          console.log('Backend - Successfully updated submission:', updatedSubmission);
         } else {
-          await tx.checkInSubmission.create({
+          console.log('Backend - Creating new submission with answers');
+          const newSubmission = await tx.checkInSubmission.create({
             data: {
               clientId,
               formId: Number(client.selectedFormId),
@@ -908,22 +944,28 @@ router.put('/:id', async (req: Request, res: Response) => {
               submittedAt: new Date(),
             },
           });
+          console.log('Backend - Successfully created new submission:', newSubmission);
         }
+      } else {
+        console.log('Backend - No answers or selectedFormId, skipping check-in submission processing');
+        console.log('Backend - answers:', answers);
+        console.log('Backend - selectedFormId:', client.selectedFormId);
       }
       // 2. Update or create subscription (assume only one active subscription)
       let updatedSubscription = null;
       if (subscription) {
         if (subscription.id) {
           console.log('Updating subscription:', subscription);
+          console.log('USING RELATION CONNECT FOR SUBSCRIPTION.UPDATE');
           updatedSubscription = await tx.subscription.update({
             where: { id: subscription.id },
             data: {
-              packageId: Number(subscription.packageId),
+              package: { connect: { id: Number(subscription.packageId) } },
               startDate: new Date(subscription.startDate),
               durationValue: Number(subscription.durationValue),
               durationUnit: subscription.durationUnit,
               endDate: new Date(subscription.endDate),
-              paymentStatus: subscription.paymentStatus,
+              paymentStatus: String(subscription.paymentStatus || 'pending'),
               paymentMethod: subscription.paymentMethod,
               priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
               discountApplied: Boolean(subscription.discountApplied),
@@ -941,15 +983,16 @@ router.put('/:id', async (req: Request, res: Response) => {
         } else {
           // Create new subscription for this client
           console.log('Creating new subscription:', subscription);
+          console.log('USING SCALAR FKs (clientId, packageId) FOR SUBSCRIPTION.CREATE');
           updatedSubscription = await tx.subscription.create({
             data: {
-              clientId,
+              clientId: clientId,
               packageId: Number(subscription.packageId),
               startDate: new Date(subscription.startDate),
               durationValue: Number(subscription.durationValue),
               durationUnit: subscription.durationUnit,
               endDate: new Date(subscription.endDate),
-              paymentStatus: subscription.paymentStatus,
+              paymentStatus: String(subscription.paymentStatus || 'pending'),
               paymentMethod: subscription.paymentMethod,
               priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
               discountApplied: Boolean(subscription.discountApplied),
