@@ -372,7 +372,7 @@ export default function TasksPage() {
           </button>
         </div>
         <div className="flex gap-2">
-          <Button 
+          {/* <Button 
             onClick={() => {
               localStorage.removeItem(`tasks_generated_${user?.id}`)
               generateAutomaticTasks()
@@ -380,7 +380,7 @@ export default function TasksPage() {
             outline
           >
             Generate Tasks
-          </Button>
+          </Button> */}
           <Button onClick={() => setShowCreateModal(true)}>
             <PlusIcon />
             Create Task

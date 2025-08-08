@@ -555,7 +555,26 @@ router.get('/', async (req: Request, res: Response) => {
       console.log('Package ID:', subscription.packageId);
     }
 
-    const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
+    // New completion checks: active workout and nutrition programs
+    let workoutProgramComplete = false;
+    let nutritionProgramComplete = false;
+    try {
+      const today = new Date();
+      if (client.programAssignments && client.programAssignments.length > 0) {
+        workoutProgramComplete = client.programAssignments.some((assignment: any) => {
+          const end = assignment.endDate ? new Date(assignment.endDate) : null;
+          return Boolean(assignment.isActive) && (!end || end > today);
+        });
+      }
+      if (client.nutritionAssignments && client.nutritionAssignments.length > 0) {
+        nutritionProgramComplete = client.nutritionAssignments.some((assignment: any) => {
+          const end = assignment.endDate ? new Date(assignment.endDate) : null;
+          return Boolean(assignment.isActive) && (!end || end > today);
+        });
+      }
+    } catch {}
+
+    const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete && workoutProgramComplete && nutritionProgramComplete;
       return { ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed', latestSubmission };
     }));
     // Prevent any intermediary caches from storing stale list
