@@ -88,6 +88,7 @@ export default function ClientsPage() {
   const [messageType, setMessageType] = useState<"success" | "error">("error");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const ts = searchParams.get('ts');
   const [showCreatedToast, setShowCreatedToast] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{id: number, name: string} | null>(null);
   const [showDeletedToast, setShowDeletedToast] = useState(false);
@@ -244,18 +245,34 @@ export default function ClientsPage() {
   useEffect(() => {
     if (searchParams.get('created') === '1') {
       setShowCreatedToast(true);
+      // Refresh list to reflect the newly created client
+      loadClients();
       const timer = setTimeout(() => setShowCreatedToast(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [searchParams]);
+  }, [searchParams, ts]);
 
   useEffect(() => {
     if (searchParams.get('updated') === '1') {
       setShowUpdatedToast(true);
+      // Refresh list to reflect the updated client details
+      loadClients().then(() => {
+        const idParam = searchParams.get('updatedId');
+        const nameParam = searchParams.get('updatedName');
+        if (idParam && nameParam) {
+          const idNum = Number(idParam);
+          setClients(prev => prev.map(c => c.id === idNum ? { ...c, fullName: decodeURIComponent(nameParam) } as Client : c));
+        }
+      });
       const timer = setTimeout(() => setShowUpdatedToast(false), 2000);
       return () => clearTimeout(timer);
     }
-  }, [searchParams]);
+  }, [searchParams, ts]);
+
+  // Reload when page changes
+  useEffect(() => {
+    loadClients();
+  }, [page, ts]);
 
   const loadClients = async () => {
     try {
@@ -269,9 +286,10 @@ export default function ClientsPage() {
         return;
       }
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : "";
-      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}&page=${page}&pageSize=${pageSize}`;
+      const tsParam = ts ? `&ts=${encodeURIComponent(ts)}` : `&ts=${Date.now()}`;
+      const url = `${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients?trainerId=${user.id}${searchParam}&page=${page}&pageSize=${pageSize}${tsParam}`;
       console.log('Loading clients from URL:', url);
-      const response = await fetch(url);
+      const response = await fetch(url, { cache: 'no-store' });
       if (response.ok) {
         const data = await response.json();
         console.log('Received clients data:', data);
@@ -534,7 +552,7 @@ export default function ClientsPage() {
                       onClick={() => router.push(`/clients/${client.id}`)}
                       className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                     >
-                      {getDisplayName(client)}
+                      {client.fullName && client.fullName !== 'Unknown Client' ? client.fullName : getDisplayName(client)}
                     </button>
                   </TableCell>
                   <TableCell>

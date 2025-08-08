@@ -125,6 +125,27 @@ export default function EditClientPage() {
   // New state for package-based visibility
   const [packageSelected, setPackageSelected] = useState(false);
   const [showSubscriptionFields, setShowSubscriptionFields] = useState(false);
+  
+  // Subscription state
+  const [subscription, setSubscription] = useState<any>({});
+  const [discountType, setDiscountType] = useState<string>('fixed');
+  const [registrationDate, setRegistrationDate] = useState<string>('');
+  
+  // Array fields for form processing
+  const arrayFields = ['goals', 'injuriesHealthNotes', 'preferredTrainingDays', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas', 'foodAllergies', 'dislikedIngredients'];
+  
+  // Package-related state
+  const [packages, setPackages] = useState<any[]>([]);
+  const [newPackageName, setNewPackageName] = useState('');
+  const [showAddPackage, setShowAddPackage] = useState(false);
+  const [packageError, setPackageError] = useState('');
+  
+  // Subscription visibility state
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [showDiscountFields, setShowDiscountFields] = useState(false);
+  const [showTransactionImage, setShowTransactionImage] = useState(false);
+  const [showDiscountValue, setShowDiscountValue] = useState(false);
+  const [showPriceFields, setShowPriceFields] = useState(false);
 
   useEffect(() => {
     setUser(getStoredUser());
@@ -138,7 +159,7 @@ export default function EditClientPage() {
   // Fetch team members
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`/api/team-members?trainerId=${user.id}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/team-members?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => setTeamMembers(data || []))
       .catch(() => console.error("Failed to load team members."));
@@ -148,17 +169,22 @@ export default function EditClientPage() {
   useEffect(() => {
     if (!user?.id || !clientId) return;
     console.log('Fetching team assignments for client:', clientId);
-    fetch(`/api/client-assignments?trainerId=${user.id}&clientId=${clientId}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments?trainerId=${user.id}&clientId=${clientId}`)
       .then(res => {
         console.log('Team assignments response status:', res.status);
         return res.json();
       })
       .then(data => {
         console.log('Team assignments data:', data);
-        setClientAssignments(data || []);
+        // Ensure data is an array before setting it
+        const assignmentsArray = Array.isArray(data) ? data : [];
+        console.log('Team assignments array:', assignmentsArray);
+        setClientAssignments(assignmentsArray);
         // Set selected team members from assignments
-        const assignedMemberIds = data.map((assignment: any) => assignment.teamMember.id);
+        const assignedMemberIds = assignmentsArray.map((assignment: any) => assignment.teamMember.id);
+        console.log('Setting selected team members from assignments:', assignedMemberIds);
         setSelectedTeamMembers(assignedMemberIds);
+        console.log('Selected team members set to:', assignedMemberIds);
       })
       .catch(err => {
         console.error('Failed to fetch team assignments:', err);
@@ -183,10 +209,20 @@ export default function EditClientPage() {
         // Process the answers from latestSubmission
         if (data?.latestSubmission?.answers) {
           console.log('EditClientPage - Setting answers from latestSubmission:', data.latestSubmission.answers);
-          setAnswers(data.latestSubmission.answers);
+          // Filter out the filledByTrainer field and any other metadata
+          const cleanAnswers = { ...data.latestSubmission.answers };
+          delete cleanAnswers.filledByTrainer;
+          delete cleanAnswers.submittedAt;
+          console.log('EditClientPage - Clean answers after filtering:', cleanAnswers);
+          setAnswers(cleanAnswers);
+          console.log('EditClientPage - Answers state set to:', cleanAnswers);
+        } else {
+          console.log('EditClientPage - No latestSubmission.answers found');
+          console.log('EditClientPage - data.latestSubmission:', data?.latestSubmission);
         }
         
         setFormData(data || {});
+        console.log('EditClientPage - Set formData with selectedFormId:', data?.selectedFormId);
         // Initialize selected labels from client data
         if (data?.labels && Array.isArray(data.labels)) {
           setSelectedLabels(data.labels.map((label: any) => label.id));
@@ -194,7 +230,23 @@ export default function EditClientPage() {
         // Load subscription data
         if (data?.subscriptions && data.subscriptions.length > 0) {
           const latestSubscription = data.subscriptions[0];
-          setSubscription(latestSubscription);
+          setSubscription({
+            id: latestSubscription.id || undefined,
+            packageId: latestSubscription.packageId || '',
+            startDate: latestSubscription.startDate ? new Date(latestSubscription.startDate).toISOString().split('T')[0] : '',
+            durationValue: latestSubscription.durationValue || '',
+            durationUnit: latestSubscription.durationUnit || 'month',
+            endDate: latestSubscription.endDate ? new Date(latestSubscription.endDate).toISOString().split('T')[0] : '',
+            paymentStatus: latestSubscription.paymentStatus || '',
+            paymentMethod: latestSubscription.paymentMethod || '',
+            discount: latestSubscription.discountApplied ? 'yes' : 'no',
+            discountType: latestSubscription.discountType || 'fixed',
+            discountValue: latestSubscription.discountValue || '',
+            priceBeforeDisc: latestSubscription.priceBeforeDisc || '',
+            installments: latestSubscription.installments || '',
+          });
+          if (latestSubscription.discountType) setDiscountType(latestSubscription.discountType);
+          
           // Load installments
           if (latestSubscription.installments && latestSubscription.installments.length > 0) {
             const installmentRows = latestSubscription.installments.map((inst: any) => ({
@@ -207,37 +259,23 @@ export default function EditClientPage() {
             }));
             setInstallments(installmentRows);
           }
+        } else {
+          setSubscription({
+            id: undefined,
+            packageId: '',
+            startDate: '',
+            durationValue: '',
+            durationUnit: 'month',
+            endDate: '',
+            paymentStatus: '',
+            paymentMethod: '',
+            discount: 'no',
+            discountType: 'fixed',
+            discountValue: '',
+            priceBeforeDisc: '',
+            installments: '',
+          });
         }
-        console.log('EditClientPage formData:', data);
-        
-                    // Try to extract real name from submissions if fullName is "Unknown Client"
-            if (data?.fullName === "Unknown Client" && data?.latestSubmission?.answers) {
-              const answers = data.latestSubmission.answers;
-              console.log('EditClientPage - Looking for name in answers:', answers);
-              
-              // Look for name-related fields or any field that might contain a name
-              const nameFields = Object.keys(answers).filter(key => 
-                key.toLowerCase().includes('name') || 
-                key.toLowerCase().includes('full') ||
-                answers[key]?.toLowerCase().includes('name') ||
-                // Check if the value looks like a name (not a phone number, not empty, etc.)
-                (answers[key] && 
-                 answers[key].length > 1 && 
-                 answers[key].length < 50 && 
-                 !answers[key].match(/^\d+$/) && // Not just numbers
-                 !answers[key].match(/^[0-9\s\-\(\)]+$/)) // Not a phone number
-              );
-              console.log('EditClientPage - Name-related fields found:', nameFields);
-              
-              if (nameFields.length > 0) {
-                const realName = answers[nameFields[0]];
-                console.log('EditClientPage - Found real name:', realName);
-                
-                // Update the formData with the real name
-                data.fullName = realName;
-                console.log('EditClientPage - Updated fullName to:', data.fullName);
-              }
-            }
       })
       .catch(() => setError("Failed to load client data."))
       .finally(() => setLoading(false));
@@ -404,20 +442,28 @@ export default function EditClientPage() {
   useEffect(() => {
     if (!clientId || !user?.id) return;
     
+    console.log('EditClientPage - Fetching submissions for client:', clientId);
+    console.log('EditClientPage - Current formData.selectedFormId:', formData.selectedFormId);
+    
     // First try to get check-in submission
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/responses?clientId=${clientId}&trainerId=${user.id}&page=1&pageSize=1`)
       .then(res => res.json())
       .then(data => {
+        console.log('EditClientPage - Submissions response:', data);
         if (data && data.submissions && data.submissions.length > 0) {
+          console.log('EditClientPage - Found submission, setting submissionForm from submission');
           setSubmission(data.submissions[0]);
           setSubmissionForm(data.submissions[0].form);
           setSubmissionAnswers(data.submissions[0].answers || {});
         } else {
+          console.log('EditClientPage - No submissions found, checking selectedFormId');
           // If no submission, check if client has a selected form
           if (formData.selectedFormId) {
+            console.log('EditClientPage - Fetching form with ID:', formData.selectedFormId);
             fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins/${formData.selectedFormId}`)
               .then(res => res.json())
               .then(formData => {
+                console.log('EditClientPage - Form data response:', formData);
                 if (formData) {
                   setSubmissionForm(formData);
                   // Set empty answers since there's no submission
@@ -425,6 +471,8 @@ export default function EditClientPage() {
                 }
               })
               .catch(err => console.error('Error fetching selected form:', err));
+          } else {
+            console.log('EditClientPage - No selectedFormId found');
           }
         }
       })
@@ -438,36 +486,15 @@ export default function EditClientPage() {
     console.log('EditClientPage submissionAnswers:', submissionAnswers);
   }, [submission, submissionForm, submissionAnswers]);
 
-  // Add state for subscription
-  const [subscription, setSubscription] = useState<any>({
-    startDate: "",
-    durationValue: "",
-    durationUnit: "month",
-    endDate: "",
-    paymentStatus: "",
-    paymentMethod: "",
-    discount: "",
-    priceBeforeDisc: "",
-    installments: "",
-  });
-  const [registrationDate, setRegistrationDate] = useState<string>("");
-  
+  // Add debug log for answers state changes
+  useEffect(() => {
+    console.log('EditClientPage - answers state changed:', answers);
+    console.log('EditClientPage - answers keys:', Object.keys(answers));
+  }, [answers]);
+
   // Add missing state variables that are used but not defined
   const [transactionImage, setTransactionImage] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
-  const [showDiscountFields, setShowDiscountFields] = useState(false);
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  const [showTransactionImage, setShowTransactionImage] = useState(false);
-  const [showDiscountValue, setShowDiscountValue] = useState(false);
-  const [showPriceFields, setShowPriceFields] = useState(false);
-  const [packages, setPackages] = useState<any[]>([]);
-  const [newPackageName, setNewPackageName] = useState('');
-  const [showAddPackage, setShowAddPackage] = useState(false);
-  const [packageError, setPackageError] = useState('');
-  
-  // Array fields that need special handling
-  const arrayFields = ['injuriesHealthNotes', 'goals', 'preferredTrainingDays', 'equipmentAvailability', 'favoriteTrainingStyle', 'weakAreas', 'foodAllergies'];
   
   // Auto-calculate end date
   useEffect(() => {
@@ -498,10 +525,10 @@ export default function EditClientPage() {
       setSubscription({
         id: latest.id || undefined,
         packageId: latest.packageId || '',
-        startDate: latest.startDate ? latest.startDate.slice(0, 10) : '',
+        startDate: latest.startDate ? new Date(latest.startDate).toISOString().split('T')[0] : '',
         durationValue: latest.durationValue || '',
         durationUnit: latest.durationUnit || 'month',
-        endDate: latest.endDate ? latest.endDate.slice(0, 10) : '',
+        endDate: latest.endDate ? new Date(latest.endDate).toISOString().split('T')[0] : '',
         paymentStatus: latest.paymentStatus || '',
         paymentMethod: latest.paymentMethod || '',
         discount: latest.discountApplied ? 'yes' : 'no',
@@ -749,24 +776,28 @@ export default function EditClientPage() {
     setLoading(true);
     setError(null);
     setSuccess(false);
-    const requiredSubFields = ['packageId', 'startDate', 'durationValue', 'durationUnit', 'endDate'];
-    for (const field of requiredSubFields) {
-      if (!subscription[field] || subscription[field] === '') {
-        setError(`Subscription field '${field}' is required.`);
-        setLoading(false);
-        return;
+    
+    // Only validate subscription fields if a package is selected
+    if (subscription.packageId && subscription.packageId !== '') {
+      const requiredSubFields = ['startDate', 'durationValue', 'durationUnit', 'endDate'];
+      for (const field of requiredSubFields) {
+        if (!subscription[field] || subscription[field] === '') {
+          setError(`Subscription field '${field}' is required when a package is selected.`);
+          setLoading(false);
+          return;
+        }
       }
     }
     // Build a complete subscription object to send
     const subscriptionToSend = {
       id: subscription.id,
-      packageId: Number(subscription.packageId),
-      startDate: subscription.startDate,
-      durationValue: Number(subscription.durationValue),
-      durationUnit: subscription.durationUnit,
-      endDate: subscription.endDate,
-      paymentStatus: subscription.paymentStatus,
-      paymentMethod: subscription.paymentMethod,
+      packageId: subscription.packageId ? Number(subscription.packageId) : null,
+      startDate: subscription.startDate || null,
+      durationValue: subscription.durationValue ? Number(subscription.durationValue) : null,
+      durationUnit: subscription.durationUnit || null,
+      endDate: subscription.endDate || null,
+      paymentStatus: subscription.paymentStatus || null,
+      paymentMethod: subscription.paymentMethod || null,
       priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
       discountApplied: subscription.discount === 'yes',
       discountType: discountType,
@@ -782,10 +813,10 @@ export default function EditClientPage() {
     // Build installments array with correct fields and types
     const installmentsToSend = installments.map((inst: any, idx: number) => ({
       id: inst.id, // if editing existing
-      paidDate: inst.date,
-      amount: Number(inst.amount),
+      paidDate: inst.date || null,
+      amount: inst.amount ? Number(inst.amount) : 0,
       remaining: getInstallmentRemaining(idx),
-      nextInstallment: inst.nextDate,
+      nextInstallment: inst.nextDate || null,
       status: 'paid',
     }));
     try {
@@ -812,30 +843,52 @@ export default function EditClientPage() {
           mergedAnswers[key] = answers[key];
         }
       });
-      // Collect custom question answers (those with numeric keys)
-      const customAnswers: Record<string, any> = {};
+      // Collect all answers for check-in form submission
+      const allAnswers: Record<string, any> = {};
       Object.entries(answers).forEach(([key, value]) => {
-        if (!isNaN(Number(key))) {
-          customAnswers[key] = value;
+        // Include all answers, not just numeric keys, but exclude filledByTrainer
+        if (value !== undefined && value !== null && value !== '' && key !== 'filledByTrainer') {
+          allAnswers[key] = value;
         }
       });
+      
+      // Ensure we have a selectedFormId if we have answers and a submissionForm
+      let finalSelectedFormId = formDataToSend.selectedFormId;
+      if (Object.keys(allAnswers).length > 0 && submissionForm && !finalSelectedFormId) {
+        console.log('EditClientPage - No selectedFormId but have answers and submissionForm, using submissionForm.id');
+        finalSelectedFormId = submissionForm.id;
+      }
+      
       console.log('EditClientPage - formData before sending:', formDataToSend);
       console.log('EditClientPage - fullName in formData:', formDataToSend.fullName);
+      console.log('EditClientPage - answers being sent:', allAnswers);
+      console.log('EditClientPage - selectedFormId:', finalSelectedFormId);
+      console.log('EditClientPage - submissionForm:', submissionForm);
+      console.log('EditClientPage - checkinQuestions:', checkinQuestions);
+      console.log('EditClientPage - answers state before sending:', answers);
+      console.log('EditClientPage - Object.keys(answers):', Object.keys(answers));
+      console.log('EditClientPage - Object.keys(allAnswers):', Object.keys(allAnswers));
       console.log('Payload sent to backend:', {
-        client: { ...formDataToSend, answers: customAnswers, labels: selectedLabels },
+        client: { ...formDataToSend, selectedFormId: finalSelectedFormId, labels: selectedLabels },
         subscription: subscriptionToSend,
         installments: installmentsToSend,
+        answers: allAnswers
       });
+      
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          client: { ...formDataToSend, labels: selectedLabels }, 
+          client: { ...formDataToSend, selectedFormId: finalSelectedFormId, labels: selectedLabels }, 
           subscription: subscriptionToSend, 
           installments: installmentsToSend,
-          answers: customAnswers // Move answers to root level
+          answers: allAnswers
         }),
       });
+      
+      console.log('Response status:', res.status);
+      console.log('Response ok:', res.ok);
+      
       if (res.ok) {
         // Fetch updated client data to get new installment IDs
         const updatedClient = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/${clientId}`).then(r => r.json());
@@ -854,7 +907,7 @@ export default function EditClientPage() {
                 const formData = new FormData();
                 formData.append('file', inst.image);
                 formData.append('installmentId', match.id);
-                await fetch('/api/transaction-images/installment', {
+                await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/transaction-images/installment`, {
                   method: 'POST',
                   body: formData,
                 });
@@ -865,37 +918,133 @@ export default function EditClientPage() {
         
         // Handle team member assignments
         if (user) {
-          // Remove existing assignments
-          for (const assignment of clientAssignments) {
-            await fetch(`/api/client-assignments/${clientId}/${assignment.teamMember.id}?trainerId=${user.id}`, {
-              method: 'DELETE',
-            });
+          console.log('clientAssignments type:', typeof clientAssignments);
+          console.log('clientAssignments value:', clientAssignments);
+          console.log('selectedTeamMembers:', selectedTeamMembers);
+          console.log('Processing team assignments for client:', clientId);
+          
+          // Remove existing assignments - ensure clientAssignments is an array
+          if (Array.isArray(clientAssignments)) {
+            console.log('Removing existing assignments:', clientAssignments.length);
+            for (const assignment of clientAssignments) {
+              // Handle 'me' case for deletion - need to find the actual team member ID
+              let teamMemberIdToDelete = assignment.teamMember.id;
+              if (teamMemberIdToDelete === 'me') {
+                // For 'me' assignments, we need to find the actual team member record
+                try {
+                  const trainerTeamMember = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/team-members?trainerId=${user.id}`)
+                    .then(res => res.json())
+                    .then(members => members.find((m: any) => m.role === 'Owner'))
+                    .catch(() => null);
+                  
+                  if (trainerTeamMember) {
+                    teamMemberIdToDelete = trainerTeamMember.id;
+                    console.log('Found trainer team member for deletion:', trainerTeamMember);
+                  } else {
+                    console.log('Could not find trainer team member for deletion, skipping...');
+                    continue;
+                  }
+                } catch (error) {
+                  console.error('Error finding trainer team member for deletion:', error);
+                  continue;
+                }
+              }
+              
+              console.log('Deleting assignment for team member ID:', teamMemberIdToDelete);
+              try {
+                const deleteRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments/${clientId}/${teamMemberIdToDelete}?trainerId=${user.id}`, {
+                  method: 'DELETE',
+                });
+                console.log('Delete assignment response status:', deleteRes.status);
+                if (!deleteRes.ok) {
+                  let deleteBodyText = '';
+                  try {
+                    deleteBodyText = await deleteRes.text();
+                  } catch {}
+                  let deleteError: any = {};
+                  try {
+                    deleteError = deleteBodyText ? JSON.parse(deleteBodyText) : {};
+                  } catch {
+                    deleteError = { error: deleteBodyText || `HTTP ${deleteRes.status}` };
+                  }
+                  if (deleteRes.status === 404 || (deleteError.error && String(deleteError.error).toLowerCase().includes('not found'))) {
+                    console.warn('Delete assignment benign (not found), continuing');
+                  } else {
+                    console.error('Delete assignment error:', deleteError);
+                  }
+                  // Continue without throwing
+                } else {
+                  console.log('Delete assignment success');
+                }
+              } catch (error) {
+                console.error('Error deleting assignment:', error);
+                // Don't throw here as we want to continue with other operations
+              }
+            }
           }
           
           // Add new assignments
+          console.log('Adding new assignments for team members:', selectedTeamMembers);
           for (const teamMemberId of selectedTeamMembers) {
+            console.log('Adding assignment for team member ID:', teamMemberId);
             // Handle 'me' case by sending trainer's ID instead
             const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
-            await fetch('/api/client-assignments', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                clientId: parseInt(clientId),
-                teamMemberId: actualTeamMemberId,
-                assignedBy: user.id,
-              }),
-            });
+            console.log('Actual team member ID for assignment:', actualTeamMemberId);
+            try {
+              const addRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  clientId: parseInt(clientId),
+                  teamMemberId: actualTeamMemberId,
+                  assignedBy: user.id,
+                }),
+              });
+              console.log('Add assignment response status:', addRes.status);
+              if (!addRes.ok) {
+                let addBodyText = '';
+                try { addBodyText = await addRes.text(); } catch {}
+                let addError: any = {};
+                try { addError = addBodyText ? JSON.parse(addBodyText) : {}; } catch { addError = { error: addBodyText || `HTTP ${addRes.status}` }; }
+                console.error('Add assignment error:', addError);
+                // Don't throw error if client is already assigned - this is expected
+                if (addError.error && addError.error.includes('already assigned')) {
+                  console.log('Client already assigned to this team member, continuing...');
+                } else if (addRes.status === 409) {
+                  console.log('Conflict on add (probably already exists), continuing...');
+                } else {
+                  throw new Error(addError.error || 'Failed to add assignment');
+                }
+              } else {
+                const responseData = await addRes.json();
+                console.log('Add assignment success:', responseData);
+              }
+            } catch (error) {
+              console.error('Error adding assignment:', error);
+              // Only throw if it's not an "already assigned" error
+              if (!error.message || !error.message.includes('already assigned')) {
+                throw error;
+              }
+            }
           }
         }
         
         setSuccess(true);
-        router.push("/clients?updated=1");
+        const updatedName = encodeURIComponent(String(formData.fullName ?? ''));
+        router.push(`/clients?updated=1&ts=${Date.now()}&updatedId=${clientId}&updatedName=${updatedName}`);
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to update client.");
+        console.log('Error response:', data);
+        setError(data.error || `Failed to update client. Status: ${res.status}`);
       }
     } catch (err) {
-      setError("Network error. Please try again.");
+      console.error('Error in handleSubmit:', err);
+      // Show specific error message if available, otherwise show generic message
+      if (err instanceof Error && err.message) {
+        setError(err.message);
+      } else {
+        setError("Network error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -924,7 +1073,7 @@ export default function EditClientPage() {
       return;
     }
     try {
-      const res = await fetch('/api/packages', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trainerId: user.id, name: newPackageName.trim() }),
@@ -935,7 +1084,7 @@ export default function EditClientPage() {
         setNewPackageName('');
         setShowAddPackage(false);
         // Fetch updated packages list
-        fetch(`/api/packages?trainerId=${user.id}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages?trainerId=${user.id}`)
           .then(res => res.json())
           .then(data => setPackages(data || []));
       } else {
@@ -951,7 +1100,7 @@ export default function EditClientPage() {
   useEffect(() => {
     const user = getStoredUser();
     if (!user) return;
-    fetch(`/api/packages?trainerId=${user.id}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => {
         if (subscription.packageId && !data.find((pkg: any) => pkg.id === Number(subscription.packageId))) {
@@ -1396,7 +1545,13 @@ export default function EditClientPage() {
                   
                   // Create a unified change handler - always update answers for check-in fields
                   const handleFieldChange = (newValue: any) => {
-                    setAnswers((prev: any) => ({ ...prev, [field.id]: newValue }));
+                    console.log(`Updating field ${field.id} (${field.label}) with value:`, newValue);
+                    console.log('Current answers state before update:', answers);
+                    setAnswers((prev: any) => {
+                      const updated = { ...prev, [field.id]: newValue };
+                      console.log('Updated answers state:', updated);
+                      return updated;
+                    });
                   };
                   
                   // Render custom questions
@@ -1409,7 +1564,7 @@ export default function EditClientPage() {
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Select
-                            value={value || ''}
+                            value={value ?? ''}
                             onChange={e => handleFieldChange(e.target.value)}
                             required={field.required}
                             className="w-full"
@@ -1453,7 +1608,7 @@ export default function EditClientPage() {
                             {field.required && <span className="text-red-500">*</span>}
                           </label>
                           <Textarea
-                            value={value || ''}
+                            value={value ?? ''}
                             onChange={e => handleFieldChange(e.target.value)}
                             placeholder={field.label}
                             required={field.required}
@@ -1470,7 +1625,7 @@ export default function EditClientPage() {
                         </label>
                         <Input
                           type={field.type || 'text'}
-                          value={value || ''}
+                          value={value ?? ''}
                           onChange={e => handleFieldChange(e.target.value)}
                           placeholder={field.label}
                           required={field.required}
@@ -1487,7 +1642,7 @@ export default function EditClientPage() {
                       </label>
                       {field.type === 'select' ? (
                         <Select
-                          value={value || ''}
+                          value={value ?? ''}
                           onChange={e => handleFieldChange(e.target.value)}
                           required={field.required}
                           className="w-full"
@@ -1517,7 +1672,7 @@ export default function EditClientPage() {
                         })()
                       ) : field.type === 'textarea' ? (
                         <Textarea
-                          value={value || ''}
+                          value={value ?? ''}
                           onChange={e => handleFieldChange(e.target.value)}
                           placeholder={field.label}
                           required={field.required}
@@ -1525,7 +1680,7 @@ export default function EditClientPage() {
                       ) : (
                         <Input
                           type={field.type}
-                          value={value || ''}
+                          value={value ?? ''}
                           onChange={e => handleFieldChange(e.target.value)}
                           placeholder={field.label}
                           required={field.required}
@@ -1559,7 +1714,7 @@ export default function EditClientPage() {
                   </label>
                   {field.type === 'select' ? (
                     <Select
-                      value={formData[field.key] || ''}
+                      value={formData[field.key] ?? ''}
                       onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
                       required={field.required}
                       className="w-full"
@@ -1572,7 +1727,7 @@ export default function EditClientPage() {
                   ) : (
                     <Input
                       type={field.type}
-                      value={formData[field.key] || ''}
+                      value={formData[field.key] ?? ''}
                       onChange={e => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
                       placeholder={field.label}
                       required={field.required}
@@ -1589,16 +1744,16 @@ export default function EditClientPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Registration Date</label>
-                <Input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} />
+                <Input type="date" value={registrationDate ?? ''} onChange={e => setRegistrationDate(e.target.value)} />
               </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Subscription Start Date</label>
-                <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
+                <Input type="date" value={subscription.startDate ?? ''} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
               </div>
               <div className="flex flex-col">
                 <label className="text-sm font-medium mb-1">Package</label>
                 <Select
-                  value={subscription.packageId || ''}
+                  value={subscription.packageId ?? ''}
                   onChange={e => handleSubscriptionChange('packageId', e.target.value)}
                   className="w-full"
                 >
@@ -1615,7 +1770,7 @@ export default function EditClientPage() {
                   <div className="flex flex-col">
                     <label className="text-sm font-medium mb-1">Subscription Duration</label>
                     <div className="flex gap-2">
-                      <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
+                      <Input type="number" min="1" value={subscription.durationValue ?? ''} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
                       <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
                         <option value="month">Month(s)</option>
                         <option value="week">Week(s)</option>
@@ -1625,7 +1780,7 @@ export default function EditClientPage() {
                   </div>
                   <div className="flex flex-col">
                     <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
-                    <Input type="date" value={subscription.endDate} readOnly disabled className="bg-zinc-100" />
+                    <Input type="date" value={subscription.endDate ?? ''} readOnly disabled className="bg-zinc-100" />
                   </div>
                   <div className="flex flex-col">
                     <label className="text-sm font-medium mb-1">Payment Status</label>
@@ -1663,7 +1818,7 @@ export default function EditClientPage() {
                       <label className="text-sm font-medium mb-1">Price Before Discount (EGP)</label>
                       <Input
                         type="number"
-                        value={subscription.priceBeforeDisc || ''}
+                        value={subscription.priceBeforeDisc ?? ''}
                         onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
                       />
                     </div>
@@ -1691,7 +1846,7 @@ export default function EditClientPage() {
                         <div className="flex gap-2">
                           <Input
                             type="number"
-                            value={subscription.discountValue || ''}
+                            value={subscription.discountValue ?? ''}
                             onChange={e => handleSubscriptionChange('discountValue', e.target.value)}
                             className="w-1/2"
                           />
@@ -1763,10 +1918,10 @@ export default function EditClientPage() {
                     {installments.map((inst, idx) => (
                       <TableRow key={inst.id || idx}>
                         <TableCell>
-                          <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
+                          <Input type="date" value={inst.date ?? ''} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
                         </TableCell>
                         <TableCell>
-                          <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
+                          <Input type="number" value={inst.amount ?? ''} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
                         </TableCell>
                         <TableCell>
                           <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
@@ -1776,7 +1931,7 @@ export default function EditClientPage() {
                           {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
                         </TableCell>
                         <TableCell>
-                          <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
+                          <Input type="date" value={inst.nextDate ?? ''} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
                         </TableCell>
                         <TableCell className="flex gap-2 items-center">
                           <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>

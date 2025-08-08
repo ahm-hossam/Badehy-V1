@@ -167,7 +167,7 @@ export default function CreateClientPage() {
   // Fetch trainer's team members
   useEffect(() => {
     if (!user) return;
-    fetch(`/api/team-members?trainerId=${user.id}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/team-members?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => setTeamMembers(data || []))
       .catch(() => console.error("Failed to load team members."));
@@ -560,7 +560,7 @@ export default function CreateClientPage() {
               const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
               console.log('Creating assignment with teamMemberId:', actualTeamMemberId, 'for client:', data.client.id);
               
-              const assignmentResponse = await fetch('/api/client-assignments', {
+              const assignmentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -585,7 +585,7 @@ export default function CreateClientPage() {
             const formDataImg = new FormData();
             formDataImg.append('file', transactionImage);
             formDataImg.append('subscriptionId', data.subscription.id);
-            await fetch('/api/transaction-images/subscription', {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/transaction-images/subscription`, {
               method: 'POST',
               body: formDataImg,
             });
@@ -605,7 +605,7 @@ export default function CreateClientPage() {
   // Fetch packages for the trainer
   useEffect(() => {
     if (!user) return;
-    fetch(`/api/packages?trainerId=${user.id}`)
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages?trainerId=${user.id}`)
       .then(res => res.json())
       .then(data => setPackages(data || []));
   }, [user]);
@@ -618,7 +618,7 @@ export default function CreateClientPage() {
       return;
     }
     try {
-      const res = await fetch('/api/packages', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/packages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trainerId: user.id, name: newPackageName.trim() }),

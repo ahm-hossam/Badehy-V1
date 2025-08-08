@@ -14,7 +14,7 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const where: any = {
-      assignedBy: parseInt(trainerId as string),
+      trainerId: parseInt(trainerId as string),
     };
 
     if (clientId) {
@@ -193,49 +193,49 @@ router.post('/', async (req: Request, res: Response) => {
       if (!teamMember) {
         return res.status(404).json({ error: 'Team member not found' });
       }
-    }
 
-    // Check if assignment already exists
-    const existingAssignment = await prisma.clientTeamAssignment.findUnique({
-      where: {
-        clientId_teamMemberId: {
+      // Check if assignment already exists
+      const existingAssignment = await prisma.clientTeamAssignment.findUnique({
+        where: {
+          clientId_teamMemberId: {
+            clientId: parseInt(clientId),
+            teamMemberId: parseInt(teamMemberId),
+          },
+        },
+      });
+
+      if (existingAssignment) {
+        return res.status(400).json({ error: 'Client is already assigned to this team member' });
+      }
+
+      const assignment = await prisma.clientTeamAssignment.create({
+        data: {
+          trainerId: parseInt(assignedBy),
           clientId: parseInt(clientId),
           teamMemberId: parseInt(teamMemberId),
         },
-      },
-    });
+        include: {
+          client: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
+            },
+          },
+          teamMember: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+      });
 
-    if (existingAssignment) {
-      return res.status(400).json({ error: 'Client is already assigned to this team member' });
+      return res.status(201).json(assignment);
     }
-
-    const assignment = await prisma.clientTeamAssignment.create({
-      data: {
-        trainerId: parseInt(assignedBy),
-        clientId: parseInt(clientId),
-        teamMemberId: parseInt(teamMemberId),
-      },
-      include: {
-        client: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-          },
-        },
-        teamMember: {
-          select: {
-            id: true,
-            fullName: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-    });
-
-    res.status(201).json(assignment);
   } catch (error) {
     console.error('Error creating client assignment:', error);
     res.status(500).json({ error: 'Failed to create client assignment' });
@@ -244,35 +244,73 @@ router.post('/', async (req: Request, res: Response) => {
 
 // DELETE /api/client-assignments/:clientId/:teamMemberId - Remove assignment
 router.delete('/:clientId/:teamMemberId', async (req: Request, res: Response) => {
+  const clientIdParam = Number(req.params.clientId);
+  const teamMemberIdRaw = req.params.teamMemberId;
+  let teamMemberIdParam = Number(teamMemberIdRaw);
+  const trainerIdParam = Number(req.query.trainerId);
   try {
-    const { clientId, teamMemberId } = req.params;
-    const { trainerId } = req.query;
-
-    if (!trainerId) {
+    if (!trainerIdParam || Number.isNaN(trainerIdParam)) {
       return res.status(400).json({ error: 'Trainer ID is required' });
     }
+    if (Number.isNaN(clientIdParam)) {
+      return res.status(400).json({ error: 'Invalid clientId' });
+    }
+
+    // Support special 'me' identifier for the owner team member
+    if (Number.isNaN(teamMemberIdParam)) {
+      if (teamMemberIdRaw === 'me') {
+        const owner = await prisma.teamMember.findFirst({
+          where: { trainerId: trainerIdParam, role: 'Owner' },
+        });
+        if (!owner) {
+          // Nothing to delete if owner team member record doesn't exist
+          return res.status(200).json({ message: 'Owner team member not found, nothing to delete' });
+        }
+        teamMemberIdParam = owner.id;
+      } else {
+        return res.status(400).json({ error: 'Invalid teamMemberId' });
+      }
+    }
+
+    console.log('DELETE assignment request:', {
+      clientId: clientIdParam,
+      teamMemberId: teamMemberIdParam,
+      trainerId: trainerIdParam,
+    });
 
     // Check if assignment exists and belongs to trainer
     const assignment = await prisma.clientTeamAssignment.findFirst({
       where: {
-        clientId: parseInt(clientId),
-        teamMemberId: parseInt(teamMemberId),
-        trainerId: parseInt(trainerId as string),
+        clientId: clientIdParam,
+        teamMemberId: teamMemberIdParam,
+        trainerId: trainerIdParam,
       },
     });
 
     if (!assignment) {
-      return res.status(404).json({ error: 'Assignment not found' });
+      // Make delete idempotent: respond 200 even if nothing to delete
+      return res.status(200).json({ message: 'Assignment not found, nothing to delete' });
     }
 
-    await prisma.clientTeamAssignment.delete({
-      where: {
-        clientId_teamMemberId: {
-          clientId: parseInt(clientId),
-          teamMemberId: parseInt(teamMemberId),
+    try {
+      await prisma.clientTeamAssignment.delete({
+        where: {
+          clientId_teamMemberId: {
+            clientId: clientIdParam,
+            teamMemberId: teamMemberIdParam,
+          },
         },
-      },
-    });
+      });
+    } catch (e: any) {
+      // If record already deleted between check and delete, treat as success
+      const msg = e?.message || '';
+      if (msg.includes('Record to delete does not exist')) {
+        console.warn('Delete raced: record already gone');
+      } else {
+        console.error('Prisma delete error:', e);
+        return res.status(500).json({ error: 'Failed to remove client assignment' });
+      }
+    }
 
     res.json({ message: 'Assignment removed successfully' });
   } catch (error) {
