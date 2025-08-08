@@ -630,6 +630,88 @@ router.post('/generate-automated', async (req, res) => {
       }
     }
 
+    // 3b. Check clients missing an active workout program
+    const allClientsForWorkout = await prisma.trainerClient.findMany({
+      where: { trainerId: Number(trainerId) },
+      include: { programAssignments: true },
+    });
+    const todayForWorkout = new Date();
+    for (const client of allClientsForWorkout) {
+      const hasActiveWorkout = (client.programAssignments || []).some((a: any) => {
+        const end = a.endDate ? new Date(a.endDate as any) : null;
+        return Boolean(a.isActive) && (!end || end > todayForWorkout);
+      });
+      if (!hasActiveWorkout) {
+        const manuallyDeleted = isTaskManuallyDeleted(Number(trainerId), client.id, 'Workout', 'automatic');
+        if (manuallyDeleted) continue;
+        const existingTask = await prisma.task.findFirst({
+          where: {
+            trainerId: Number(trainerId),
+            clientId: client.id,
+            category: 'Workout',
+            taskType: 'automatic',
+            status: 'open',
+            title: { contains: 'Assign', mode: 'insensitive' },
+          },
+        });
+        if (!existingTask) {
+          const task = await prisma.task.create({
+            data: {
+              trainerId: Number(trainerId),
+              title: `Assign workout program to ${client.fullName}`,
+              description: `${client.fullName} has no active workout program. Please assign one.`,
+              taskType: 'automatic',
+              category: 'Workout',
+              status: 'open',
+              clientId: client.id,
+            },
+          });
+          generatedTasks.push(task);
+        }
+      }
+    }
+
+    // 3c. Check clients missing an active nutrition program
+    const allClientsForNutrition = await prisma.trainerClient.findMany({
+      where: { trainerId: Number(trainerId) },
+      include: { nutritionAssignments: true },
+    });
+    const todayForNutrition = new Date();
+    for (const client of allClientsForNutrition) {
+      const hasActiveNutrition = (client.nutritionAssignments || []).some((a: any) => {
+        const end = a.endDate ? new Date(a.endDate as any) : null;
+        return Boolean(a.isActive) && (!end || end > todayForNutrition);
+      });
+      if (!hasActiveNutrition) {
+        const manuallyDeleted = isTaskManuallyDeleted(Number(trainerId), client.id, 'Nutrition', 'automatic');
+        if (manuallyDeleted) continue;
+        const existingTask = await prisma.task.findFirst({
+          where: {
+            trainerId: Number(trainerId),
+            clientId: client.id,
+            category: 'Nutrition',
+            taskType: 'automatic',
+            status: 'open',
+            title: { contains: 'Assign', mode: 'insensitive' },
+          },
+        });
+        if (!existingTask) {
+          const task = await prisma.task.create({
+            data: {
+              trainerId: Number(trainerId),
+              title: `Assign nutrition program to ${client.fullName}`,
+              description: `${client.fullName} has no active nutrition program. Please assign one.`,
+              taskType: 'automatic',
+              category: 'Nutrition',
+              status: 'open',
+              clientId: client.id,
+            },
+          });
+          generatedTasks.push(task);
+        }
+      }
+    }
+
     // 4. Check for installments due today
     console.log('Checking installments due today for trainer:', trainerId);
 
