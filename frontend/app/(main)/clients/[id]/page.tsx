@@ -959,6 +959,7 @@ export default function ClientDetailsPage() {
     { id: 'workout-programs', name: 'Workout', icon: FireIcon, count: null },
     { id: 'nutrition-programs', name: 'Nutrition', icon: HeartIcon, count: null },
     { id: 'checkins', name: 'Check-ins', icon: ClipboardDocumentListIcon, count: client.submissions?.length || 0 },
+    { id: 'services', name: 'Services', icon: CurrencyDollarIcon, count: null },
     { id: 'notes', name: 'Notes', icon: ChatBubbleLeftRightIcon, count: client.notes?.length || 0 },
   ];
 
@@ -1086,12 +1087,12 @@ export default function ClientDetailsPage() {
 
         {/* Tabs */}
         <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex flex-wrap gap-x-6 gap-y-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
+                className={`py-2 px-2 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -1117,6 +1118,7 @@ export default function ClientDetailsPage() {
           {activeTab === 'workout-programs' && <WorkoutProgramsTab client={client} />}
           {activeTab === 'nutrition-programs' && <NutritionProgramsTab client={client} />}
           {activeTab === 'checkins' && <CheckinsTab client={client} />}
+          {activeTab === 'services' && <ServicesTab client={client} />}
           {activeTab === 'notes' && <NotesTab client={client} onNotesChange={() => setClientDataVersion(prev => prev + 1)} />}
         </div>
       </div>
@@ -1688,6 +1690,8 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
 }) {
   const [selectedForm, setSelectedForm] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
+  const [serviceAssignments, setServiceAssignments] = useState<any[]>([]);
+  const [servicesPaidTotal, setServicesPaidTotal] = useState(0);
 
   // Fetch the selected form data
   useEffect(() => {
@@ -1707,6 +1711,28 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
 
     fetchFormData();
   }, [client.selectedFormId]);
+
+  // Load service assignments to include in Financial card
+  useEffect(() => {
+    const loadAssignments = async () => {
+      try {
+        const user = getStoredUser();
+        if (!user?.id) return;
+        const res = await fetch(`/api/services/assignments?trainerId=${user.id}&clientId=${client.id}`);
+        const data = await res.json().catch(() => ([]));
+        const list = Array.isArray(data) ? data.filter((a: any) => a.isActive !== false) : [];
+        setServiceAssignments(list);
+        const paid = list
+          .filter((a: any) => (a.paymentStatus || '').toLowerCase() === 'paid')
+          .reduce((sum: number, a: any) => sum + (Number(a.priceEGP) || 0), 0);
+        setServicesPaidTotal(paid);
+      } catch (e) {
+        setServiceAssignments([]);
+        setServicesPaidTotal(0);
+      }
+    };
+    loadAssignments();
+  }, [client.id]);
 
   const calculateTotalPayments = () => {
     if (!client.subscriptions || client.subscriptions.length === 0) {
@@ -1889,7 +1915,7 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     }).length;
   };
 
-  const totalPayments = calculateTotalPayments();
+  const totalPayments = calculateTotalPayments() + servicesPaidTotal;
   const activeSubscriptions = getActiveSubscriptionsCount();
   const daysSinceRegistration = Math.floor((Date.now() - new Date(client.registrationDate).getTime()) / (1000 * 60 * 60 * 24));
 
@@ -2227,6 +2253,22 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
   client: Client; 
   getPaymentStatusColor: (status: string) => string;
 }) {
+  const [serviceAssignments, setServiceAssignments] = useState<any[]>([])
+
+  useEffect(() => {
+    const loadServiceAssignments = async () => {
+      try {
+        const user = getStoredUser();
+        if (!user?.id) return;
+        const response = await fetch(`/api/services/assignments?trainerId=${user.id}&clientId=${client.id}`)
+        const data = await response.json().catch(() => ([]))
+        setServiceAssignments(Array.isArray(data) ? data.filter((a: any) => a.isActive !== false) : [])
+      } catch (e) {
+        setServiceAssignments([])
+      }
+    }
+    loadServiceAssignments()
+  }, [client.id])
   // Helper functions for payment calculations
   const calculateTotalPaidAmount = (subscription: any) => {
     let totalAmount = 0;
@@ -2312,7 +2354,7 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
     return subscription.installments.filter((inst: any) => inst.status?.toLowerCase() !== 'paid').length;
   };
 
-  const getPaymentTimeline = (subscription: any) => {
+  const getPaymentTimeline = (subscription: any, additionalServiceAssignments: any[] = []) => {
     const timeline = [];
     
     // Add subscription creation - use startDate instead of current date
@@ -2373,6 +2415,21 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       });
     }
 
+    // Add service assignments (additional services)
+    if (Array.isArray(additionalServiceAssignments)) {
+      additionalServiceAssignments.forEach((a) => {
+        timeline.push({
+          id: `service-${a.id}`,
+          type: 'service',
+          date: a.assignedAt || a.createdAt || new Date().toISOString(),
+          amount: Number(a.priceEGP) || 0,
+          status: a.paymentStatus,
+          description: `Service: ${a.serviceName}`,
+          isPaid: (a.paymentStatus || '').toLowerCase() === 'paid',
+        } as any)
+      })
+    }
+
     // Sort by date (newest first)
     const sortedTimeline = timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
@@ -2392,10 +2449,14 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
       ) : (
         <div className="space-y-6">
           {client.subscriptions.map((subscription, index) => {
-            const totalPaid = calculateTotalPaidAmount(subscription);
+            const totalPaidSubscriptions = calculateTotalPaidAmount(subscription);
+            const servicesPaidTotal = serviceAssignments
+              .filter((a) => (a.paymentStatus || '').toLowerCase() === 'paid')
+              .reduce((sum, a) => sum + (Number(a.priceEGP) || 0), 0);
+            const combinedTotalPaid = totalPaidSubscriptions + servicesPaidTotal;
             const totalInstallmentsPaid = calculateTotalInstallmentsPaid(subscription);
             const remainingInstallments = calculateRemainingInstallments(subscription);
-            const paymentTimeline = getPaymentTimeline(subscription);
+            const paymentTimeline = getPaymentTimeline(subscription, index === 0 ? serviceAssignments : []);
 
             return (
               <div key={subscription.id} className="border border-gray-200 rounded-lg p-6 shadow-sm">
@@ -2422,7 +2483,13 @@ function SubscriptionsTab({ client, getPaymentStatusColor }: {
                   <div className="bg-blue-50 rounded-lg p-4">
                     <p className="text-sm font-medium text-blue-900 mb-1">Total Paid Amount</p>
                     <p className="text-xl font-bold text-blue-700">
-                      EGP {totalPaid.toFixed(2)}
+                      EGP {combinedTotalPaid.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <p className="text-sm font-medium text-green-900 mb-1">Additional Services Paid</p>
+                    <p className="text-xl font-bold text-green-700">
+                      EGP {servicesPaidTotal.toFixed(2)}
                     </p>
                   </div>
                   
@@ -2754,6 +2821,213 @@ function CheckinsTab({ client }: { client: Client }) {
       )}
     </div>
   );
+}
+
+// Services Tab Component
+function ServicesTab({ client }: { client: Client }) {
+  const [assignments, setAssignments] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [showAssign, setShowAssign] = React.useState(false)
+  const [services, setServices] = React.useState<any[]>([])
+  const [form, setForm] = React.useState({ serviceId: '', priceOverrideEGP: '', startDate: '', endDate: '', notes: '', paymentStatus: 'paid', paymentMethod: '' })
+  const [confirmDelete, setConfirmDelete] = React.useState<any | null>(null)
+  const [showToast, setShowToast] = React.useState<string>('')
+
+  const user = getStoredUser()
+
+  const loadAssignments = async () => {
+    try {
+      const res = await fetch(`/api/services/assignments?trainerId=${user?.id}&clientId=${client.id}`)
+      const data = await res.json()
+      setAssignments(Array.isArray(data) ? data.filter(a => a.isActive !== false) : [])
+    } catch (e) {
+      setAssignments([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadServices = async () => {
+    try {
+      const res = await fetch(`/api/services?trainerId=${user?.id}&status=active&page=1&pageSize=100`)
+      const data = await res.json()
+      setServices(data.items || [])
+    } catch (e) {
+      setServices([])
+    }
+  }
+
+  React.useEffect(() => { loadAssignments(); loadServices(); }, [client.id, user?.id])
+
+  const assignService = async () => {
+    if (!form.serviceId) return
+    try {
+      const body = {
+        trainerId: user?.id,
+        clientId: client.id,
+        priceOverrideEGP: form.priceOverrideEGP ? Number(form.priceOverrideEGP) : undefined,
+        startDate: form.startDate || undefined,
+        endDate: form.endDate || undefined,
+        notes: form.notes || undefined,
+        paymentStatus: form.paymentStatus,
+        paymentMethod: form.paymentMethod || undefined,
+      }
+      const res = await fetch(`/api/services/${form.serviceId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to assign service')
+      setShowAssign(false)
+      setForm({ serviceId: '', priceOverrideEGP: '', startDate: '', endDate: '', notes: '', paymentStatus: 'paid', paymentMethod: '' })
+      await loadAssignments()
+      setShowToast('Service assigned successfully!')
+      setTimeout(() => setShowToast(''), 2000)
+    } catch (e: any) {
+      alert(e.message || 'Failed to assign service')
+    }
+  }
+
+  const unassignService = async (assignmentId: number) => {
+    try {
+      const res = await fetch(`/api/services/assignments/${assignmentId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to unassign service')
+      setConfirmDelete(null)
+      await loadAssignments()
+      setShowToast('Service removed successfully!')
+      setTimeout(() => setShowToast(''), 2000)
+    } catch (e: any) {
+      alert(e.message || 'Failed to unassign service')
+    }
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Services</h3>
+          <p className="text-sm text-gray-600 mt-1">Assigned services for this client</p>
+        </div>
+        <Button onClick={() => setShowAssign(true)}>Assign Service</Button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-zinc-400">Loading…</div>
+      ) : assignments.length === 0 ? (
+        <div className="text-center py-12">
+          <CurrencyDollarIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No services assigned</h3>
+          <p className="text-gray-500">Click Assign Service to add one.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {assignments.map((a) => (
+                <tr key={a.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{a.serviceName}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{new Date(a.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">EGP {Number(a.priceEGP).toFixed(2)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${a.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : a.paymentStatus === 'refunded' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                      {a.paymentStatus}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                    <Button outline className="text-red-600 hover:text-red-700" onClick={() => setConfirmDelete(a)}>Remove</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showAssign && (
+        <Dialog open={showAssign} onClose={() => setShowAssign(false)}>
+          <div className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Assign Service</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Service</label>
+                <select value={form.serviceId} onChange={(e) => setForm({ ...form, serviceId: e.target.value })} className="w-full border rounded px-2 py-2">
+                  <option value="">Select a service</option>
+                  {services.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} — EGP {Number(s.priceEGP).toFixed(2)}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Price Override (optional)</label>
+                  <Input type="number" min="0" step="0.01" value={form.priceOverrideEGP} onChange={(e) => setForm({ ...form, priceOverrideEGP: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Payment Status</label>
+                  <Select value={form.paymentStatus} onChange={(e) => setForm({ ...form, paymentStatus: e.target.value })}>
+                    <option value="paid">paid</option>
+                    <option value="pending">pending</option>
+                    <option value="refunded">refunded</option>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Start Date</label>
+                  <Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">End Date</label>
+                  <Input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Payment Method (optional)</label>
+                <Input value={form.paymentMethod} onChange={(e) => setForm({ ...form, paymentMethod: e.target.value })} placeholder="e.g., cash, card, bank" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes (optional)</label>
+                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Any notes about this assignment" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button outline type="button" onClick={() => setShowAssign(false)}>Cancel</Button>
+              <Button type="button" onClick={assignService} disabled={!form.serviceId}>Assign</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {confirmDelete && (
+        <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+          <div className="p-6 z-[9999]">
+            <h2 className="text-lg font-semibold mb-4">Confirm Remove</h2>
+            <p>Remove <span className="font-bold">{confirmDelete.serviceName}</span> from this client?</p>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button color="red" type="button" onClick={() => unassignService(confirmDelete.id)}>Remove</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {showToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            {showToast}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Notes Tab Component
