@@ -34,6 +34,8 @@ model Registered {
   clientProgramAssignments ClientProgramAssignment[]
   clientNutritionAssignments ClientNutritionAssignment[]
   tasks          Task[]
+  services       Service[]
+  clientServices ClientService[]
 }
 
 model TrainerClient {
@@ -79,6 +81,7 @@ model TrainerClient {
   programAssignments ClientProgramAssignment[]
   nutritionAssignments ClientNutritionAssignment[]
   tasks          Task[]
+  services       ClientService[]
 
   @@index([trainerId])
 }
@@ -200,6 +203,60 @@ model SubscriptionHold {
   subscription    Subscription  @relation(fields: [subscriptionId], references: [id])
 
   @@index([subscriptionId])
+}
+
+// Additional Services (one-off or ongoing) that trainers can sell to clients
+model Service {
+  id          Int        @id @default(autoincrement())
+  trainerId   Int
+  name        String
+  description String?
+  priceEGP    Decimal    @db.Decimal(10, 2)
+  status      String     @default("active") // active | inactive
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  trainer     Registered @relation(fields: [trainerId], references: [id])
+  assignments ClientService[]
+
+  @@index([trainerId, status])
+  @@index([trainerId, name])
+}
+
+model ClientService {
+  id            Int           @id @default(autoincrement())
+  trainerId     Int
+  clientId      Int
+  serviceId     Int
+
+  // Snapshot fields to preserve history even if the service changes later
+  serviceName   String
+  priceEGP      Decimal       @db.Decimal(10, 2)
+
+  // Optional scheduling to support ongoing services
+  assignedAt    DateTime      @default(now())
+  startDate     DateTime?
+  endDate       DateTime?
+  notes         String?
+
+  // Lifecycle
+  isActive      Boolean       @default(true)
+  unassignedAt  DateTime?
+
+  // Simple payment tracking for reporting
+  paymentStatus String        @default("pending") // pending | paid | refunded | canceled
+  paymentMethod String?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  trainer       Registered    @relation(fields: [trainerId], references: [id])
+  client        TrainerClient @relation(fields: [clientId], references: [id])
+  service       Service       @relation(fields: [serviceId], references: [id])
+
+  @@unique([clientId, serviceId, isActive])
+  @@index([trainerId, clientId, isActive, paymentStatus])
+  @@index([serviceId, isActive])
 }
 
 model Label {

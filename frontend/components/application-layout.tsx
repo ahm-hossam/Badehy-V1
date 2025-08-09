@@ -315,6 +315,10 @@ export function ApplicationLayout({
                 <SidebarLabel>Tasks</SidebarLabel>
                 <TaskCounter trainerId={user?.id} />
               </SidebarItem>
+              <SidebarItem href="/services" current={pathname.startsWith('/services')}>
+                <SparklesIcon />
+                <SidebarLabel>Services</SidebarLabel>
+              </SidebarItem>
               {/* Workout Programs collapsible section */}
               <WorkoutProgramsCollapsible pathname={pathname} />
               {/* Nutrition Programs section */}
