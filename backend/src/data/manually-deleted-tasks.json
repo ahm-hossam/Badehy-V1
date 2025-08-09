@@ -40,5 +40,82 @@
     "category": "Payment",
     "taskType": "automatic",
     "deletedAt": "2025-08-08T15:23:44.784Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 13,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:06.512Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 13,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:09.346Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 13,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:11.863Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 12,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:14.087Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 12,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:16.987Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 12,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:19.918Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 11,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:25.799Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 11,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:27.898Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:33.650Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:36.166Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-08-09T19:15:39.211Z"
   }
 ]

@@ -112,6 +112,13 @@ router.get('/', async (req, res) => {
             email: true,
           },
         },
+        lead: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+          },
+        },
         comments: {
           include: {
             teamMember: {
@@ -174,6 +181,7 @@ router.post('/', async (req, res) => {
       assignedTo,
       dueDate,
       clientId,
+      leadId,
     } = req.body;
 
     if (!trainerId || !title) {
@@ -213,6 +221,7 @@ router.post('/', async (req, res) => {
         assignedTo: assignedToValue,
         dueDate: dueDate ? new Date(dueDate) : null,
         clientId: clientId ? Number(clientId) : null,
+        leadId: leadId ? Number(leadId) : null,
       },
       include: {
         assignedTeamMember: {
@@ -227,6 +236,14 @@ router.post('/', async (req, res) => {
           select: {
             id: true,
             fullName: true,
+            email: true,
+          },
+        },
+        lead: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
             email: true,
           },
         },
@@ -252,6 +269,8 @@ router.put('/:id', async (req, res) => {
       dueDate,
       category,
       trainerId,
+      clientId,
+      leadId,
     } = req.body;
 
     console.log('Updating task:', { id, assignedTo, title, dueDate, category, trainerId }); // Debug log
@@ -297,6 +316,12 @@ router.put('/:id', async (req, res) => {
     // Handle dueDate conversion
     if (dueDate !== undefined) {
       updateData.dueDate = dueDate && dueDate !== '' ? new Date(dueDate) : null;
+    }
+
+    // Ensure mutually exclusive client/lead association can be changed in edit
+    if (clientId !== undefined || leadId !== undefined) {
+      updateData.clientId = clientId ? Number(clientId) : null;
+      updateData.leadId = leadId ? Number(leadId) : null;
     }
 
     console.log('Update data:', updateData);

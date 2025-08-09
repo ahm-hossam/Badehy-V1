@@ -36,6 +36,7 @@ model Registered {
   tasks          Task[]
   services       Service[]
   clientServices ClientService[]
+  leads          Lead[]
 }
 
 model TrainerClient {
@@ -82,6 +83,8 @@ model TrainerClient {
   nutritionAssignments ClientNutritionAssignment[]
   tasks          Task[]
   services       ClientService[]
+  originLeadId   Int?          @unique
+  originLead     Lead?         @relation("LeadToClient", fields: [originLeadId], references: [id])
 
   @@index([trainerId])
 }
@@ -257,6 +260,49 @@ model ClientService {
   @@unique([clientId, serviceId, isActive])
   @@index([trainerId, clientId, isActive, paymentStatus])
   @@index([serviceId, isActive])
+}
+
+// Leads (CRM) models
+model Lead {
+  id                 Int            @id @default(autoincrement())
+  trainerId          Int
+  fullName           String
+  phone              String?
+  email              String?
+  source             String?
+  campaign           String?
+  stage              String         @default("New") // New, Contacted, Qualified, Trial, Won, Lost
+  ownerId            Int?
+  score              Int?
+  lastContactAt      DateTime?
+  nextFollowUpAt     DateTime?
+  notes              String?
+  convertedClientId  Int?          @unique
+  isArchived         Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  trainer            Registered     @relation(fields: [trainerId], references: [id])
+  owner              TeamMember?    @relation(fields: [ownerId], references: [id])
+  convertedClient    TrainerClient? @relation("LeadToClient")
+  activities         LeadActivity[]
+  tasks              Task[]
+
+  @@index([trainerId, stage, isArchived])
+}
+
+model LeadActivity {
+  id             Int         @id @default(autoincrement())
+  leadId         Int
+  type           String      // call, message, note, stage_change
+  content        String?
+  byTeamMemberId Int?
+  createdAt      DateTime    @default(now())
+
+  lead           Lead        @relation(fields: [leadId], references: [id])
+  byTeamMember   TeamMember? @relation(fields: [byTeamMemberId], references: [id])
+
+  @@index([leadId])
 }
 
 model Label {
@@ -540,6 +586,8 @@ model TeamMember {
   clientAssignments ClientTeamAssignment[]
   assignedTasks   Task[]
   taskComments    TaskComment[]
+  leadsOwned      Lead[]
+  leadActivities  LeadActivity[]
 
   @@index([trainerId])
 }
@@ -617,16 +665,20 @@ model Task {
   
   // For automatic tasks - reference to the client that triggered the task
   clientId      Int?
+  // Optional link to a Lead for lead-related tasks
+  leadId        Int?
   
   // Relations
   trainer       Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   assignedTeamMember TeamMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
   client        TrainerClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  lead          Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
   comments      TaskComment[]
 
   @@index([trainerId])
   @@index([assignedTo])
   @@index([clientId])
+  @@index([leadId])
   @@index([status])
   @@index([taskType])
   @@index([category])
