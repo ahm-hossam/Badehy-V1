@@ -27,6 +27,71 @@ export function DynamicCheckinForm({
 
   if (!form || !Array.isArray(form.questions)) return <div>No form loaded.</div>;
 
+  // --- Conditional logic evaluation ---
+  const toArray = (v: any) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+  const str = (v: any) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+  const num = (v: any) => (v == null || v === '' || isNaN(Number(v)) ? undefined : Number(v));
+
+  const evalCondition = (cond: any): boolean => {
+    if (!cond) return true;
+    const qid = typeof cond.questionId === 'string' ? Number(cond.questionId) : cond.questionId;
+    const left = answers[qid];
+    const right = cond.value;
+    const op = (cond.operator || 'equals').toLowerCase();
+
+    // Handle arrays for multi-select
+    if (Array.isArray(left)) {
+      if (op === 'equals') return left.includes(right);
+      if (op === 'not_equals') return !left.includes(right);
+      if (op === 'contains') return left.some(v => str(v).toLowerCase().includes(str(right).toLowerCase()));
+      if (op === 'not_contains') return !left.some(v => str(v).toLowerCase().includes(str(right).toLowerCase()));
+      if (op === 'in') return toArray(right).some((rv: any) => left.includes(rv));
+      if (op === 'not_in') return !toArray(right).some((rv: any) => left.includes(rv));
+      if (op === 'is_empty') return left.length === 0;
+      if (op === 'not_empty') return left.length > 0;
+      return false;
+    }
+
+    // Scalars
+    if (op === 'equals') return str(left).toLowerCase() === str(right).toLowerCase();
+    if (op === 'not_equals') return str(left).toLowerCase() !== str(right).toLowerCase();
+    if (op === 'contains') return str(left).toLowerCase().includes(str(right).toLowerCase());
+    if (op === 'not_contains') return !str(left).toLowerCase().includes(str(right).toLowerCase());
+
+    const lnum = num(left);
+    const rnum = num(right);
+    if (lnum !== undefined && rnum !== undefined) {
+      if (op === 'gt') return lnum > rnum;
+      if (op === 'gte') return lnum >= rnum;
+      if (op === 'lt') return lnum < rnum;
+      if (op === 'lte') return lnum <= rnum;
+    }
+
+    if (op === 'is_empty') return left === undefined || left === null || left === '' || (Array.isArray(left) && left.length === 0);
+    if (op === 'not_empty') return !(left === undefined || left === null || left === '' || (Array.isArray(left) && left.length === 0));
+
+    return false;
+  };
+
+  const evalConditionGroup = (group: any): boolean => {
+    if (!group) return true;
+    // Common shapes: { conditions: [...], logic: 'AND'|'OR' } or direct array
+    const conditions = Array.isArray(group)
+      ? group
+      : Array.isArray(group.conditions)
+        ? group.conditions
+        : Array.isArray(group.rules)
+          ? group.rules
+          : [];
+    const logic = (group.logic || group.combinator || group.operator || 'AND').toString().toUpperCase();
+    if (conditions.length === 0) return true;
+    if (logic === 'OR') return conditions.some(c => evalCondition(c));
+    // Default AND
+    return conditions.every(c => evalCondition(c));
+  };
+
+  const isVisible = (q: any) => evalConditionGroup(q?.conditionGroup);
+
   const handleChange = (qid: number, value: any) => {
     setAnswers((prev: any) => ({ ...prev, [qid]: value }));
     setTouched((prev: any) => ({ ...prev, [qid]: true }));
@@ -34,6 +99,7 @@ export function DynamicCheckinForm({
 
   const validate = () => {
     for (const q of form.questions) {
+      if (!isVisible(q)) continue; // hidden questions are not required
       if (q.required && (answers[q.id] === undefined || answers[q.id] === null || answers[q.id] === "" || (Array.isArray(answers[q.id]) && answers[q.id].length === 0))) {
         setFormError(`Please fill in: ${q.label}`);
         return false;
@@ -54,7 +120,7 @@ export function DynamicCheckinForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {form.questions.map((q: any) => (
-        <div key={q.id} className="mb-4">
+        <div key={q.id} className="mb-4" style={{ display: isVisible(q) ? undefined : 'none' }}>
           <label className="block text-sm font-medium mb-1">
             {q.label} {q.required && <span className="text-red-500">*</span>}
           </label>

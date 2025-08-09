@@ -319,12 +319,12 @@ function QuestionCard({
                   <div className="mb-2 text-sm font-semibold">Show this question if:</div>
                 )}
                 {conditionGroup && conditionGroup.conditions.map((cond: any, condIdx: number) => {
-                  const selectedTarget = eligibleQuestions.find((q: any) => q.id === cond.questionId);
+                  const selectedTarget = eligibleQuestions.find((q: any) => q.id === String(cond.questionId));
                   return (
                     <div key={condIdx} className="flex gap-2 items-center mb-2">
                       {condIdx > 0 && <span className="text-xs font-semibold text-zinc-500">AND</span>}
                       <Select
-                        value={cond.questionId || ''}
+                        value={cond.questionId !== undefined && cond.questionId !== null ? String(cond.questionId) : ''}
                         onChange={(e: any) => updateCondition(condIdx, { questionId: e.target.value, operator: 'equals', value: '' })}
                         className="w-56"
                       >
@@ -343,7 +343,7 @@ function QuestionCard({
                               className="w-32"
                             >
                               <option value="">Select</option>
-                              {selectedTarget.answerOptions.map((opt: string) => (
+                              {(selectedTarget.answerOptions || selectedTarget.options || []).map((opt: string) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
                             </Select>
@@ -455,25 +455,25 @@ export default function CheckInEditPage() {
   };
   const handleDelete = (id: string) => {
     setQuestions((prev) => {
-      const affected = prev.filter(q => q.conditionGroup && q.conditionGroup.conditions.some(c => c.questionId === id));
+      const affected = prev.filter(q => q.conditionGroup && q.conditionGroup.conditions.some((c: any) => String(c.questionId) === id));
       if (affected.length > 0) {
         alert('A condition referencing this question was cleared.');
       }
-      return prev.length === 1 ? prev : prev.filter(q => q.id !== id).map(q => {
+      return prev.length === 1 ? prev : prev.filter(q => q.id !== id).map((q: any) => {
         if (!q.conditionGroup) return q;
-        const newConds = q.conditionGroup.conditions.filter(c => c.questionId !== id);
+        const newConds = q.conditionGroup.conditions.filter((c: any) => String(c.questionId) !== id);
         if (newConds.length === 0) return { ...q, conditionGroup: undefined };
         return { ...q, conditionGroup: { conditions: newConds } };
       });
     });
   };
   const handleReorder = (oldIndex: number, newIndex: number) => {
-    setQuestions(prev => {
+    setQuestions((prev: any[]) => {
       const newArr = dndArrayMove(prev, oldIndex, newIndex);
-      return newArr.map((q, idx) => {
+      return newArr.map((q: any, idx: number) => {
         if (!q.conditionGroup) return q;
-        const newConds = q.conditionGroup.conditions.filter(c => {
-          const refIdx = newArr.findIndex(qq => qq.id === c.questionId);
+        const newConds = q.conditionGroup.conditions.filter((c: any) => {
+          const refIdx = newArr.findIndex((qq: any) => qq.id === String(c.questionId));
           return refIdx !== -1 && refIdx < idx;
         });
         if (newConds.length !== q.conditionGroup.conditions.length) {
@@ -485,7 +485,7 @@ export default function CheckInEditPage() {
     });
   };
   const handleUpdate = (id: string, update: any) => {
-    setQuestions((prev) => prev.map(q => q.id === id ? { ...q, ...update } : q));
+    setQuestions((prev: any[]) => prev.map((q: any) => q.id === id ? { ...q, ...update } : q));
   };
   // Save handler (PUT for edit)
   const handleSave = async () => {
@@ -617,23 +617,23 @@ export default function CheckInEditPage() {
               key={q.id}
               id={q.id}
               question={q.question}
-              setQuestion={val => handleUpdate(q.id, { question: val })}
+              setQuestion={(val: string) => handleUpdate(q.id, { question: val })}
               answerType={q.answerType}
-              setAnswerType={val => handleUpdate(q.id, { answerType: val })}
+              setAnswerType={(val: string) => handleUpdate(q.id, { answerType: val })}
               required={q.required}
-              setRequired={val => handleUpdate(q.id, { required: val })}
+              setRequired={(val: boolean) => handleUpdate(q.id, { required: val })}
               onDelete={() => handleDelete(q.id)}
               collapsed={q.collapsed}
-              setCollapsed={val => handleUpdate(q.id, { collapsed: val })}
+              setCollapsed={(val: boolean) => handleUpdate(q.id, { collapsed: val })}
               customQuestion={q.customQuestion}
-              setCustomQuestion={val => handleUpdate(q.id, { customQuestion: val })}
+              setCustomQuestion={(val: string) => handleUpdate(q.id, { customQuestion: val })}
               answerOptions={q.answerOptions}
-              setAnswerOptions={opts => handleUpdate(q.id, { answerOptions: opts })}
+              setAnswerOptions={(opts: string[]) => handleUpdate(q.id, { answerOptions: opts })}
               usedStaticQuestions={questions.filter(qq => qq.id !== q.id && qq.question).map(qq => qq.question)}
               currentId={q.id}
               questions={questions}
               conditionGroup={q.conditionGroup}
-              setConditionGroup={cond => handleUpdate(q.id, { conditionGroup: cond })}
+              setConditionGroup={(cond: any) => handleUpdate(q.id, { conditionGroup: cond })}
               index={idx}
             />
           ))}

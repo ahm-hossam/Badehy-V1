@@ -27,24 +27,85 @@ router.post('/', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
+    console.log('Check-ins POST: received form payload with', Array.isArray(questions) ? questions.length : 0, 'questions')
+    // Create form with nested questions (without reliable condition references yet)
     const form = await prisma.checkInForm.create({
       data: {
         trainerId: Number(trainerId),
         name,
         isMainForm: !!isMainForm,
         questions: {
-          create: questions.map((q: any, idx: number) => ({
-            order: idx,
-            label: q.question || q.customQuestion || '',
-            type: q.answerType,
-            required: !!q.required,
-            options: q.answerOptions && q.answerOptions.length > 0 ? q.answerOptions : undefined,
-            conditionGroup: q.conditionGroup || undefined,
-          })),
+          create: questions.map((q: any, idx: number) => {
+            try { console.log('Question', idx, 'keys:', Object.keys(q || {})) } catch {}
+            // Normalize options
+            let options: any = undefined;
+            const rawOptions = q?.answerOptions ?? q?.options;
+            if (Array.isArray(rawOptions) && rawOptions.length > 0) options = rawOptions;
+            else if (typeof rawOptions === 'string' && rawOptions.trim() !== '') {
+              try { options = JSON.parse(rawOptions); } catch {}
+            }
+            // Normalize conditional logic into conditionGroup (JSON)
+            let conditionGroup: any = q?.conditionGroup ?? q?.conditions ?? q?.condition ?? q?.showIf ?? q?.visibilityConditions ?? q?.visibility ?? q?.conditionalLogic ?? q?.logic ?? q?.rules ?? q?.advancedLogic ?? q?.advanced ?? q?.conditional ?? q?.when ?? q?.if ?? undefined;
+            if (typeof conditionGroup === 'string' && conditionGroup.trim() !== '') {
+              try { conditionGroup = JSON.parse(conditionGroup); } catch {}
+            }
+            // Final fallback: if the question is marked conditional in any way, store the raw conditional fields
+            if (!conditionGroup) {
+              const candidate = {} as any
+              ;['conditionGroup','conditions','condition','showIf','visibilityConditions','visibility','conditionalLogic','logic','rules','advancedLogic','advanced','conditional','when','if']
+                .forEach(k => { if (q && q[k] !== undefined) candidate[k] = q[k] })
+              if (Object.keys(candidate).length > 0) conditionGroup = candidate
+            }
+            return {
+              order: idx,
+              label: q.question || q.customQuestion || q.label || '',
+              type: q.answerType || q.type,
+              required: !!q.required,
+              options,
+              conditionGroup,
+            };
+          }),
         },
       },
       include: { questions: true },
     });
+    // Remap client-side questionIds in conditionGroup to DB IDs
+    try {
+      const createdSorted = [...(form.questions || [])].sort((a, b) => a.order - b.order)
+      const inputSorted = [...questions]
+      const idMap: Record<string, number> = {}
+      inputSorted.forEach((q: any, idx: number) => {
+        const created = createdSorted[idx]
+        if (created && q && q.id !== undefined && q.id !== null) idMap[String(q.id)] = created.id
+      })
+      const transformIds = (obj: any): any => {
+        if (!obj) return obj
+        if (Array.isArray(obj)) return obj.map(transformIds)
+        if (typeof obj === 'object') {
+          const out: any = {}
+          for (const [k, v] of Object.entries(obj)) {
+            if (k === 'questionId') {
+              const key = typeof v === 'number' ? String(v) : String(v)
+              out[k] = idMap[key] ?? v
+            } else {
+              out[k] = transformIds(v)
+            }
+          }
+          return out
+        }
+        return obj
+      }
+      await Promise.all(createdSorted.map((created, idx) => {
+        const rawGroup = inputSorted[idx]?.conditionGroup ?? inputSorted[idx]?.conditions ?? null
+        if (!rawGroup) return Promise.resolve(null)
+        let group = rawGroup
+        if (typeof group === 'string') { try { group = JSON.parse(group) } catch {} }
+        const transformed = transformIds(group)
+        return prisma.checkInQuestion.update({ where: { id: created.id }, data: { conditionGroup: transformed } })
+      }))
+    } catch (e) {
+      console.warn('Condition remap failed (create):', e)
+    }
     res.status(201).json(form);
   } catch (err) {
     console.error(err);
@@ -289,24 +350,83 @@ router.put('/:id', async (req: Request, res: Response) => {
     // Delete old questions
     await prisma.checkInQuestion.deleteMany({ where: { formId: id } });
     // Update form and add new questions
+    console.log('Check-ins PUT: updating form', id, 'with', Array.isArray(questions) ? questions.length : 0, 'questions')
     const updated = await prisma.checkInForm.update({
       where: { id },
       data: {
         name,
         isMainForm: !!isMainForm,
         questions: {
-          create: questions.map((q: any, idx: number) => ({
-            order: idx,
-            label: q.question || q.customQuestion || '',
-            type: q.answerType,
-            required: !!q.required,
-            options: q.answerOptions && q.answerOptions.length > 0 ? q.answerOptions : undefined,
-            conditionGroup: q.conditionGroup || undefined,
-          })),
+          create: questions.map((q: any, idx: number) => {
+            try { console.log('Question', idx, 'keys:', Object.keys(q || {})) } catch {}
+            // Normalize options
+            let options: any = undefined;
+            const rawOptions = q?.answerOptions ?? q?.options;
+            if (Array.isArray(rawOptions) && rawOptions.length > 0) options = rawOptions;
+            else if (typeof rawOptions === 'string' && rawOptions.trim() !== '') {
+              try { options = JSON.parse(rawOptions); } catch {}
+            }
+            // Normalize conditional logic into conditionGroup (JSON)
+            let conditionGroup: any = q?.conditionGroup ?? q?.conditions ?? q?.condition ?? q?.showIf ?? q?.visibilityConditions ?? q?.visibility ?? q?.conditionalLogic ?? q?.logic ?? q?.rules ?? q?.advancedLogic ?? q?.advanced ?? q?.conditional ?? q?.when ?? q?.if ?? undefined;
+            if (typeof conditionGroup === 'string' && conditionGroup.trim() !== '') {
+              try { conditionGroup = JSON.parse(conditionGroup); } catch {}
+            }
+            if (!conditionGroup) {
+              const candidate = {} as any
+              ;['conditionGroup','conditions','condition','showIf','visibilityConditions','visibility','conditionalLogic','logic','rules','advancedLogic','advanced','conditional','when','if']
+                .forEach(k => { if (q && q[k] !== undefined) candidate[k] = q[k] })
+              if (Object.keys(candidate).length > 0) conditionGroup = candidate
+            }
+            return {
+              order: idx,
+              label: q.question || q.customQuestion || q.label || '',
+              type: q.answerType || q.type,
+              required: !!q.required,
+              options,
+              conditionGroup,
+            };
+          }),
         },
       },
       include: { questions: true },
     });
+    // Remap questionIds in condition groups after update too
+    try {
+      const createdSorted = [...(updated.questions || [])].sort((a, b) => a.order - b.order)
+      const inputSorted = [...questions]
+      const idMap: Record<string, number> = {}
+      inputSorted.forEach((q: any, idx: number) => {
+        const created = createdSorted[idx]
+        if (created && q && q.id !== undefined && q.id !== null) idMap[String(q.id)] = created.id
+      })
+      const transformIds = (obj: any): any => {
+        if (!obj) return obj
+        if (Array.isArray(obj)) return obj.map(transformIds)
+        if (typeof obj === 'object') {
+          const out: any = {}
+          for (const [k, v] of Object.entries(obj)) {
+            if (k === 'questionId') {
+              const key = typeof v === 'number' ? String(v) : String(v)
+              out[k] = idMap[key] ?? v
+            } else {
+              out[k] = transformIds(v)
+            }
+          }
+          return out
+        }
+        return obj
+      }
+      await Promise.all(createdSorted.map((created, idx) => {
+        const rawGroup = inputSorted[idx]?.conditionGroup ?? inputSorted[idx]?.conditions ?? null
+        if (!rawGroup) return Promise.resolve(null)
+        let group = rawGroup
+        if (typeof group === 'string') { try { group = JSON.parse(group) } catch {} }
+        const transformed = transformIds(group)
+        return prisma.checkInQuestion.update({ where: { id: created.id }, data: { conditionGroup: transformed } })
+      }))
+    } catch (e) {
+      console.warn('Condition remap failed (update):', e)
+    }
     res.json(updated);
   } catch (err) {
     console.error(err);
