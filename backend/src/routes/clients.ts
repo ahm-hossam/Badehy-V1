@@ -405,7 +405,24 @@ router.get('/', async (req: Request, res: Response) => {
       },
     });
     // Enhanced profile completion logic for clients list
-    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+    const normalize = (s: string) => (typeof s === 'string' ? s.toLowerCase().replace(/[^a-z0-9]/g, '') : '');
+    const findAnswerFlexible = (answers: any, formQuestions: any[], field: string) => {
+      if (!answers) return undefined;
+      // 1) direct key match (case-insensitive)
+      const keys = Object.keys(answers);
+      const keyMatch = keys.find(k => normalize(k) === normalize(field));
+      if (keyMatch && answers[keyMatch] !== undefined && answers[keyMatch] !== '') return answers[keyMatch];
+      // 2) match by question label
+      for (const q of formQuestions || []) {
+        const byId = answers[String(q.id)];
+        if (byId !== undefined && byId !== '') return byId;
+        if (normalize(q.label) === normalize(field)) {
+          const byLabel = answers[q.label] ?? answers[normalize(q.label)] ?? answers[(q.label || '').toLowerCase()];
+          if (byLabel !== undefined && byLabel !== '') return byLabel;
+        }
+      }
+      return undefined;
+    };
     const clientsWithCompletion = await Promise.all(clients.map(async (client: any) => {
       // Get latest submission answers (if any)
       const latestSubmission = client.submissions && client.submissions[0];
@@ -414,8 +431,9 @@ router.get('/', async (req: Request, res: Response) => {
       const formQuestions = latestSubmission?.form?.questions || [];
       const answerByLabel: Record<string, any> = {};
       for (const q of formQuestions) {
-        if (answers && typeof answers === 'object' && answers.hasOwnProperty(String(q.id))) {
-          answerByLabel[normalize(q.label)] = answers[String(q.id)];
+        const val = answers && typeof answers === 'object' ? (answers[String(q.id)] ?? answers[q.label] ?? answers[(q.label || '').toLowerCase()]) : undefined;
+        if (val !== undefined && val !== '') {
+          answerByLabel[normalize(q.label)] = val;
         }
       }
 
@@ -463,15 +481,8 @@ router.get('/', async (req: Request, res: Response) => {
             }
           }
         } else if (value === undefined || value === null || value === '') {
-          // Try to find the answer by matching field name to question label
-          for (const q of formQuestions) {
-            const normalizedLabel = normalize(q.label);
-            const normalizedField = normalize(field);
-            if (normalizedLabel === normalizedField) {
-              value = answers[String(q.id)];
-              break;
-            }
-          }
+          // Try flexible lookup in answers
+          value = findAnswerFlexible(answers, formQuestions, field);
         }
         return value;
       };
