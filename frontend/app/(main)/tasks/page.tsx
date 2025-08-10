@@ -33,6 +33,11 @@ interface Task {
     fullName: string
     email: string
   }
+  lead?: {
+    id: number
+    fullName: string
+    email?: string
+  }
   comments: Array<{
     id: number
     comment: string
@@ -58,6 +63,13 @@ interface Client {
   email: string
 }
 
+interface LeadItem {
+  id: number
+  fullName: string
+  phone?: string | null
+  email?: string | null
+}
+
 interface TaskComment {
   id: number;
   comment: string;
@@ -73,6 +85,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [leads, setLeads] = useState<LeadItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -96,6 +109,7 @@ export default function TasksPage() {
       fetchTasks()
       fetchTeamMembers()
       fetchClients()
+      fetchLeads()
       fetchTaskCount()
       // Enable automatic task generation on page load
       generateAutomaticTasks()
@@ -172,6 +186,18 @@ export default function TasksPage() {
       }
     } catch (error) {
       console.error('Error fetching clients:', error)
+    }
+  }
+
+  const fetchLeads = async () => {
+    try {
+      const response = await fetch(`/api/leads?trainerId=${user?.id}&page=1&pageSize=100&ownerId=all&source=all`)
+      if (response.ok) {
+        const data = await response.json()
+        setLeads(Array.isArray(data.items) ? data.items : [])
+      }
+    } catch (error) {
+      console.error('Error fetching leads:', error)
     }
   }
 
@@ -381,7 +407,7 @@ export default function TasksPage() {
           >
             Generate Tasks
           </Button> */}
-          <Button onClick={() => setShowCreateModal(true)}>
+          <Button onClick={() => { setSelectedTask(null); setShowCreateModal(true) }}>
             <PlusIcon />
             Create Task
           </Button>
@@ -489,11 +515,11 @@ export default function TasksPage() {
               <TableCell>
                 <div>
                   <div className="font-medium text-zinc-950">{task.title}</div>
-                  {task.client && (
-                    <div className="text-xs text-zinc-400 mt-1">
-                      Client: {task.client.fullName}
-                    </div>
-                  )}
+                  {task.client ? (
+                    <div className="text-xs text-zinc-400 mt-1">Client: {task.client.fullName}</div>
+                  ) : task.lead ? (
+                    <div className="text-xs text-zinc-400 mt-1">Lead: {task.lead.fullName}</div>
+                  ) : null}
                 </div>
               </TableCell>
               <TableCell>
@@ -596,16 +622,18 @@ export default function TasksPage() {
       {/* Create Task Modal */}
       {showCreateModal && (
         <CreateTaskModal
-          onClose={() => setShowCreateModal(false)}
+          onClose={() => { setShowCreateModal(false); setSelectedTask(null) }}
           onTaskCreated={() => {
             setShowCreateModal(false)
+            setSelectedTask(null)
             fetchTasks()
             fetchTaskCount()
           }}
           teamMembers={teamMembers}
           clients={clients}
+          leads={leads}
           trainerId={user?.id}
-          editingTask={selectedTask}
+          editingTask={selectedTask || undefined}
         />
       )}
 
@@ -652,6 +680,7 @@ function CreateTaskModal({
   onTaskCreated, 
   teamMembers, 
   clients,
+  leads,
   trainerId,
   editingTask
 }: { 
@@ -659,14 +688,23 @@ function CreateTaskModal({
   onTaskCreated: () => void
   teamMembers: TeamMember[]
   clients: Client[]
+  leads: LeadItem[]
   trainerId?: number
   editingTask?: Task
 }) {
   const [title, setTitle] = useState(editingTask?.title || '')
   const [description, setDescription] = useState(editingTask?.description || '')
   const [category, setCategory] = useState(editingTask?.category || 'Manual')
-  const [assignedTo, setAssignedTo] = useState(editingTask?.assignedTo?.toString() || '')
+  const [assignedTo, setAssignedTo] = useState(
+    editingTask?.assignedTeamMember
+      ? (editingTask.assignedTeamMember.role === 'Owner'
+          ? 'me'
+          : editingTask.assignedTeamMember.id.toString())
+      : (typeof editingTask?.assignedTo === 'number' ? editingTask.assignedTo.toString() : '')
+  )
   const [clientId, setClientId] = useState(editingTask?.client?.id?.toString() || '')
+  const [leadId, setLeadId] = useState(editingTask?.lead?.id?.toString() || '')
+  const [targetType, setTargetType] = useState(editingTask?.lead ? 'lead' : 'client')
   const [dueDate, setDueDate] = useState(editingTask?.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : '')
   const [loading, setLoading] = useState(false)
 
@@ -681,7 +719,8 @@ function CreateTaskModal({
       
       // Convert assignedTo to number if it's not empty
       const assignedToValue = assignedTo && assignedTo !== '' ? assignedTo : null
-      const clientIdValue = clientId && clientId !== '' ? Number(clientId) : null
+      const clientIdValue = targetType === 'client' && clientId ? Number(clientId) : null
+      const leadIdValue = targetType === 'lead' && leadId ? Number(leadId) : null
       
       const requestBody = {
         trainerId,
@@ -690,6 +729,7 @@ function CreateTaskModal({
         category,
         assignedTo: assignedToValue,
         clientId: clientIdValue,
+        leadId: leadIdValue,
         dueDate: dueDate || null,
       }
       
@@ -776,15 +816,42 @@ function CreateTaskModal({
             </Select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Client (Optional)</label>
-            <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-              <option value="">No Client</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.fullName}
-                </option>
-              ))}
-            </Select>
+            <label className="block text-sm font-medium mb-2">Target</label>
+            <div className="flex gap-3 mb-3">
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input type="radio" name="targetType" value="client" checked={targetType==='client'} onChange={() => { setTargetType('client'); setLeadId('') }} />
+                Client
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input type="radio" name="targetType" value="lead" checked={targetType==='lead'} onChange={() => { setTargetType('lead'); setClientId('') }} />
+                Lead
+              </label>
+            </div>
+            {targetType === 'client' ? (
+              <div>
+                <label className="block text-sm font-medium mb-1">Client</label>
+                <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                  <option value="">Select client</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.fullName}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium mb-1">Lead</label>
+                <Select value={leadId} onChange={(e) => setLeadId(e.target.value)}>
+                  <option value="">Select lead</option>
+                  {leads.map((lead) => (
+                    <option key={lead.id} value={lead.id}>
+                      {lead.fullName}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Due Date</label>

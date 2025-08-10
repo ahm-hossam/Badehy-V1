@@ -89,6 +89,39 @@ function TaskCounter({ trainerId }: { trainerId?: number }) {
   )
 }
 
+function ClientsManagementCollapsible({ pathname }: { pathname: string }) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5 group"
+      >
+        <UsersIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5 group-hover:fill-zinc-950" />
+        <span className="flex-1">Clients Management</span>
+        <span className="ml-auto transition-transform duration-200 ease-in-out">
+          <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          isOpen ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="pl-8 flex flex-col gap-0.5 mt-1">
+          <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
+            <SidebarLabel>Clients</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/leads" current={pathname.startsWith('/leads')}>
+            <SidebarLabel>Leads</SidebarLabel>
+          </SidebarItem>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CheckInsCollapsible({ pathname }: { pathname: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -302,10 +335,7 @@ export function ApplicationLayout({
                 <CurrencyDollarIcon />
                 <SidebarLabel>Packages</SidebarLabel>
               </SidebarItem>
-              <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
-                <UsersIcon />
-                <SidebarLabel>Clients</SidebarLabel>
-              </SidebarItem>
+              <ClientsManagementCollapsible pathname={pathname} />
               <SidebarItem href="/team-members" current={pathname.startsWith('/team-members')}>
                 <UserGroupIcon />
                 <SidebarLabel>Team Members</SidebarLabel>
