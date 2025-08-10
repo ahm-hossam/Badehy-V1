@@ -145,7 +145,7 @@ export function ApplicationLayout({
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
-              <SidebarHeading>Upcoming Events</SidebarHeading>
+              {/* <SidebarHeading>Upcoming Events</SidebarHeading> */}
               {events.map((event) => (
                 <SidebarItem key={event.id} href={event.url}>
                   {event.name}

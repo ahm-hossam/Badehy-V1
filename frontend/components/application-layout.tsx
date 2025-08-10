@@ -90,7 +90,10 @@ function TaskCounter({ trainerId }: { trainerId?: number }) {
 }
 
 function ClientsManagementCollapsible({ pathname }: { pathname: string }) {
-  const [isOpen, setIsOpen] = useState(true);
+  // Closed by default; auto-open when on Clients or Leads pages
+  const [isOpen, setIsOpen] = useState(
+    pathname.startsWith('/clients') || pathname.startsWith('/leads')
+  );
 
   return (
     <div>
@@ -265,11 +268,65 @@ export function ApplicationLayout({
   let pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
+  const [blocked, setBlocked] = useState<string | null>(null)
 
   useEffect(() => {
     const storedUser = getStoredUser()
     setUser(storedUser)
   }, [])
+
+  // Immediate check on route changes
+  useEffect(() => {
+    const run = async () => {
+      try {
+        // Avoid checks on auth pages (including blocked) to prevent redirect loops
+        if (pathname?.startsWith('/auth/')) return
+        const storedUser = getStoredUser()
+        if (!storedUser) return
+        const targetId = storedUser.isTeamMember ? storedUser.trainerId : storedUser.id
+        if (!targetId) return
+        const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        const status = (data?.subscriptionStatus || 'active').toLowerCase()
+        if (status !== 'active') {
+          const reason = encodeURIComponent(`Your subscription is ${status}.`)
+          const email = encodeURIComponent(storedUser.email || '')
+          if (!pathname?.startsWith('/auth/blocked')) {
+            router.push(`/auth/blocked?reason=${reason}&email=${email}`)
+          }
+        }
+      } catch {}
+    }
+    run()
+  }, [pathname])
+
+  // Periodically check subscription status and redirect if blocked
+  useEffect(() => {
+    let timer: any
+    const checkStatus = async () => {
+      try {
+        // Avoid checks on auth pages (login/register/blocked) to prevent redirect loops
+        if (pathname?.startsWith('/auth/')) return
+        const targetId = user?.isTeamMember ? user?.trainerId : user?.id
+        if (!targetId) return
+        const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        const status = (data?.subscriptionStatus || 'active').toLowerCase()
+        if (status !== 'active') {
+          setBlocked(status)
+          const reason = encodeURIComponent(`Your subscription is ${status}.`)
+          const email = encodeURIComponent(user.email || '')
+          if (!pathname?.startsWith('/auth/blocked')) {
+            router.push(`/auth/blocked?reason=${reason}&email=${email}`)
+          }
+        }
+      } catch {}
+    }
+    // initial and interval check
+    checkStatus()
+    timer = setInterval(checkStatus, 60_000)
+    return () => timer && clearInterval(timer)
+  }, [user?.id, user?.isTeamMember, user?.trainerId, pathname])
 
   const handleSignOut = () => {
     removeUser()
@@ -361,7 +418,7 @@ export function ApplicationLayout({
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
-              <SidebarHeading>Upcoming Events</SidebarHeading>
+              {/* <SidebarHeading>Upcoming Events</SidebarHeading> */}
               {events.map((event) => (
                 <SidebarItem key={event.id} href={event.url}>
                   {event.name}

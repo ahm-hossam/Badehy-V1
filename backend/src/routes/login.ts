@@ -32,6 +32,12 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
+    // Also enforce trainer subscription status for team members
+    const trainer = await prisma.registered.findUnique({ where: { id: teamMember.trainerId } });
+    if (trainer && (trainer as any).subscriptionStatus && (trainer as any).subscriptionStatus !== 'active') {
+      return res.status(403).json({ error: `Account ${ (trainer as any).subscriptionStatus }. Please contact support.` });
+    }
+
     // Return team member data (without password)
     const { password: passwordHash, ...userData } = teamMember;
     const responseUser = { ...userData, isTeamMember: true };
@@ -42,6 +48,10 @@ router.post('/', async (req, res) => {
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       return res.status(400).json({ error: 'Invalid email or password.' });
+    }
+    // Enforce subscription status
+    if ((user as any).subscriptionStatus && (user as any).subscriptionStatus !== 'active') {
+      return res.status(403).json({ error: `Account ${ (user as any).subscriptionStatus }. Please contact support.` });
     }
     // Return user data (without password)
     const { passwordHash, ...userData } = user;
