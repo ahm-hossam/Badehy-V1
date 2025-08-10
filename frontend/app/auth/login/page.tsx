@@ -96,6 +96,10 @@ export default function LoginPage() {
             router.push('/');
           }, 1500);
         }
+      } else if (res.status === 403) {
+        // Blocked due to subscription status, redirect to blocked page with message
+        const reason = encodeURIComponent(data.error || 'Your subscription has ended.');
+        router.push(`/auth/blocked?reason=${reason}&email=${encodeURIComponent(form.email)}`);
       } else {
         setMessageType("error");
         setMessage(data.error || "Login failed. Please check your credentials.");

@@ -1,44 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, subject, message } = body;
+    const { name, email, subject, message, trainerId } = body as {
+      name?: string
+      email?: string
+      subject?: string
+      message?: string
+      trainerId?: number
+    };
 
-    // Validate required fields
-    if (!name || !email || !subject || !message) {
-      return NextResponse.json(
-        { error: 'All fields are required' },
-        { status: 400 }
-      );
-    }
-
-    // Save to database
-    const supportRequest = await prisma.supportRequest.create({
-      data: {
-        name,
-        email,
-        subject,
-        message,
-        status: 'NEW'
-      }
-    });
-
-    console.log('Support request saved to database:', supportRequest);
-
-    return NextResponse.json(
-      { message: 'Support request submitted successfully', id: supportRequest.id },
-      { status: 200 }
-    );
-
+    // Proxy to backend support route to reuse server DB access
+    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000'
+    const resp = await fetch(`${BACKEND_URL}/api/support`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, subject, message, trainerId }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    return NextResponse.json(data, { status: resp.status })
   } catch (error) {
     console.error('Error processing support request:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-} 
+}

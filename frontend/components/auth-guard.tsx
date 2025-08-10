@@ -19,6 +19,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       
       // Allow access to auth pages even if not authenticated
       const isAuthPage = pathname?.startsWith('/auth/');
+      const isBlockedPage = pathname === '/auth/blocked';
       
       if (!authenticated && !isAuthPage) {
         console.log('User not authenticated, redirecting to register');
@@ -26,8 +27,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
         return;
       }
       
-      // If user is authenticated and trying to access auth pages, redirect to home
-      if (authenticated && isAuthPage) {
+      // If user is authenticated and trying to access auth pages (except blocked), redirect to home
+      if (authenticated && isAuthPage && !isBlockedPage) {
         console.log('User already authenticated, redirecting to home');
         router.push('/');
         return;
