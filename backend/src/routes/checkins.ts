@@ -240,42 +240,40 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid phone number format' });
     }
     
-    let clientIdToUse = clientId;
-    
-    // If this is NOT a main form, we need to find existing client by phone number
-    if (!form.isMainForm) {
+    // Determine client to associate the submission with
+    let clientIdToUse: number | undefined = undefined;
+    if (clientId) {
+      // If a clientId is explicitly provided (e.g., from a conversion link), use it and validate ownership
+      const forcedClient = await prisma.trainerClient.findUnique({ where: { id: Number(clientId) } });
+      if (!forcedClient || forcedClient.trainerId !== form.trainerId) {
+        return res.status(400).json({ error: 'Invalid client specified for this form.' });
+      }
+      clientIdToUse = forcedClient.id;
+    } else if (!form.isMainForm) {
+      // Secondary forms: require phone to find existing client
       if (!phoneNumber) {
         return res.status(400).json({ 
           error: 'Phone number is required for this form. Please fill the main form first to create your profile.' 
         });
       }
-      
-      // Search for existing client by phone number
       const existingClient = await prisma.trainerClient.findFirst({
-        where: {
-          trainerId: form.trainerId,
-          phone: phoneNumber
-        }
+        where: { trainerId: form.trainerId, phone: phoneNumber }
       });
-      
       if (!existingClient) {
         return res.status(400).json({ 
           error: 'No client found with this phone number. Please fill the main form first to create your profile.' 
         });
       }
-      
       clientIdToUse = existingClient.id;
     } else {
-      // This is a main form - create new client
-      // Try to get full name from robust label set
+      // Main form without explicit clientId: create new client
       let fullName = getAnswer(nameLabels);
-      // Fallback: use first non-empty short/long answer
       if (!fullName) {
         const firstTextQ = form.questions.find(q => (q.type === 'short' || q.type === 'long') && answers[q.id] && String(answers[q.id]).trim() !== '');
         if (firstTextQ) fullName = answers[firstTextQ.id];
       }
       if (!fullName) fullName = 'Unnamed';
-      
+
       const clientData: any = {
         trainerId: form.trainerId,
         fullName,
@@ -289,18 +287,74 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
         injuriesHealthNotes: [],
         goals: [],
       };
-      
-      // Optionally extract goals and injuries/health notes if present as arrays
+
       const goalsAnswer = getAnswer(['Goals']);
       if (goalsAnswer) clientData.goals = Array.isArray(goalsAnswer) ? goalsAnswer : [goalsAnswer];
       const injuriesAnswer = getAnswer(['Injuries', 'Health Notes', 'Injuries / Health Notes']);
       if (injuriesAnswer) clientData.injuriesHealthNotes = Array.isArray(injuriesAnswer) ? injuriesAnswer : [injuriesAnswer];
-      
-      // Create the client
+
       const createdClient = await prisma.trainerClient.create({ data: clientData });
       clientIdToUse = createdClient.id;
     }
     
+    // If linked to an existing client, optionally backfill core fields from answers
+    if (clientIdToUse) {
+      try {
+        const current = await prisma.trainerClient.findUnique({ where: { id: clientIdToUse }, select: { fullName: true, email: true, phone: true, gender: true, age: true, source: true } });
+        if (current) {
+          // Derive candidate values from answers
+          const candidateFullNameRaw = (() => {
+            let nm = getAnswer(nameLabels);
+            if (!nm) {
+              const firstTextQ = form.questions.find(q => (q.type === 'short' || q.type === 'long') && answers[q.id] && String(answers[q.id]).trim() !== '');
+              if (firstTextQ) nm = answers[firstTextQ.id];
+            }
+            return nm;
+          })();
+          const candidateFullName = candidateFullNameRaw && typeof candidateFullNameRaw === 'string' ? String(candidateFullNameRaw).trim() : '';
+          const candidateEmail = getAnswer(['Email', 'Email Address']);
+          const candidatePhone = phoneNumber;
+          const candidateGender = getAnswer(['Gender']);
+          const candidateAgeRaw = getAnswer(['Age']);
+          const candidateAge = candidateAgeRaw && !isNaN(Number(candidateAgeRaw)) ? Number(candidateAgeRaw) : undefined;
+          const candidateSource = getAnswer(['Source']);
+
+          // Determine if current fullName is low quality and should be replaced
+          const lowQualityNames = new Set(['', 'Unknown Client', 'Unnamed', 'Male', 'Female', 'Other']);
+          const isLowQuality = lowQualityNames.has((current.fullName || '').trim());
+          const isCandidateLikelyName = candidateFullName &&
+            !['male','female','other'].includes(candidateFullName.toLowerCase()) &&
+            !candidateFullName.includes('@') &&
+            !(candidateFullName.match(/^\d+$/));
+
+          const updates: any = {};
+          if (isCandidateLikelyName && (isLowQuality || current.fullName === null || current.fullName === undefined)) {
+            updates.fullName = candidateFullName;
+          }
+          if ((!current.email || current.email.trim() === '') && candidateEmail) {
+            updates.email = String(candidateEmail);
+          }
+          if ((!current.phone || current.phone.trim() === '') && candidatePhone) {
+            updates.phone = String(candidatePhone);
+          }
+          if ((current.gender == null || String(current.gender).trim() === '') && candidateGender) {
+            updates.gender = String(candidateGender);
+          }
+          if ((current.age == null || Number.isNaN(Number(current.age))) && candidateAge !== undefined) {
+            updates.age = candidateAge;
+          }
+          if ((current.source == null || String(current.source).trim() === '') && candidateSource) {
+            updates.source = String(candidateSource);
+          }
+          if (Object.keys(updates).length > 0) {
+            await prisma.trainerClient.update({ where: { id: clientIdToUse }, data: updates });
+          }
+        }
+      } catch (e) {
+        console.warn('Backfill from submission failed:', e);
+      }
+    }
+
     // Create the submission and link to the client
     const submission = await prisma.checkInSubmission.create({
       data: {

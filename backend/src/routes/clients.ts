@@ -1248,6 +1248,14 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
     // Delete related data (subscriptions, installments, images, notes, labels)
     await prisma.$transaction(async (tx) => {
+      // 0. Clean up relations that would block deletion via FK constraints
+      //    - ClientService (no onDelete configured)
+      await tx.clientService.deleteMany({ where: { clientId } });
+      //    - Check-in submissions: set clientId to null to keep submission history
+      await tx.checkInSubmission.updateMany({ where: { clientId }, data: { clientId: null } });
+      //    - Leads converted to this client: unlink to avoid FK block
+      await tx.lead.updateMany({ where: { convertedClientId: clientId }, data: { convertedClientId: null, stage: 'New' } });
+
       // Delete notes for this client
       await tx.note.deleteMany({ where: { clientId } });
       
@@ -1281,6 +1289,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
     res.json({ message: 'Client deleted successfully' });
   } catch (error) {
     console.error('Error deleting client:', error);
+    // Improve error visibility for common FK constraint errors
+    if (typeof error === 'object' && error && (error as any)['code'] === 'P2003') {
+      return res.status(409).json({ error: 'Cannot delete client due to related data. Please remove related records first.' });
+    }
     res.status(500).json({ error: 'Failed to delete client' });
   }
 });

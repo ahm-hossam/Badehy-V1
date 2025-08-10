@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Button } from "@/components/button";
 import { Alert } from "@/components/alert";
 import { DynamicCheckinForm } from "@/components/dynamic-checkin-form";
 
 export default function PublicCheckInFormPage() {
   const { id } = useParams();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,10 +31,11 @@ export default function PublicCheckInFormPage() {
     setSubmitting(true);
     setError("");
     try {
+      const clientIdParam = searchParams?.get('clientId');
       const res = await fetch(`/api/checkins/${id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, clientId: clientIdParam ? Number(clientIdParam) : undefined }),
       });
       if (!res.ok) throw new Error("Failed to submit");
       setSuccess(true);

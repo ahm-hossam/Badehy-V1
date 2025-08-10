@@ -21,6 +21,8 @@ type Lead = {
   ownerId?: number | null
   nextFollowUpAt?: string | null
   createdAt: string
+  updatedAt: string
+  convertedClientId?: number | null
 }
 
 type TeamMember = { id: number | string; fullName: string; role: string }
@@ -42,6 +44,15 @@ export default function LeadsPage() {
   const [editing, setEditing] = useState<Lead | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Lead | null>(null)
   const [showDeletedToast, setShowDeletedToast] = useState(false)
+
+  // Convert dialog state
+  const [convertLeadTarget, setConvertLeadTarget] = useState<Lead | null>(null)
+  const [openConvert, setOpenConvert] = useState(false)
+  const [convertForms, setConvertForms] = useState<any[]>([])
+  const [selectedFormId, setSelectedFormId] = useState<string>('')
+  const [converting, setConverting] = useState(false)
+  const [convertSuccessInfo, setConvertSuccessInfo] = useState<{ clientId: number, formId?: number } | null>(null)
+  const [copiedFormLink, setCopiedFormLink] = useState(false)
 
   const load = async () => {
     if (!user?.id) return
@@ -81,6 +92,23 @@ export default function LeadsPage() {
     fetchTeam()
   }, [user?.id])
 
+  // Load check-in forms when opening convert dialog
+  useEffect(() => {
+    const loadForms = async () => {
+      if (!openConvert || !user?.id) return
+      try {
+        const res = await fetch(`/api/checkins?trainerId=${user.id}`)
+        const data = await res.json().catch(() => ([]))
+        const list = Array.isArray(data) ? data : []
+        setConvertForms(list)
+        if (list.length > 0) setSelectedFormId(String(list[0].id))
+      } catch {
+        setConvertForms([])
+      }
+    }
+    loadForms()
+  }, [openConvert, user?.id])
+
   const saveLead = async () => {
     if (!user?.id || !form.fullName.trim()) return
     try {
@@ -104,15 +132,31 @@ export default function LeadsPage() {
     }
   }
 
-  const convertLead = async (lead: Lead) => {
+  const openConvertDialog = (lead: Lead) => {
+    setConvertLeadTarget(lead)
+    setSelectedFormId('')
+    setConvertSuccessInfo(null)
+    setOpenConvert(true)
+  }
+
+  const performConvert = async () => {
+    if (!convertLeadTarget) return
     try {
-      const res = await fetch(`/api/leads/${lead.id}/convert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selectedFormId: null }) })
+      setConverting(true)
+      const body: any = {}
+      if (selectedFormId) body.selectedFormId = Number(selectedFormId)
+      const res = await fetch(`/api/leads/${convertLeadTarget.id}/convert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to convert lead')
-      // Redirect to client details
-      window.location.href = `/clients/${data.clientId}`
+      // Close convert dialog, show separate success dialog
+      setOpenConvert(false)
+      // Refresh list
+      load()
+      setConvertSuccessInfo({ clientId: data.clientId, formId: selectedFormId ? Number(selectedFormId) : undefined })
     } catch (e: any) {
       alert(e.message || 'Failed to convert lead')
+    } finally {
+      setConverting(false)
     }
   }
 
@@ -165,6 +209,8 @@ export default function LeadsPage() {
             <TableHeader>Owner</TableHeader>
             {/* <TableHeader>Next Follow-up</TableHeader> */}
             <TableHeader>Created</TableHeader>
+            <TableHeader>Converted At</TableHeader>
+            <TableHeader>Status</TableHeader>
             <TableHeader className="text-right">Actions</TableHeader>
           </TableRow>
         </TableHead>
@@ -189,9 +235,23 @@ export default function LeadsPage() {
                 </TableCell>
                 {/* <TableCell>{lead.nextFollowUpAt ? new Date(lead.nextFollowUpAt).toLocaleDateString() : '-'}</TableCell> */}
                 <TableCell>{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '-'}</TableCell>
+                <TableCell>{lead.convertedClientId ? (lead.updatedAt ? new Date(lead.updatedAt).toLocaleDateString() : '-') : '-'}</TableCell>
+                <TableCell>
+                  {lead.convertedClientId ? (
+                    <span className="inline-flex items-center gap-1 text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded text-xs">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                      Converted
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-zinc-700 bg-zinc-50 border border-zinc-200 px-2 py-0.5 rounded text-xs">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-zinc-400"></span>
+                      Not Converted
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button outline onClick={() => { setEditing(lead); setOpenCreate(true); setForm({ fullName: lead.fullName || '', phone: lead.phone || '', email: lead.email || '', source: lead.source || '', campaign: lead.campaign || '', ownerId: lead.ownerId ? String(lead.ownerId) : '' }) }}>Edit</Button>
-                  <Button outline onClick={() => convertLead(lead)}>Convert</Button>
+                  <Button outline onClick={() => openConvertDialog(lead)}>Convert</Button>
                   <Button outline onClick={() => setConfirmDelete(lead)} className="text-red-600 hover:text-red-700">Delete</Button>
                 </TableCell>
               </TableRow>
@@ -247,6 +307,55 @@ export default function LeadsPage() {
             <div className="flex justify-end gap-2 pt-4">
               <button type="button" onClick={() => setOpenCreate(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">Cancel</button>
               <Button type="button" onClick={saveLead}>{editing ? 'Update' : 'Save'}</Button>
+            </div>
+          </DialogBody>
+        </Dialog>
+      )}
+
+      {/* Convert Lead Dialog */}
+      {openConvert && convertLeadTarget && (
+        <Dialog open={openConvert} onClose={() => { setOpenConvert(false); setConvertSuccessInfo(null); setConvertLeadTarget(null); }}>
+          <DialogBody className="bg-white">
+            <DialogTitle>Convert Lead</DialogTitle>
+            <div className="space-y-4 mt-2">
+              <div className="text-sm text-gray-600">Select a check-in form to assign to the new client.</div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Check-in Form</label>
+                <Select value={selectedFormId} onChange={e => setSelectedFormId(e.target.value)}>
+                  <option value="">None</option>
+                  {convertForms.map(f => (
+                    <option key={f.id} value={String(f.id)}>{f.name}</option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <button type="button" onClick={() => { setOpenConvert(false); setConvertSuccessInfo(null); setConvertLeadTarget(null); }} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">Cancel</button>
+              <Button type="button" onClick={performConvert} disabled={converting}>{converting ? 'Converting…' : 'Convert'}</Button>
+            </div>
+          </DialogBody>
+        </Dialog>
+      )}
+
+      {/* Post-convert success dialog for sharing form link and navigating */}
+      {convertSuccessInfo && (
+        <Dialog open={!!convertSuccessInfo} onClose={() => { setConvertSuccessInfo(null); setCopiedFormLink(false) }}>
+          <DialogBody className="bg-white">
+            <DialogTitle>Lead Converted</DialogTitle>
+            <div className="mt-2 space-y-3">
+              <div className="text-sm text-gray-700">The lead has been converted to a client.</div>
+              {convertSuccessInfo.formId && (
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-700">Share this form link with the client:</div>
+                  <div className="flex items-center gap-2">
+                    <input readOnly className="flex-1 px-3 py-2 border border-gray-300 rounded-md" value={`${window.location.origin}/check-ins/${convertSuccessInfo.formId}?clientId=${convertSuccessInfo.clientId}`} />
+                    <Button type="button" outline onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/check-ins/${convertSuccessInfo.formId}?clientId=${convertSuccessInfo.clientId}`); setCopiedFormLink(true); setTimeout(() => setCopiedFormLink(false), 1500); }}>{copiedFormLink ? 'Copied' : 'Copy'}</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" onClick={() => { const id = convertSuccessInfo.clientId; setConvertSuccessInfo(null); window.location.href = `/clients/${id}` }}>Go to Client</Button>
             </div>
           </DialogBody>
         </Dialog>
