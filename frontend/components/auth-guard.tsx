@@ -28,6 +28,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
       }
       
       // If user is authenticated and trying to access auth pages (except blocked), redirect to home
+      // But avoid redirecting away from login/register if a blocked redirect is in progress to prevent loops
       if (authenticated && isAuthPage && !isBlockedPage) {
         console.log('User already authenticated, redirecting to home');
         router.push('/');
