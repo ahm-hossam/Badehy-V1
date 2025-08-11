@@ -10,9 +10,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
       </head>
       <body>
-        <AuthGuard>
-          {children}
-        </AuthGuard>
+        {/* Skip AuthGuard on auth routes to avoid redirect loops; guard components inside main app pages instead */}
+        {children}
       </body>
     </html>
   );

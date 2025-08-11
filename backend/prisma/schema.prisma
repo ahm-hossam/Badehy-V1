@@ -18,6 +18,8 @@ model Registered {
   createdAt      DateTime        @default(now())
   phoneNumber    String
   updatedAt      DateTime        @updatedAt
+  // Account approval status: 'pending' | 'approved' | 'rejected'
+  accountStatus  String          @default("pending")
   // Subscription/account status for trainer: 'active', 'expired', 'suspended'
   subscriptionStatus String      @default("active")
   packages       Package[]

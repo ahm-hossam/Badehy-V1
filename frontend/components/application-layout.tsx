@@ -310,7 +310,7 @@ export function ApplicationLayout({
   useEffect(() => {
     const run = async () => {
       try {
-        // Avoid checks on auth pages (including blocked) to prevent redirect loops
+        // Skip checks on auth pages (including blocked) to avoid redirect loops
         if (pathname?.startsWith('/auth/')) return
         const storedUser = getStoredUser()
         if (!storedUser) return
@@ -318,46 +318,46 @@ export function ApplicationLayout({
         if (!targetId) return
         const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' })
         const data = await res.json().catch(() => ({}))
+        const account = (data?.accountStatus || 'approved').toLowerCase()
         const status = (data?.subscriptionStatus || 'active').toLowerCase()
-        if (status !== 'active') {
-          const reason = encodeURIComponent(`Your subscription is ${status}.`)
+        let blockReason: string | null = null
+        if (account !== 'approved') blockReason = `Your account is ${account === 'pending' ? 'under review' : 'rejected'}.`
+        else if (status !== 'active') blockReason = `Your subscription is ${status}.`
+        if (blockReason) {
+          const reason = encodeURIComponent(blockReason)
           const email = encodeURIComponent(storedUser.email || '')
+          const kind = encodeURIComponent(account !== 'approved' ? `account_${account}` : `subscription_${status}`)
           if (!pathname?.startsWith('/auth/blocked')) {
-            router.push(`/auth/blocked?reason=${reason}&email=${email}`)
+            router.push(`/auth/blocked?reason=${reason}&email=${email}&kind=${kind}`)
+          } else {
+            // Already on blocked page; avoid repeated replace loops
+            setBlocked(blockReason)
           }
+        } else {
+          // Clear any previous block state
+          setBlocked(null)
+          // If currently on blocked page and unblocked now, go home
+          if (pathname?.startsWith('/auth/blocked')) router.push('/')
         }
       } catch {}
     }
     run()
+    // Also re-check on window focus to reflect DB changes after refresh
+    const onFocus = () => run()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus)
+      document.addEventListener('visibilitychange', onFocus)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus)
+        document.removeEventListener('visibilitychange', onFocus)
+      }
+    }
   }, [pathname])
 
-  // Periodically check subscription status and redirect if blocked
-  useEffect(() => {
-    let timer: any
-    const checkStatus = async () => {
-      try {
-        // Avoid checks on auth pages (login/register/blocked) to prevent redirect loops
-        if (pathname?.startsWith('/auth/')) return
-        const targetId = user?.isTeamMember ? user?.trainerId : user?.id
-        if (!targetId) return
-        const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' })
-        const data = await res.json().catch(() => ({}))
-        const status = (data?.subscriptionStatus || 'active').toLowerCase()
-        if (status !== 'active') {
-          setBlocked(status)
-          const reason = encodeURIComponent(`Your subscription is ${status}.`)
-          const email = encodeURIComponent(user.email || '')
-          if (!pathname?.startsWith('/auth/blocked')) {
-            router.push(`/auth/blocked?reason=${reason}&email=${email}`)
-          }
-        }
-      } catch {}
-    }
-    // initial and interval check
-    checkStatus()
-    timer = setInterval(checkStatus, 60_000)
-    return () => timer && clearInterval(timer)
-  }, [user?.id, user?.isTeamMember, user?.trainerId, pathname])
+  // Disable periodic checks entirely to prevent refresh loops
+  // useEffect(() => {}, [])
 
   const handleSignOut = () => {
     removeUser()

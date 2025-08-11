@@ -11,7 +11,18 @@ import { getStoredUser } from "@/lib/auth";
 export default function BlockedPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const reason = decodeURIComponent(searchParams.get('reason') || 'Your subscription has ended.');
+  const reasonRaw = decodeURIComponent(searchParams.get('reason') || 'Your account is under review.');
+  const kind = searchParams.get('kind') || '';
+  const isPending = /under review|pending/i.test(reasonRaw);
+  const isRejected = /rejected/i.test(reasonRaw) || kind === 'account_rejected';
+  const isSubscription = /subscription/i.test(reasonRaw) && !isPending && !isRejected;
+  const heading = isPending ? 'Account Under Review' : (isRejected ? 'Access Restricted' : (isSubscription ? 'Subscription Required' : 'Access Blocked'));
+  const helper = isPending
+    ? "Your account is under review. We'll notify you once it's approved. You can contact support below."
+    : (isRejected
+        ? 'Your account is currently not approved. If you believe this is a mistake, please contact support.'
+        : 'Please renew your subscription to continue using the dashboard.');
+  const reason = reasonRaw;
   const email = searchParams.get('email') || '';
 
   const supportEmail = 'support@badehy.com';
@@ -20,8 +31,10 @@ export default function BlockedPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: email || '',
-    subject: 'Subscription renewal request',
-    message: `Hello Support,\n\nPlease assist me to renew my subscription.\n\nReason: ${reason}`,
+    subject: isPending ? 'Account under review' : 'Account access assistance',
+    message: isPending
+      ? `Hello Support,\n\nMy account is under review. Please let me know the next steps.\n\nReason: ${reason}`
+      : `Hello Support,\n\nPlease assist me with my account access.\n\nReason: ${reason}`,
   });
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -63,9 +76,16 @@ export default function BlockedPage() {
       if (!targetId) return;
       const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
-      const status = (data?.subscriptionStatus || 'active').toLowerCase();
-      if (status === 'active') {
-        router.push('/');
+      const account = (data?.accountStatus || 'approved').toLowerCase();
+      const sub = (data?.subscriptionStatus || 'active').toLowerCase();
+      // Redirect rules depend on what blocked us
+      if (kind.startsWith('account_')) {
+        if (account === 'approved') router.push('/');
+      } else if (kind.startsWith('subscription_')) {
+        if (sub === 'active') router.push('/');
+      } else {
+        // Fallback: require both approved and active
+        if (account === 'approved' && sub === 'active') router.push('/');
       }
     } finally {
       setChecking(false);
@@ -73,20 +93,17 @@ export default function BlockedPage() {
   };
 
   useEffect(() => {
-    // Immediate check on load
+    // Immediate one-time check; avoid repeated polling that can cause perceived loops
     checkStatus();
-    // Poll every 30s
-    const t = setInterval(checkStatus, 30000);
-    return () => clearInterval(t);
   }, []);
 
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-lg w-full space-y-6 bg-white p-8 rounded-xl border border-zinc-200 shadow-sm">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-zinc-900">Access Blocked</h1>
-          <p className="mt-2 text-zinc-600">{reason}</p>
-          <p className="mt-1 text-zinc-600">Please renew your subscription to continue using the dashboard.</p>
+          <h1 className="text-2xl font-bold text-zinc-900">{heading}</h1>
+          {/* Remove the secondary reason line under the title to keep copy concise */}
+          <p className="mt-1 text-zinc-600">{helper}</p>
         </div>
 
         <Toast
@@ -104,11 +121,9 @@ export default function BlockedPage() {
             <Textarea name="message" rows={4} value={formData.message} onChange={handleChange} required />
             <Button type="submit" disabled={loading} className="w-full">{loading ? 'Sending…' : (sent ? 'Sent' : 'Send to Support')}</Button>
           </form>
-          <Button onClick={checkStatus} outline disabled={checking} className="w-full">
-            {checking ? 'Checking…' : "I've renewed, retry access"}
-          </Button>
+          {/* Retry button removed per request */}
           <a
-            href={`https://wa.me/${whatsappNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent('Hello, I need help renewing my subscription. My email: ' + email)}`}
+            href={`https://wa.me/${whatsappNumber.replace(/[^\d]/g, '')}?text=${encodeURIComponent((isPending ? 'Hello, my account is under review.' : 'Hello, I need help with my account access.') + ' My email: ' + email)}`}
             target="_blank" rel="noopener noreferrer"
             className="block w-full text-center px-4 py-2 rounded-lg border border-green-200 text-green-700 hover:bg-green-50"
           >

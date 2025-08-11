@@ -97,9 +97,10 @@ export default function LoginPage() {
           }, 1500);
         }
       } else if (res.status === 403) {
-        // Blocked due to subscription status, redirect to blocked page with message
+        // Blocked due to account/subscription status, redirect to blocked page with message and kind
         const reason = encodeURIComponent(data.error || 'Your subscription has ended.');
-        router.push(`/auth/blocked?reason=${reason}&email=${encodeURIComponent(form.email)}`);
+        const kind = encodeURIComponent(/account\s+(pending|rejected)/i.test(data.error || '') ? `account_${(data.error||'').split(' ').pop()?.toLowerCase()}` : 'subscription_blocked');
+        router.push(`/auth/blocked?reason=${reason}&email=${encodeURIComponent(form.email)}&kind=${kind}`);
       } else {
         setMessageType("error");
         setMessage(data.error || "Login failed. Please check your credentials.");
