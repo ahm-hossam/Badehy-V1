@@ -857,6 +857,18 @@ export default function ClientDetailsPage() {
       // Get the latest subscription to renew
       const latestSubscription = client?.subscriptions?.[0]; // Assuming subscriptions are ordered by creation date
 
+      // Transform installments into backend shape when paymentStatus is 'installments'
+      const installmentsPayload = renewalData.paymentStatus === 'installments'
+        ? installments
+            .filter((inst: any) => inst && String(inst.amount || '').trim() !== '')
+            .map((inst: any) => ({
+              paidDate: inst.date || undefined,
+              amount: Number(inst.amount),
+              nextInstallment: inst.nextDate || undefined,
+              paymentMethod: undefined,
+            }))
+        : undefined
+
       const subscriptionData = {
         ...renewalData,
         endDate: endDate.toISOString().split('T')[0],
@@ -868,7 +880,9 @@ export default function ClientDetailsPage() {
             parseFloat(renewalData.priceBeforeDisc) - (parseFloat(renewalData.priceBeforeDisc) * parseFloat(renewalData.discountValue) / 100)
           ) : null,
         isRenewal: true,
-        originalSubscriptionId: latestSubscription?.id
+        originalSubscriptionId: latestSubscription?.id,
+        // Include installments when applicable
+        ...(installmentsPayload ? { installments: installmentsPayload } : {}),
       };
       
       const response = await fetch('/api/subscriptions', {

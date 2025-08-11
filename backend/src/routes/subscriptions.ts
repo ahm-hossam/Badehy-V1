@@ -4,6 +4,38 @@ import { Router, Request, Response } from 'express'
 const prisma = new PrismaClient()
 const router = Router()
 
+async function createIncomeIfNotExists(params: {
+  trainerId: number
+  clientId: number
+  source: string
+  amount: number
+  paymentMethod?: string | null
+  date?: Date
+  token: string
+  notes?: string | null
+}) {
+  try {
+    const { trainerId, clientId, source, amount, paymentMethod, date, token, notes } = params
+    if (!Number.isFinite(amount) || amount <= 0) return
+    const existing = await prisma.financialRecord.findFirst({ where: { trainerId, type: 'income', source, notes: { contains: token } }, select: { id: true } })
+    if (existing) return
+    await prisma.financialRecord.create({
+      data: {
+        trainerId,
+        clientId,
+        type: 'income',
+        source,
+        date: date ?? new Date(),
+        amount,
+        paymentMethod: paymentMethod ?? null,
+        notes: notes ? `${notes} | ${token}` : token,
+      },
+    })
+  } catch (e) {
+    console.warn('Failed to create income record (subscription):', e)
+  }
+}
+
 // POST /api/subscriptions - Create new subscription or renew existing
 router.post('/', async (req: Request, res: Response) => {
   const { 
@@ -102,6 +134,70 @@ router.post('/', async (req: Request, res: Response) => {
       // Generate automatic tasks after subscription renewal
       await generateAutomaticTasksForClient(updatedSubscription.clientId);
 
+      // Auto income if renewal marked as paid (derive amount from renewal payload)
+      try {
+        const renewalPaid = String(paymentStatus || '').toLowerCase() === 'paid'
+        // Resolve price from renewal payload or fall back to package price
+        const resolvedRenewalBefore =
+          priceBeforeDisc !== undefined && priceBeforeDisc !== null
+            ? Number(priceBeforeDisc)
+            : Number((await prisma.package.findUnique({ where: { id: Number(packageId) }, select: { priceBeforeDisc: true } }))?.priceBeforeDisc ?? 0)
+
+        const rawType = discountType ? String(discountType).toLowerCase() : null
+        const normalizedType = rawType && (rawType.includes('percent') || rawType === '%') ? 'percentage'
+          : rawType && (rawType.includes('fixed') || rawType.includes('amount') || rawType.includes('value') || rawType.includes('egp') || rawType.includes('flat')) ? 'fixed'
+          : null
+        const dv = discountValue !== undefined && discountValue !== null ? Number(discountValue) : null
+        const fallbackType = (() => {
+          if (dv === null || !Number.isFinite(dv) || dv <= 0) return null
+          if (dv > 1 && dv < resolvedRenewalBefore) return 'fixed'
+          return 'percentage'
+        })()
+        const effType = normalizedType || fallbackType
+        const computedRenewalAfter = (discountApplied ? true : false)
+          ? (priceAfterDisc !== undefined && priceAfterDisc !== null
+              ? Number(priceAfterDisc)
+              : (effType === 'percentage'
+                  ? resolvedRenewalBefore * (Number(dv || 0) > 0 ? (1 - Number(dv) / 100) : 1)
+                  : resolvedRenewalBefore - Number(dv || 0)))
+          : resolvedRenewalBefore
+
+        if (renewalPaid && computedRenewalAfter > 0) {
+          await createIncomeIfNotExists({
+            trainerId: updatedSubscription.client.trainerId,
+            clientId: updatedSubscription.clientId,
+            source: 'Subscription',
+            amount: Number(computedRenewalAfter),
+            paymentMethod: paymentMethod || null,
+            // Use renewal start date as the transaction date (when payment happens)
+            date: new Date(startDate),
+            token: `sub-renew:${updatedSubscription.id}-${existingHistory.length}`,
+            notes: `Subscription renewal`,
+          })
+        }
+      } catch {}
+
+      // Auto income entries for installments provided during renewal (sum into one record)
+      try {
+        const incomingInstallments = (req.body && Array.isArray((req.body as any).installments)) ? (req.body as any).installments : []
+        const amounts = incomingInstallments
+          .map((inst: any) => Number(inst.amount))
+          .filter((v: number) => Number.isFinite(v) && v > 0)
+        const totalAmount = amounts.reduce((a: number, b: number) => a + b, 0)
+        if (totalAmount > 0) {
+          await createIncomeIfNotExists({
+            trainerId: updatedSubscription.client.trainerId,
+            clientId: updatedSubscription.clientId,
+            source: 'Installment',
+            amount: Number(totalAmount),
+            paymentMethod: null,
+            date: new Date(startDate),
+            token: `sub-renew-inst-sum:${updatedSubscription.id}-${existingHistory.length}`,
+            notes: `Installments (renewal) total ${incomingInstallments.length} payments`
+          })
+        }
+      } catch {}
+
       res.status(200).json({ 
         success: true, 
         subscription: updatedSubscription,
@@ -110,6 +206,35 @@ router.post('/', async (req: Request, res: Response) => {
       });
     } else {
       // Create new subscription
+      // Resolve prices and compute discounted amount server-side
+      const resolvedPriceBefore =
+        priceBeforeDisc !== undefined && priceBeforeDisc !== null
+          ? Number(priceBeforeDisc)
+          : Number(package_?.priceBeforeDisc ?? 0)
+
+      const rawDiscountType = discountType ? String(discountType).toLowerCase() : null
+      const normalizedDiscountType = rawDiscountType && (
+        rawDiscountType.includes('percent') || rawDiscountType === '%'
+      ) ? 'percentage' : (rawDiscountType && (
+        rawDiscountType.includes('fixed') || rawDiscountType.includes('amount') || rawDiscountType.includes('value') || rawDiscountType.includes('egp') || rawDiscountType.includes('flat')
+      ) ? 'fixed' : null)
+
+      const dv = discountValue !== undefined && discountValue !== null ? Number(discountValue) : null
+      const fallbackType = ((): 'percentage' | 'fixed' | null => {
+        if (dv === null || !Number.isFinite(dv) || dv <= 0) return null
+        if (dv > 1 && dv < resolvedPriceBefore) return 'fixed'
+        return 'percentage'
+      })()
+      const effectiveDiscountType = normalizedDiscountType || fallbackType
+
+      const computedPriceAfter = (discountApplied ? true : false)
+        ? (priceAfterDisc !== undefined && priceAfterDisc !== null
+            ? Number(priceAfterDisc)
+            : (effectiveDiscountType === 'percentage'
+                ? resolvedPriceBefore * (Number(dv || 0) > 0 ? (1 - Number(dv) / 100) : 1)
+                : resolvedPriceBefore - Number(dv || 0)))
+        : resolvedPriceBefore
+
       const newSubscription = await prisma.subscription.create({
         data: {
           clientId: Number(clientId),
@@ -120,11 +245,11 @@ router.post('/', async (req: Request, res: Response) => {
           durationUnit,
           paymentStatus,
           paymentMethod: paymentMethod || null,
-          priceBeforeDisc: priceBeforeDisc ? Number(priceBeforeDisc) : null,
-          discountApplied: discountApplied || false,
-          discountType: discountType || null,
-          discountValue: discountValue ? Number(discountValue) : null,
-          priceAfterDisc: priceAfterDisc ? Number(priceAfterDisc) : null,
+          priceBeforeDisc: resolvedPriceBefore,
+          discountApplied: Boolean(discountApplied),
+          discountType: effectiveDiscountType,
+          discountValue: dv,
+          priceAfterDisc: computedPriceAfter,
           isOnHold: false,
           holdStartDate: null,
           holdEndDate: null,
@@ -148,6 +273,24 @@ router.post('/', async (req: Request, res: Response) => {
 
       // Generate automatic tasks after subscription creation
       await generateAutomaticTasksForClient(newSubscription.clientId);
+
+      // Auto income if paid and not free (use computed discounted price)
+      try {
+        const isPaid = String(newSubscription.paymentStatus || '').toLowerCase() === 'paid'
+        const amount = Number(newSubscription.priceAfterDisc || newSubscription.priceBeforeDisc || 0)
+        if (isPaid && amount > 0) {
+          await createIncomeIfNotExists({
+            trainerId: (await prisma.trainerClient.findUnique({ where: { id: newSubscription.clientId }, select: { trainerId: true } }))!.trainerId,
+            clientId: newSubscription.clientId,
+            source: 'Subscription',
+            amount,
+            paymentMethod: newSubscription.paymentMethod || null,
+            date: newSubscription.startDate,
+            token: `sub:${newSubscription.id}`,
+            notes: `Subscription payment`,
+          })
+        }
+      } catch {}
 
       res.status(201).json({ 
         success: true, 
@@ -294,6 +437,28 @@ router.post('/:id/cancel', async (req: Request, res: Response) => {
       refundType,
       refundAmount,
     });
+
+    // Create compensating negative income if refund amount provided or full refund
+    try {
+      const refund = refundAmount ? Number(refundAmount) : (String(refundType||'').toLowerCase()==='full' ? Number(updatedSubscription.priceAfterDisc || updatedSubscription.priceBeforeDisc || 0) : 0)
+      if (refund && refund > 0) {
+        const client = await prisma.subscription.findUnique({ where: { id: subscriptionId }, select: { clientId: true, client: { select: { trainerId: true } } } })
+        if (client?.client && client.client.trainerId) {
+          await prisma.financialRecord.create({
+            data: {
+              trainerId: client.client.trainerId,
+              clientId: client.clientId,
+              type: 'income',
+              source: 'Subscription',
+              date: cancelDateTime,
+              amount: -refund,
+              paymentMethod: null,
+              notes: `Subscription refund:${subscriptionId}`,
+            },
+          })
+        }
+      }
+    } catch (e) { console.warn('Failed to create refund income (subscription cancel):', e) }
 
     res.json({ 
       success: true, 
