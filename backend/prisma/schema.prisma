@@ -39,6 +39,7 @@ model Registered {
   services       Service[]
   clientServices ClientService[]
   leads          Lead[]
+  financialRecords FinancialRecord[]
 }
 
 model TrainerClient {
@@ -87,6 +88,7 @@ model TrainerClient {
   services       ClientService[]
   originLeadId   Int?          @unique
   originLead     Lead?         @relation("LeadToClient", fields: [originLeadId], references: [id])
+  financialRecords FinancialRecord[]
 
   @@index([trainerId])
 }
@@ -571,6 +573,28 @@ model SupportRequest {
   trainer     Registered @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId])
+}
+
+// Unified Financial Records for Income and Expenses
+model FinancialRecord {
+  id            Int       @id @default(autoincrement())
+  trainerId     Int
+  type          String    // "income" | "expense"
+  source        String    // Subscription | Service | Installment | Manual | Expense
+  category      String?   // For expenses: Ads, Salaries, Rent, Tools, Misc
+  clientId      Int?
+  date          DateTime
+  amount        Decimal   @db.Decimal(12,2)
+  paymentMethod String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  trainer       Registered @relation(fields: [trainerId], references: [id])
+  client        TrainerClient? @relation(fields: [clientId], references: [id])
+
+  @@index([trainerId, date, type])
+  @@index([trainerId, type])
 }
 
 model TeamMember {

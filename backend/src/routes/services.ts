@@ -92,6 +92,38 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
+async function createIncomeIfNotExists(params: {
+  trainerId: number
+  clientId?: number | null
+  source: string
+  amount: number
+  paymentMethod?: string | null
+  date?: Date
+  token: string
+  notes?: string | null
+}) {
+  try {
+    const { trainerId, clientId, source, amount, paymentMethod, date, token, notes } = params
+    if (!Number.isFinite(amount) || amount <= 0) return
+    const existing = await prisma.financialRecord.findFirst({ where: { trainerId, type: 'income', source, notes: { contains: token } }, select: { id: true } })
+    if (existing) return
+    await prisma.financialRecord.create({
+      data: {
+        trainerId,
+        clientId: clientId ?? null,
+        type: 'income',
+        source,
+        date: date ?? new Date(),
+        amount,
+        paymentMethod: paymentMethod ?? null,
+        notes: notes ? `${notes} | ${token}` : token,
+      },
+    })
+  } catch (e) {
+    console.warn('Failed to create income record (services):', e)
+  }
+}
+
 // Assign service to a client
 router.post('/:id/assign', async (req: Request, res: Response) => {
   try {
@@ -120,6 +152,21 @@ router.post('/:id/assign', async (req: Request, res: Response) => {
         paymentMethod: paymentMethod ? String(paymentMethod) : null,
       },
     });
+    // Auto income if marked paid
+    try {
+      if (String(assignment.paymentStatus).toLowerCase() === 'paid' && Number(assignment.priceEGP) > 0) {
+        await createIncomeIfNotExists({
+          trainerId: assignment.trainerId,
+          clientId: assignment.clientId,
+          source: 'Service',
+          amount: Number(assignment.priceEGP),
+          paymentMethod: assignment.paymentMethod ?? null,
+          date: assignment.startDate ?? new Date(),
+          token: `srv:${assignment.id}`,
+          notes: `Service: ${assignment.serviceName}`,
+        })
+      }
+    } catch {}
     res.status(201).json(assignment);
   } catch (error) {
     console.error('Error assigning service:', error);
@@ -131,7 +178,7 @@ router.post('/:id/assign', async (req: Request, res: Response) => {
 router.patch('/assignments/:assignmentId', async (req: Request, res: Response) => {
   try {
     const { assignmentId } = req.params;
-    const { paymentStatus, paymentMethod, endDate, notes, isActive } = req.body;
+    const { paymentStatus, paymentMethod, endDate, notes, isActive, refundAmount, refundReason } = req.body;
 
     const data: any = {};
     if (paymentStatus !== undefined) data.paymentStatus = String(paymentStatus);
@@ -143,6 +190,50 @@ router.patch('/assignments/:assignmentId', async (req: Request, res: Response) =
       data.unassignedAt = new Date();
     }
     const updated = await prisma.clientService.update({ where: { id: Number(assignmentId) }, data });
+    // Auto income if now paid
+    try {
+      if (String(updated.paymentStatus || '').toLowerCase() === 'paid' && Number(updated.priceEGP) > 0) {
+        const token = `Service:${updated.id}`
+        const exists = await prisma.financialRecord.findFirst({ where: { trainerId: updated.trainerId, type: 'income', source: 'Service', notes: { contains: token } } })
+        if (!exists) {
+          await prisma.financialRecord.create({
+            data: {
+              trainerId: updated.trainerId,
+              clientId: updated.clientId,
+              type: 'income',
+              source: 'Service',
+              date: updated.startDate ?? new Date(),
+              amount: Number(updated.priceEGP),
+              paymentMethod: updated.paymentMethod ?? null,
+              notes: `${token} | ${updated.serviceName}`,
+            },
+          })
+        }
+      }
+    } catch (e) { console.warn('Failed to create income record (services.patch):', e) }
+
+    // Optional refund without unassigning
+    try {
+      const refund = refundAmount !== undefined && refundAmount !== null ? Number(refundAmount) : 0
+      if (refund && refund > 0) {
+        const token = `Service refund:${updated.id}`
+        const existsRefund = await prisma.financialRecord.findFirst({ where: { trainerId: updated.trainerId, type: 'income', source: 'Service', notes: { contains: token } } })
+        if (!existsRefund) {
+          await prisma.financialRecord.create({
+            data: {
+              trainerId: updated.trainerId,
+              clientId: updated.clientId,
+              type: 'income',
+              source: 'Service',
+              date: new Date(),
+              amount: -Math.abs(refund),
+              paymentMethod: null,
+              notes: `${token}${refundReason ? ' | ' + String(refundReason) : ''}`,
+            },
+          })
+        }
+      }
+    } catch (e) { console.warn('Failed to create refund income (services.patch):', e) }
     res.json(updated);
   } catch (error) {
     console.error('Error updating assignment:', error);
@@ -172,10 +263,30 @@ router.get('/assignments', async (req: Request, res: Response) => {
 router.delete('/assignments/:assignmentId', async (req: Request, res: Response) => {
   try {
     const { assignmentId } = req.params
+    const existing = await prisma.clientService.findUnique({ where: { id: Number(assignmentId) } })
     const updated = await prisma.clientService.update({
       where: { id: Number(assignmentId) },
       data: { isActive: false, unassignedAt: new Date() },
     })
+    // Create optional negative record when query param refundAmount is provided
+    try {
+      const refundRaw = (req.query.refundAmount as string | undefined) || ''
+      const refund = refundRaw ? Number(refundRaw) : 0
+      if (existing && refund && refund > 0) {
+        await prisma.financialRecord.create({
+          data: {
+            trainerId: existing.trainerId,
+            clientId: existing.clientId,
+            type: 'income',
+            source: 'Service',
+            date: new Date(),
+            amount: -Math.abs(refund),
+            paymentMethod: null,
+            notes: `Service refund:${existing.id}`,
+          },
+        })
+      }
+    } catch (e) { console.warn('Failed to create refund income (service unassign):', e) }
     res.json(updated)
   } catch (error) {
     console.error('Error unassigning service:', error)

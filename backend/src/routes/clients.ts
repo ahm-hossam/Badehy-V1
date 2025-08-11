@@ -199,6 +199,40 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
 
+      // Resolve package price if price not provided from the client
+      const pkg = await tx.package.findUnique({ where: { id: packageId } })
+      const resolvedPriceBefore =
+        subscription.priceBeforeDisc !== undefined && subscription.priceBeforeDisc !== null
+          ? Number(subscription.priceBeforeDisc)
+          : Number(pkg?.priceBeforeDisc ?? 0)
+
+      // Normalize discount type (case-insensitive, support synonyms) and compute final price
+      const rawDiscountType = discountType ? String(discountType).toLowerCase() : null
+      const normalizedDiscountType = rawDiscountType && (
+        rawDiscountType.includes('percent') || rawDiscountType === '%'
+      ) ? 'percentage' : (rawDiscountType && (
+        rawDiscountType.includes('fixed') || rawDiscountType.includes('amount') || rawDiscountType.includes('value') || rawDiscountType.includes('egp') || rawDiscountType.includes('flat')
+      ) ? 'fixed' : null)
+      // Heuristic fallback when type is missing but a discount value exists
+      const fallbackType = ((): 'percentage' | 'fixed' | null => {
+        if (subscription.discountValue === undefined || subscription.discountValue === null) return null
+        const dv = Number(subscription.discountValue)
+        if (!Number.isFinite(dv) || dv <= 0) return null
+        // If clearly a currency-like amount relative to base price, assume fixed
+        if (dv > 1 && dv < resolvedPriceBefore) return 'fixed'
+        // Otherwise assume percentage
+        return 'percentage'
+      })()
+      const effectiveDiscountType = normalizedDiscountType || fallbackType
+
+      const computedPriceAfter = discountApplied
+        ? (subscription.priceAfterDisc !== undefined && subscription.priceAfterDisc !== null
+            ? Number(subscription.priceAfterDisc)
+            : (effectiveDiscountType === 'percentage'
+                ? resolvedPriceBefore * (Number(subscription.discountValue || 0) > 0 ? (1 - Number(subscription.discountValue) / 100) : 1)
+                : resolvedPriceBefore - Number(subscription.discountValue || 0)))
+        : resolvedPriceBefore
+
       const createdSubscription = await tx.subscription.create({
         data: {
           clientId: createdClient.id,
@@ -209,15 +243,11 @@ router.post('/', async (req: Request, res: Response) => {
           endDate: new Date(subscription.endDate),
           paymentStatus: String(subscription.paymentStatus),
           paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
-          priceBeforeDisc: subscription.priceBeforeDisc ? Number(subscription.priceBeforeDisc) : null,
+          priceBeforeDisc: resolvedPriceBefore,
           discountApplied: discountApplied,
           discountType: discountType,
           discountValue: subscription.discountValue ? Number(subscription.discountValue) : null,
-          priceAfterDisc: discountApplied && subscription.priceBeforeDisc && subscription.discountValue 
-            ? (subscription.discountType === 'percentage' 
-                ? subscription.priceBeforeDisc * (1 - subscription.discountValue / 100)
-                : subscription.priceBeforeDisc - subscription.discountValue)
-            : null,
+          priceAfterDisc: computedPriceAfter,
           // Initialize hold fields
           isOnHold: false,
           holdStartDate: null,
@@ -228,19 +258,41 @@ router.post('/', async (req: Request, res: Response) => {
       });
       // 3. Optionally create Installments
       const createdInstallments = [];
+      // Auto income for created subscription if paid and amount > 0
+      try {
+        const isPaid = String(subscription.paymentStatus || '').toLowerCase().trim() === 'paid'
+        const amount = Number(computedPriceAfter || 0)
+        if (isPaid && amount > 0) {
+          await tx.financialRecord.create({
+            data: {
+              trainerId: parsedTrainerId,
+              clientId: createdClient.id,
+              type: 'income',
+              source: 'Subscription',
+              date: new Date(subscription.startDate),
+              amount,
+              paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
+              notes: `Subscription:${createdSubscription.id}`,
+            },
+          })
+        }
+      } catch (e) { console.warn('Failed to create income for subscription (create client):', e) }
       if (installments && Array.isArray(installments)) {
+        let totalInstallmentsAmount = 0
+        let earliestPaidDate: Date | null = null
         for (const inst of installments) {
-          if (!inst.paidDate || !inst.amount) continue;
-          
+          // Require a positive amount; paidDate is optional and defaults to now
+          const amountValue = Number(inst.amount)
+          if (!Number.isFinite(amountValue) || amountValue <= 0) {
+            continue
+          }
+
           // Validate dates before creating
-          const paidDate = inst.paidDate && inst.paidDate.trim() !== '' ? new Date(inst.paidDate) : null;
-          let nextInstallment = inst.nextInstallment && inst.nextInstallment.trim() !== '' ? new Date(inst.nextInstallment) : null;
+          const paidDate = inst.paidDate && String(inst.paidDate).trim() !== '' ? new Date(inst.paidDate) : null;
+          let nextInstallment = inst.nextInstallment && String(inst.nextInstallment).trim() !== '' ? new Date(inst.nextInstallment) : null;
           
           // Check if dates are valid
-          if (paidDate && isNaN(paidDate.getTime())) {
-            console.error('Invalid paidDate for creation:', inst.paidDate);
-            continue; // Skip this installment
-          }
+          const finalPaidDate = (paidDate && !isNaN(paidDate.getTime())) ? paidDate : new Date();
           if (nextInstallment && isNaN(nextInstallment.getTime())) {
             console.error('Invalid nextInstallment for creation:', inst.nextInstallment);
             // Set to null if invalid
@@ -250,14 +302,17 @@ router.post('/', async (req: Request, res: Response) => {
           const createdInstallment = await tx.installment.create({
             data: {
               subscriptionId: createdSubscription.id,
-              paidDate: paidDate || new Date(), // Use current date as fallback
-              amount: Number(inst.amount),
+              paidDate: finalPaidDate, // Use current date as fallback
+              amount: amountValue,
               remaining: inst.remaining ? Number(inst.remaining) : 0,
               nextInstallment: nextInstallment,
               status: inst.status ? String(inst.status) : 'paid',
             },
           });
           createdInstallments.push(createdInstallment);
+          // Accumulate for a single summed income record
+          totalInstallmentsAmount += amountValue
+          if (!earliestPaidDate || finalPaidDate < earliestPaidDate) earliestPaidDate = finalPaidDate
           
           // Generate automatic task for installment if nextInstallment is set
           if (nextInstallment) {
@@ -300,6 +355,23 @@ router.post('/', async (req: Request, res: Response) => {
             }
           }
         }
+        // Create one summed income record for all installments on creation
+        try {
+          if (totalInstallmentsAmount > 0) {
+            await tx.financialRecord.create({
+              data: {
+                trainerId: parsedTrainerId,
+                clientId: createdClient.id,
+                type: 'income',
+                source: 'Installment',
+                date: earliestPaidDate || new Date(),
+                amount: totalInstallmentsAmount,
+                paymentMethod: null,
+                notes: `Installments total ${createdInstallments.length} payments | sub-inst-sum:${createdSubscription.id}`,
+              },
+            })
+          }
+        } catch (e) { console.warn('Failed to create summed income for installments (create client):', e) }
       }
       return {
         client: createdClient,
@@ -1010,6 +1082,29 @@ router.put('/:id', async (req: Request, res: Response) => {
             },
           });
           console.log('Updated subscription:', updatedSubscription);
+          // Auto income when existing subscription edited to Paid and has amount > 0 (deduped by token)
+          try {
+            const isPaid = String(updatedSubscription.paymentStatus || '').toLowerCase() === 'paid'
+            const amount = Number(updatedSubscription.priceAfterDisc || updatedSubscription.priceBeforeDisc || 0)
+            if (isPaid && amount > 0) {
+              const token = `sub-edit:${updatedSubscription.id}`
+              const exists = await tx.financialRecord.findFirst({ where: { trainerId: updatedClient.trainerId, type: 'income', source: 'Subscription', notes: { contains: token } } })
+              if (!exists) {
+                await tx.financialRecord.create({
+                  data: {
+                    trainerId: updatedClient.trainerId,
+                    clientId: updatedClient.id,
+                    type: 'income',
+                    source: 'Subscription',
+                    date: new Date(updatedSubscription.startDate || new Date()),
+                    amount,
+                    paymentMethod: updatedSubscription.paymentMethod || null,
+                    notes: token,
+                  },
+                })
+              }
+            }
+          } catch (e) { console.warn('Failed to create income for subscription edit:', e) }
         } else {
           // Create new subscription for this client
           console.log('Creating new subscription:', subscription);
@@ -1043,6 +1138,25 @@ router.put('/:id', async (req: Request, res: Response) => {
             },
           });
           console.log('Created subscription:', updatedSubscription);
+          // Auto income for newly created subscription in edit flow if paid and amount > 0
+          try {
+            const isPaid = String(subscription.paymentStatus || '').toLowerCase() === 'paid'
+            const amount = Number((subscription.priceAfterDisc ?? subscription.priceBeforeDisc) || 0)
+            if (isPaid && amount > 0) {
+              await tx.financialRecord.create({
+                data: {
+                  trainerId: updatedClient.trainerId,
+                  clientId: updatedClient.id,
+                  type: 'income',
+                  source: 'Subscription',
+                  date: new Date(subscription.startDate),
+                  amount,
+                  paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
+                  notes: `Subscription:${updatedSubscription.id}`,
+                },
+              })
+            }
+          } catch (e) { console.warn('Failed to create income for subscription (edit-create):', e) }
         }
       }
       // 3. Delete removed installments
@@ -1074,6 +1188,8 @@ router.put('/:id', async (req: Request, res: Response) => {
               nextInstallment = null;
             }
             
+            // Fetch previous to compute delta for financials
+            const prevInst = await tx.installment.findUnique({ where: { id: inst.id } })
             const updatedInst = await tx.installment.update({
               where: { id: inst.id },
               data: {
@@ -1085,6 +1201,26 @@ router.put('/:id', async (req: Request, res: Response) => {
               },
             });
             updatedInstallments.push(updatedInst);
+            // Auto income delta for installment update (positive or negative)
+            try {
+              const prevAmount = Number(prevInst?.amount || 0)
+              const newAmount = Number(inst.amount)
+              const delta = newAmount - prevAmount
+              if (delta !== 0) {
+                await tx.financialRecord.create({
+                  data: {
+                    trainerId: updatedClient.trainerId,
+                    clientId: updatedClient.id,
+                    type: 'income',
+                    source: 'Installment',
+                    date: paidDate || new Date(),
+                    amount: delta, // can be negative for refunds/adjustments
+                    paymentMethod: inst.paymentMethod ? String(inst.paymentMethod) : null,
+                    notes: `Installment adj:${updatedInst.id}`,
+                  },
+                })
+              }
+            } catch (e) { console.warn('Failed to create income for installment update:', e) }
             
             // Generate automatic task for updated installment if nextInstallment is set
             if (nextInstallment) {
@@ -1154,6 +1290,28 @@ router.put('/:id', async (req: Request, res: Response) => {
               },
             });
             updatedInstallments.push(newInst);
+            // Auto income for new installment if paid (dedupe by token)
+            try {
+              const amountPaid = Number(inst.amount)
+              if (amountPaid > 0) {
+                const token = `Installment:${newInst.id}`
+                const exists = await tx.financialRecord.findFirst({ where: { trainerId: updatedClient.trainerId, type: 'income', source: 'Installment', notes: { contains: token } } })
+                if (!exists) {
+                  await tx.financialRecord.create({
+                    data: {
+                      trainerId: updatedClient.trainerId,
+                      clientId: updatedClient.id,
+                      type: 'income',
+                      source: 'Installment',
+                      date: paidDate || new Date(),
+                      amount: amountPaid,
+                      paymentMethod: inst.paymentMethod ? String(inst.paymentMethod) : null,
+                      notes: token,
+                    },
+                  })
+                }
+              }
+            } catch (e) { console.warn('Failed to create income for new installment:', e) }
             
             // Generate automatic task for new installment if nextInstallment is set
             if (nextInstallment) {

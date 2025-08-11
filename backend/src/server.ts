@@ -28,6 +28,7 @@ import nutritionProgramsRoute from './routes/nutrition-programs';
 import servicesRoute from './routes/services';
 import leadsRoute from './routes/leads';
 import supportRoute from './routes/support';
+import financeRoute from './routes/finance';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -76,6 +77,7 @@ app.use('/api/nutrition-programs', nutritionProgramsRoute);
 app.use('/api/services', servicesRoute);
 app.use('/api/leads', leadsRoute);
 app.use('/api/support', supportRoute);
+app.use('/api/finance', financeRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');
