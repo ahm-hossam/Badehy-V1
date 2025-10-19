@@ -51,7 +51,7 @@ export default function ProfilePage() {
   const loadUserProfile = async (userId: number) => {
     try {
       setIsLoadingProfile(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/clients/profile/${userId}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients/profile/${userId}`, { cache: 'no-store' });
       
       if (response.ok) {
         const userData = await response.json();
