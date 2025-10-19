@@ -23,7 +23,11 @@ export default function LoginScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Login failed');
       (globalThis as any).ACCESS_TOKEN = data.accessToken;
-      router.replace('/program');
+      if (data?.requiresPasswordReset) {
+        router.replace('/set-password');
+      } else {
+        router.replace('/program');
+      }
     } catch (e: any) {
       setError(e.message || 'Login failed');
     } finally {

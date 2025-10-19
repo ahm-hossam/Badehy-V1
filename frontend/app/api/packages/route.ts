@@ -31,10 +31,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { trainerId, name } = body;
+    const { trainerId, name, durationValue, durationUnit, priceBeforeDisc } = body || {};
 
-    if (!trainerId || !name) {
-      return NextResponse.json({ error: 'Trainer ID and name are required' }, { status: 400 });
+    if (!trainerId || !name || durationValue === undefined || !durationUnit || priceBeforeDisc === undefined) {
+      return NextResponse.json({ error: 'Trainer ID, name, duration, and price are required' }, { status: 400 });
     }
 
     // Forward the request to the backend
@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ trainerId, name }),
+      // Forward full payload (includes discount data etc.)
+      body: JSON.stringify(body),
     });
     
     if (!response.ok) {
