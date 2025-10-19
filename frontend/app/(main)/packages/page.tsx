@@ -398,7 +398,12 @@ function CreatePackageModal({ onClose, onPackageCreated, trainerId }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!trainerId) return
+    const stored = getStoredUser()
+    const id = trainerId ?? stored?.id
+    if (!id) {
+      alert('Please sign in again. Trainer ID is missing.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -408,7 +413,7 @@ function CreatePackageModal({ onClose, onPackageCreated, trainerId }: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          trainerId,
+          trainerId: id,
           ...formData,
           durationValue: Number(formData.durationValue),
           priceBeforeDisc: Number(formData.priceBeforeDisc),
@@ -420,7 +425,9 @@ function CreatePackageModal({ onClose, onPackageCreated, trainerId }: {
       if (response.ok) {
         onPackageCreated()
       } else {
-        console.error('Failed to create package')
+        const err = await response.json().catch(() => ({}))
+        console.error('Failed to create package', err)
+        alert(err.error || 'Failed to create package')
       }
     } catch (error) {
       console.error('Error creating package:', error)

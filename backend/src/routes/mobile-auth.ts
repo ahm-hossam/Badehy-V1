@@ -44,7 +44,7 @@ router.post('/auth/login', async (req, res) => {
     if (!client) return res.status(401).json({ error: 'Account not found.' });
 
     const { accessToken, refreshToken } = createTokens({ clientId: cred.clientId });
-    return res.json({ accessToken, refreshToken, client });
+    return res.json({ accessToken, refreshToken, client, requiresPasswordReset: cred.requiresPasswordReset });
   } catch (e) {
     console.error('Login error', e);
     return res.status(500).json({ error: 'Internal server error' });
@@ -57,6 +57,30 @@ router.get('/me', authMiddleware, async (req: any, res) => {
     const client = await prisma.trainerClient.findUnique({ where: { id: clientId } });
     return res.json({ client });
   } catch (e) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Change password for authenticated client
+router.post('/auth/change-password', authMiddleware, async (req: any, res) => {
+  try {
+    const { clientId } = req.user as { clientId: number };
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required.' });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+    }
+    const cred = await prisma.clientAuth.findUnique({ where: { clientId } });
+    if (!cred) return res.status(400).json({ error: 'Account not found.' });
+    const ok = await bcrypt.compare(currentPassword, cred.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Current password is incorrect.' });
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.clientAuth.update({ where: { clientId }, data: { passwordHash, requiresPasswordReset: false } });
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('change-password error', e);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

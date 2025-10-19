@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 import { Router, Request, Response } from 'express'
 import fs from 'fs'
 import path from 'path'
@@ -117,7 +118,7 @@ router.post('/', async (req: Request, res: Response) => {
        clientSource = clientSource || null;
       
              // 1. Create TrainerClient
-       const createdClient = await tx.trainerClient.create({
+      const createdClient = await tx.trainerClient.create({
          data: {
            trainerId: parsedTrainerId,
            fullName: String(clientName),
@@ -157,6 +158,24 @@ router.post('/', async (req: Request, res: Response) => {
           labels: client.labels && Array.isArray(client.labels) ? { connect: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
+      // Create initial app access for the trainee (default enabled)
+      const generatePassword = (length = 10) => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+        return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      };
+      const tempPassword = generatePassword(10);
+      try {
+        await tx.clientAuth.create({
+          data: {
+            clientId: createdClient.id,
+            email: createdClient.email || null,
+            phone: createdClient.phone || null,
+            passwordHash: await bcrypt.hash(tempPassword, 10),
+          },
+        });
+      } catch (e) {
+        // if it already exists (edge case), ignore creation here
+      }
       // 1b. Create notes if provided
       if (Array.isArray(notes) && notes.length > 0) {
         for (const note of notes) {
@@ -377,6 +396,7 @@ router.post('/', async (req: Request, res: Response) => {
         client: createdClient,
         subscription: createdSubscription,
         installments: createdInstallments,
+        appAccessTempPassword: tempPassword,
       };
     });
     res.status(201).json(result);
@@ -1015,6 +1035,21 @@ router.put('/:id', async (req: Request, res: Response) => {
           labels: client.labels && Array.isArray(client.labels) ? { set: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
+      // Ensure app access exists if enabled-by-default and missing
+      try {
+        const existing = await tx.clientAuth.findUnique({ where: { clientId } as any }).catch(() => null);
+        if (!existing) {
+          const temp = Math.random().toString(36).slice(-10);
+          await tx.clientAuth.create({
+            data: {
+              clientId,
+              email: updatedClient.email || null,
+              phone: updatedClient.phone || null,
+              passwordHash: await bcrypt.hash(temp, 10),
+            },
+          });
+        }
+      } catch {}
       // In PUT (edit), after updating client details
       const answers = req.body.answers;
       console.log('Backend - Processing answers:', answers);

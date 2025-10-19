@@ -44,17 +44,21 @@ router.post('/', async (req, res) => {
       priceAfterDisc,
     } = req.body;
 
-    if (!trainerId || !name || !durationValue || !durationUnit || !priceBeforeDisc) {
+    const numericTrainerId = Number(trainerId);
+    const numericDuration = durationValue !== undefined && durationValue !== null ? Number(durationValue) : undefined;
+    const numericPrice = priceBeforeDisc !== undefined && priceBeforeDisc !== null ? Number(priceBeforeDisc) : undefined;
+
+    if (!Number.isFinite(numericTrainerId) || !name || numericDuration === undefined || !durationUnit || numericPrice === undefined) {
       return res.status(400).json({ error: 'Trainer ID, name, duration, and price are required' });
     }
 
     const package_ = await prisma.package.create({
       data: {
-        trainerId: Number(trainerId),
+        trainerId: numericTrainerId,
         name,
-        durationValue: Number(durationValue),
+        durationValue: numericDuration,
         durationUnit,
-        priceBeforeDisc: Number(priceBeforeDisc),
+        priceBeforeDisc: numericPrice,
         discountApplied: discountApplied || false,
         discountType: discountType || null,
         discountValue: discountValue ? Number(discountValue) : null,

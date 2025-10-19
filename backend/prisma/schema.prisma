@@ -712,6 +712,7 @@ model ClientAuth {
   email        String?        @unique
   phone        String?        @unique
   passwordHash String
+  requiresPasswordReset Boolean @default(true)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
