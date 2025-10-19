@@ -405,8 +405,7 @@ export function ApplicationLayout({
           <SidebarHeader>
             <Dropdown>
               <DropdownButton as={SidebarItem}>
-                <Avatar src="/teams/catalyst.svg" />
-                <SidebarLabel>Badehy</SidebarLabel>
+                <img src="/logo.svg" alt="Logo" className="h-10 w-auto" />
                 <ChevronDownIcon />
               </DropdownButton>
               <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
@@ -414,20 +413,19 @@ export function ApplicationLayout({
                   <Cog8ToothIcon />
                   <DropdownLabel>Settings</DropdownLabel>
                 </DropdownItem>
-                <DropdownDivider />
-                <DropdownItem href="#">
-                  <Avatar slot="icon" src="/teams/catalyst.svg" />
-                  <DropdownLabel>Badehy</DropdownLabel>
-                </DropdownItem>
-                <DropdownItem href="#">
+                {/* <DropdownDivider /> */}
+                {/* <DropdownItem href="#">
+                  <img slot="icon" src="/logo.svg" alt="Logo" className="h-5 w-auto" />
+                </DropdownItem> */}
+                {/* <DropdownItem href="#">
                   <Avatar slot="icon" initials="BE" className="bg-purple-500 text-white" />
                   <DropdownLabel>Big Events</DropdownLabel>
-                </DropdownItem>
-                <DropdownDivider />
-                <DropdownItem href="#">
+                </DropdownItem> */}
+                {/* <DropdownDivider /> */}
+                {/* <DropdownItem href="#">
                   <PlusIcon />
                   <DropdownLabel>New team&hellip;</DropdownLabel>
-                </DropdownItem>
+                </DropdownItem> */}
               </DropdownMenu>
             </Dropdown>
           </SidebarHeader>

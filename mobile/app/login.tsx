@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SafeAreaView, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000';
@@ -10,6 +10,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const remoteLogo = process.env.EXPO_PUBLIC_LOGO_URL;
+  const logoSource: any = remoteLogo ? { uri: remoteLogo } : require('../assets/logo.png');
 
   const onLogin = async () => {
     try {
@@ -39,8 +41,11 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.root}>
       <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', android: undefined })} style={{ flex: 1 }}>
         <View style={styles.headerArea}>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.subtitle}>Sign in to continue</Text>
+          <Image source={logoSource} style={styles.logo} resizeMode="contain" />
+          <View style={{ alignSelf: 'stretch', paddingHorizontal: 16 }}>
+            <Text style={styles.title}>Welcome back</Text>
+            <Text style={styles.subtitle}>Sign in to continue</Text>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -80,9 +85,10 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
-  headerArea: { paddingHorizontal: 24, paddingTop: 48, paddingBottom: 16 },
-  title: { fontSize: 28, fontWeight: '700', color: '#0f172a' },
-  subtitle: { marginTop: 6, fontSize: 14, color: '#64748b' },
+  headerArea: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 16, alignItems: 'center' },
+  logo: { width: 280, height: 80, marginBottom: 8 },
+  title: { fontSize: 24, fontWeight: '700', color: '#0f172a', marginTop: 4, textAlign: 'left' },
+  subtitle: { marginTop: 6, fontSize: 14, color: '#64748b', textAlign: 'left' },
   card: {
     marginTop: 16,
     marginHorizontal: 16,
