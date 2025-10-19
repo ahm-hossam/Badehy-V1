@@ -50,7 +50,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { getStoredUser, removeUser } from '../lib/auth'
+import { getStoredUser, removeUser, storeUser } from '../lib/auth'
 import { Disclosure } from '@headlessui/react';
 import Link from 'next/link';
 
@@ -310,20 +310,41 @@ export function ApplicationLayout({
   useEffect(() => {
     const run = async () => {
       try {
-        // Skip checks on auth pages (including blocked) to avoid redirect loops
-        if (pathname?.startsWith('/auth/')) return
+        // Skip checks on auth pages EXCEPT the blocked page (we need to auto-exit when unblocked)
+        if (pathname?.startsWith('/auth/') && !pathname?.startsWith('/auth/blocked')) return
         const storedUser = getStoredUser()
         if (!storedUser) return
         const targetId = storedUser.isTeamMember ? storedUser.trainerId : storedUser.id
         if (!targetId) return
         const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' })
         const data = await res.json().catch(() => ({}))
+
+        // Hydrate local header with server truth (avoid stale placeholder "User/user@example.com")
+        try {
+          const hydrated = {
+            ...storedUser,
+            fullName: data?.fullName ?? storedUser.fullName,
+            email: data?.email ?? storedUser.email,
+          }
+          setUser(hydrated)
+          storeUser(hydrated, true)
+        } catch {}
         const account = (data?.accountStatus || 'approved').toLowerCase()
         const status = (data?.subscriptionStatus || 'active').toLowerCase()
         let blockReason: string | null = null
         if (account !== 'approved') blockReason = `Your account is ${account === 'pending' ? 'under review' : 'rejected'}.`
         else if (status !== 'active') blockReason = `Your subscription is ${status}.`
         if (blockReason) {
+          // If account status just changed in DB, avoid stale local cache causing loops
+          try {
+            const fresh = {
+              ...storedUser,
+              accountStatus: data?.accountStatus,
+              subscriptionStatus: data?.subscriptionStatus,
+            }
+            storeUser(fresh, true)
+            setUser(fresh)
+          } catch {}
           const reason = encodeURIComponent(blockReason)
           const email = encodeURIComponent(storedUser.email || '')
           const kind = encodeURIComponent(account !== 'approved' ? `account_${account}` : `subscription_${status}`)

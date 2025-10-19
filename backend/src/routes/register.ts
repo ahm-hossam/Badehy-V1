@@ -142,7 +142,9 @@ router.post('/', async (req, res) => {
     });
 
     console.log('User created successfully:', { id: newUser.id, email: newUser.email });
-    return res.status(201).json({ message: 'Registration successful! Please login.' });
+    // Return user payload so the frontend can hydrate immediately if desired
+    const { passwordHash: _pwd, ...safeUser } = newUser as any;
+    return res.status(201).json({ message: 'Registration successful!', user: safeUser });
   } catch (error) {
     console.error('Registration error:', error);
     return res.status(500).json({ error: 'Internal server error. Please try again.' });

@@ -1480,6 +1480,8 @@ router.get('/profile/:id', async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    // Force no caching of account status
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.json(user);
   } catch (error) {
     console.error('Error fetching profile:', error);

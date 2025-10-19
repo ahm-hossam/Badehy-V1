@@ -71,8 +71,23 @@ export default function BlockedPage() {
   const checkStatus = async () => {
     try {
       setChecking(true);
-      const storedUser = getStoredUser();
-      const targetId = storedUser?.isTeamMember ? storedUser?.trainerId : storedUser?.id;
+      let storedUser = getStoredUser();
+      let targetId = storedUser?.isTeamMember ? storedUser?.trainerId : storedUser?.id;
+      // Fallback: derive id by email from query string if local storage is empty
+      if (!targetId) {
+        const emailFromQuery = searchParams.get('email') || '';
+        if (emailFromQuery) {
+          try {
+            const listRes = await fetch('/api/check-users', { cache: 'no-store' });
+            const list = await listRes.json().catch(() => ({}));
+            const match = Array.isArray(list?.users) ? list.users.find((u: any) => (u.email || '').toLowerCase() === emailFromQuery.toLowerCase()) : null;
+            if (match?.id) {
+              targetId = match.id;
+              storedUser = { id: match.id, email: match.email, fullName: match.fullName } as any;
+            }
+          } catch {}
+        }
+      }
       if (!targetId) return;
       const res = await fetch(`/api/clients/profile/${targetId}`, { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
