@@ -13,31 +13,25 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light');
-  const [mounted, setMounted] = useState(false);
 
+  // Force light theme on mount and ensure no 'dark' class is present
   useEffect(() => {
-    setMounted(true);
-    // On mount, check localStorage and system preference
-    const stored = localStorage.getItem('theme') as Theme;
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    if (stored === 'dark' || (!stored && systemPrefersDark)) {
-      setTheme('dark');
-      document.documentElement.classList.add('dark');
-    } else {
-      setTheme('light');
+    setTheme('light');
+    try {
+      localStorage.setItem('theme', 'light');
+    } catch {}
+    if (typeof document !== 'undefined') {
       document.documentElement.classList.remove('dark');
     }
   }, []);
 
+  // No-op toggle to keep API surface while enforcing light mode only
   const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
+    setTheme('light');
+    try {
+      localStorage.setItem('theme', 'light');
+    } catch {}
+    if (typeof document !== 'undefined') {
       document.documentElement.classList.remove('dark');
     }
   };

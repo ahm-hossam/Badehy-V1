@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,148 +8,141 @@ datasource db {
 }
 
 model Registered {
-  id             Int             @id @default(autoincrement())
-  fullName       String
-  email          String          @unique
-  countryCode    String
-  countryName    String
-  passwordHash   String
-  createdAt      DateTime        @default(now())
-  phoneNumber    String
-  updatedAt      DateTime        @updatedAt
-  // Account approval status: 'pending' | 'approved' | 'rejected'
-  accountStatus  String          @default("pending")
-  // Subscription/account status for trainer: 'active', 'expired', 'suspended'
-  subscriptionStatus String      @default("active")
-  packages       Package[]
-  trainerClients TrainerClient[]
-  labels         Label[]
-  checkIns       CheckIn[]
-  checkInForms   CheckInForm[]
-  exercises      Exercise[]
-  programs       Program[]
-  nutritionPrograms NutritionProgram[]
-  brandingSettings BrandingSettings[]
-  pdfTemplates   PDFTemplate[]
-  supportRequests SupportRequest[]
-  teamMembers    TeamMember[]
-  clientAssignments ClientTeamAssignment[]
-  clientProgramAssignments ClientProgramAssignment[]
+  id                         Int                         @id @default(autoincrement())
+  fullName                   String
+  email                      String                      @unique
+  countryCode                String
+  countryName                String
+  passwordHash               String
+  createdAt                  DateTime                    @default(now())
+  phoneNumber                String
+  updatedAt                  DateTime                    @updatedAt
+  accountStatus              String                      @default("pending")
+  subscriptionStatus         String                      @default("active")
+  brandingSettings           BrandingSettings?
+  checkIns                   CheckIn[]
+  checkInForms               CheckInForm[]
   clientNutritionAssignments ClientNutritionAssignment[]
-  tasks          Task[]
-  services       Service[]
-  clientServices ClientService[]
-  leads          Lead[]
-  financialRecords FinancialRecord[]
+  clientProgramAssignments   ClientProgramAssignment[]
+  clientServices             ClientService[]
+  clientAssignments          ClientTeamAssignment[]
+  exercises                  Exercise[]
+  financialRecords           FinancialRecord[]
+  labels                     Label[]
+  leads                      Lead[]
+  nutritionPrograms          NutritionProgram[]
+  pdfTemplates               PDFTemplate[]
+  packages                   Package[]
+  programs                   Program[]
+  services                   Service[]
+  supportRequests            SupportRequest[]
+  tasks                      Task[]
+  teamMembers                TeamMember[]
+  trainerClients             TrainerClient[]
 }
 
 model TrainerClient {
-  id            Int            @id @default(autoincrement())
-  trainerId     Int
-  fullName      String
-  phone         String
-  email         String
-  gender        String?
-  age           Int?
-  source        String?
-  level         String?
-  registrationDate DateTime?
-  injuriesHealthNotes String[]
-  goals         String[] // New field for client goals
-  // --- Added fields for full profile support ---
-  goal                     String?
-  workoutPlace             String?
-  height                   Int?
-  weight                   Int?
-  preferredTrainingDays    String?
-  preferredTrainingTime    String?
-  equipmentAvailability    String?
-  favoriteTrainingStyle    String?
-  weakAreas                String?
-  nutritionGoal            String?
-  dietPreference           String?
-  mealCount                Int?
-  foodAllergies            String?
-  dislikedIngredients      String?
-  currentNutritionPlan     String?
-  selectedFormId           Int?
-  // --- End added fields ---
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
-  trainer       Registered     @relation(fields: [trainerId], references: [id])
-  labels        Label[]        @relation("ClientLabels")
-  notes         Note[]
-  submissions   CheckInSubmission[]
-  selectedForm  CheckInForm?   @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
-  teamAssignments ClientTeamAssignment[]
-  programAssignments ClientProgramAssignment[]
-  nutritionAssignments ClientNutritionAssignment[]
-  tasks          Task[]
-  services       ClientService[]
-  originLeadId   Int?          @unique
-  originLead     Lead?         @relation("LeadToClient", fields: [originLeadId], references: [id])
-  financialRecords FinancialRecord[]
+  id                    Int                         @id @default(autoincrement())
+  trainerId             Int
+  fullName              String
+  phone                 String
+  email                 String
+  gender                String?
+  age                   Int?
+  source                String?
+  level                 String?
+  registrationDate      DateTime?
+  injuriesHealthNotes   String[]
+  goals                 String[]
+  goal                  String?
+  workoutPlace          String?
+  height                Int?
+  weight                Int?
+  preferredTrainingDays String?
+  preferredTrainingTime String?
+  equipmentAvailability String?
+  favoriteTrainingStyle String?
+  weakAreas             String?
+  nutritionGoal         String?
+  dietPreference        String?
+  mealCount             Int?
+  foodAllergies         String?
+  dislikedIngredients   String?
+  currentNutritionPlan  String?
+  selectedFormId        Int?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  originLeadId          Int?                        @unique
+  submissions           CheckInSubmission[]
+  nutritionAssignments  ClientNutritionAssignment[]
+  programAssignments    ClientProgramAssignment[]
+  services              ClientService[]
+  teamAssignments       ClientTeamAssignment[]
+  financialRecords      FinancialRecord[]
+  notes                 Note[]
+  subscriptions         Subscription[]
+  tasks                 Task[]
+  originLead            Lead?                       @relation("LeadToClient", fields: [originLeadId], references: [id])
+  selectedForm          CheckInForm?                @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
+  trainer               Registered                  @relation(fields: [trainerId], references: [id])
+  labels                Label[]                     @relation("ClientLabels")
 
   @@index([trainerId])
 }
 
 model Package {
-  id            Int            @id @default(autoincrement())
-  trainerId     Int
-  name          String
-  durationValue Int            @default(1)
-  durationUnit  String         @default("month")
-  priceBeforeDisc Float        @default(0)
-  discountApplied Boolean       @default(false)
+  id              Int            @id @default(autoincrement())
+  trainerId       Int
+  name            String
+  durationValue   Int            @default(1)
+  durationUnit    String         @default("month")
+  priceBeforeDisc Float          @default(0)
+  discountApplied Boolean        @default(false)
   discountType    String?
   discountValue   Float?
   priceAfterDisc  Float?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  trainer       Registered     @relation(fields: [trainerId], references: [id])
-  subscriptions Subscription[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  trainer         Registered     @relation(fields: [trainerId], references: [id])
+  subscriptions   Subscription[]
 
   @@unique([trainerId, name])
   @@index([trainerId])
 }
 
 model Subscription {
-  id              Int           @id @default(autoincrement())
-  clientId        Int
-  packageId       Int
-  startDate       DateTime
-  durationValue   Int
-  durationUnit    String
-  endDate         DateTime
-  paymentStatus   String
-  paymentMethod   String?
-  priceBeforeDisc Float?
-  discountApplied Boolean?
-  discountType    String?
-  discountValue   Float?
-  priceAfterDisc  Float?
-  // Hold subscription fields
-  isOnHold        Boolean       @default(false)
-  holdStartDate   DateTime?
-  holdEndDate     DateTime?
-  holdDuration    Int?
-  holdDurationUnit String?
-  // Cancel subscription fields
-  isCanceled      Boolean       @default(false)
-  canceledAt      DateTime?
-  cancelReason    String?
-  refundAmount    Decimal?      @db.Decimal(10,2)
-  refundType      String?       // "none", "partial", "full"
-  // Renewal fields
-  renewalHistory  Json?         // Array of renewal records
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  installments    Installment[]
-  client          TrainerClient @relation(fields: [clientId], references: [id])
-  package         Package       @relation(fields: [packageId], references: [id])
+  id                            Int                            @id @default(autoincrement())
+  clientId                      Int
+  packageId                     Int
+  startDate                     DateTime
+  durationValue                 Int
+  durationUnit                  String
+  endDate                       DateTime
+  paymentStatus                 String
+  paymentMethod                 String?
+  priceBeforeDisc               Float?
+  discountApplied               Boolean?
+  discountType                  String?
+  discountValue                 Float?
+  priceAfterDisc                Float?
+  isOnHold                      Boolean                        @default(false)
+  holdStartDate                 DateTime?
+  holdEndDate                   DateTime?
+  holdDuration                  Int?
+  holdDurationUnit              String?
+  isCanceled                    Boolean                        @default(false)
+  canceledAt                    DateTime?
+  cancelReason                  String?
+  refundAmount                  Decimal?                       @db.Decimal(10, 2)
+  refundType                    String?
+  renewalHistory                Json?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  installments                  Installment[]
+  client                        TrainerClient                  @relation(fields: [clientId], references: [id])
+  package                       Package                        @relation(fields: [packageId], references: [id])
+  holdHistory                   SubscriptionHold[]
   subscriptionTransactionImages SubscriptionTransactionImage[]
-  holdHistory     SubscriptionHold[]
 
   @@index([clientId])
   @@index([packageId])
@@ -187,46 +179,44 @@ model TransactionImage {
 }
 
 model SubscriptionTransactionImage {
-  id             Int           @id @default(autoincrement())
+  id             Int          @id @default(autoincrement())
   filename       String
   originalName   String
   mimeType       String
   size           Int
   imageData      Bytes
-  uploadedAt     DateTime      @default(now())
+  uploadedAt     DateTime     @default(now())
   subscriptionId Int
-  subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
 
   @@index([subscriptionId])
 }
 
 model SubscriptionHold {
-  id              Int           @id @default(autoincrement())
-  subscriptionId  Int
-  holdStartDate   DateTime
-  holdEndDate     DateTime
-  holdDuration    Int
+  id               Int          @id @default(autoincrement())
+  subscriptionId   Int
+  holdStartDate    DateTime
+  holdEndDate      DateTime
+  holdDuration     Int
   holdDurationUnit String
-  reason          String?
-  createdAt       DateTime      @default(now())
-  subscription    Subscription  @relation(fields: [subscriptionId], references: [id])
+  reason           String?
+  createdAt        DateTime     @default(now())
+  subscription     Subscription @relation(fields: [subscriptionId], references: [id])
 
   @@index([subscriptionId])
 }
 
-// Additional Services (one-off or ongoing) that trainers can sell to clients
 model Service {
-  id          Int        @id @default(autoincrement())
+  id          Int             @id @default(autoincrement())
   trainerId   Int
   name        String
   description String?
-  priceEGP    Decimal    @db.Decimal(10, 2)
-  status      String     @default("active") // active | inactive
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  trainer     Registered @relation(fields: [trainerId], references: [id])
+  priceEGP    Decimal         @db.Decimal(10, 2)
+  status      String          @default("active")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   assignments ClientService[]
+  trainer     Registered      @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId, status])
   @@index([trainerId, name])
@@ -237,62 +227,50 @@ model ClientService {
   trainerId     Int
   clientId      Int
   serviceId     Int
-
-  // Snapshot fields to preserve history even if the service changes later
   serviceName   String
   priceEGP      Decimal       @db.Decimal(10, 2)
-
-  // Optional scheduling to support ongoing services
   assignedAt    DateTime      @default(now())
   startDate     DateTime?
   endDate       DateTime?
   notes         String?
-
-  // Lifecycle
   isActive      Boolean       @default(true)
   unassignedAt  DateTime?
-
-  // Simple payment tracking for reporting
-  paymentStatus String        @default("pending") // pending | paid | refunded | canceled
+  paymentStatus String        @default("pending")
   paymentMethod String?
-
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-
-  trainer       Registered    @relation(fields: [trainerId], references: [id])
   client        TrainerClient @relation(fields: [clientId], references: [id])
   service       Service       @relation(fields: [serviceId], references: [id])
+  trainer       Registered    @relation(fields: [trainerId], references: [id])
 
   @@unique([clientId, serviceId, isActive])
   @@index([trainerId, clientId, isActive, paymentStatus])
   @@index([serviceId, isActive])
 }
 
-// Leads (CRM) models
 model Lead {
-  id                 Int            @id @default(autoincrement())
-  trainerId          Int
-  fullName           String
-  phone              String?
-  email              String?
-  source             String?
-  campaign           String?
-  stage              String         @default("New") // New, Contacted, Qualified, Trial, Won, Lost
-  ownerId            Int?
-  score              Int?
-  lastContactAt      DateTime?
-  nextFollowUpAt     DateTime?
-  notes              String?
-  convertedClientId  Int?          @unique
-  isArchived         Boolean        @default(false)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
-
-  trainer            Registered     @relation(fields: [trainerId], references: [id])
-  owner              TeamMember?    @relation(fields: [ownerId], references: [id])
-  convertedClient    TrainerClient? @relation("LeadToClient")
-  activities         LeadActivity[]
-  tasks              Task[]
+  id                Int            @id @default(autoincrement())
+  trainerId         Int
+  fullName          String
+  phone             String?
+  email             String?
+  source            String?
+  campaign          String?
+  stage             String         @default("New")
+  ownerId           Int?
+  score             Int?
+  lastContactAt     DateTime?
+  nextFollowUpAt    DateTime?
+  notes             String?
+  convertedClientId Int?           @unique
+  isArchived        Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  owner             TeamMember?    @relation(fields: [ownerId], references: [id])
+  trainer           Registered     @relation(fields: [trainerId], references: [id])
+  activities        LeadActivity[]
+  tasks             Task[]
+  convertedClient   TrainerClient? @relation("LeadToClient")
 
   @@index([trainerId, stage, isArchived])
 }
@@ -300,23 +278,22 @@ model Lead {
 model LeadActivity {
   id             Int         @id @default(autoincrement())
   leadId         Int
-  type           String      // call, message, note, stage_change
+  type           String
   content        String?
   byTeamMemberId Int?
   createdAt      DateTime    @default(now())
-
-  lead           Lead        @relation(fields: [leadId], references: [id])
   byTeamMember   TeamMember? @relation(fields: [byTeamMemberId], references: [id])
+  lead           Lead        @relation(fields: [leadId], references: [id])
 
   @@index([leadId])
 }
 
 model Label {
-  id         Int            @id @default(autoincrement())
-  name       String
-  trainerId  Int
-  trainer    Registered     @relation(fields: [trainerId], references: [id])
-  clients    TrainerClient[] @relation("ClientLabels")
+  id        Int             @id @default(autoincrement())
+  name      String
+  trainerId Int
+  trainer   Registered      @relation(fields: [trainerId], references: [id])
+  clients   TrainerClient[] @relation("ClientLabels")
 
   @@unique([trainerId, name])
   @@index([trainerId])
@@ -329,7 +306,7 @@ model Note {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   client    TrainerClient @relation(fields: [clientId], references: [id])
-  
+
   @@index([clientId])
 }
 
@@ -344,46 +321,46 @@ model CheckIn {
 }
 
 model CheckInForm {
-  id          Int                @id @default(autoincrement())
-  trainerId   Int
-  name        String
-  published   Boolean            @default(false)
-  isMainForm  Boolean            @default(false)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  trainer     Registered         @relation(fields: [trainerId], references: [id])
-  questions   CheckInQuestion[]
-  submissions CheckInSubmission[]
-  history     CheckInFormHistory[]
-  selectedByClients TrainerClient[] @relation("ClientSelectedForm")
+  id                Int                  @id @default(autoincrement())
+  trainerId         Int
+  name              String
+  published         Boolean              @default(false)
+  isMainForm        Boolean              @default(false)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  trainer           Registered           @relation(fields: [trainerId], references: [id])
+  history           CheckInFormHistory[]
+  questions         CheckInQuestion[]
+  submissions       CheckInSubmission[]
+  selectedByClients TrainerClient[]      @relation("ClientSelectedForm")
 }
 
 model CheckInQuestion {
-  id            Int          @id @default(autoincrement())
-  formId        Int
-  order         Int          // for sorting
-  label         String
-  type          String       // 'short', 'long', 'single', 'multi', 'file', 'date', 'time'
-  required      Boolean
-  options       Json?        // for single/multi choice
-  conditionGroup Json?       // for conditional logic (array of conditions)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  form          CheckInForm  @relation(fields: [formId], references: [id])
+  id             Int         @id @default(autoincrement())
+  formId         Int
+  order          Int
+  label          String
+  type           String
+  required       Boolean
+  options        Json?
+  conditionGroup Json?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  form           CheckInForm @relation(fields: [formId], references: [id])
 
   @@index([formId])
   @@index([order])
 }
 
 model CheckInSubmission {
-  id         Int           @id @default(autoincrement())
-  formId     Int
-  clientId   Int?
-  phoneNumber String?      // for client identification
-  submittedAt DateTime     @default(now())
-  answers    Json          // stores all answers as JSON
-  form       CheckInForm   @relation(fields: [formId], references: [id])
-  client     TrainerClient? @relation(fields: [clientId], references: [id])
+  id          Int            @id @default(autoincrement())
+  formId      Int
+  clientId    Int?
+  phoneNumber String?
+  submittedAt DateTime       @default(now())
+  answers     Json
+  client      TrainerClient? @relation(fields: [clientId], references: [id])
+  form        CheckInForm    @relation(fields: [formId], references: [id])
 
   @@index([formId])
   @@index([clientId])
@@ -391,244 +368,236 @@ model CheckInSubmission {
 }
 
 model CheckInFormHistory {
-  id        Int           @id @default(autoincrement())
+  id        Int         @id @default(autoincrement())
   formId    Int
   version   Int
   data      Json
-  createdAt DateTime      @default(now())
-  form      CheckInForm   @relation(fields: [formId], references: [id])
+  createdAt DateTime    @default(now())
+  form      CheckInForm @relation(fields: [formId], references: [id])
 
   @@index([formId])
 }
 
-// Workout Program Models
 model Exercise {
-  id          Int      @id @default(autoincrement())
-  trainerId   Int
-  name        String
-  videoUrl    String?
-  description String?
-  category    String?
-  // Additional fields from ExerciseDB
-  bodyPart    String?
-  equipment   String?
-  target      String?
-  secondaryMuscles String[] @default([])
-  instructions String[] @default([])
-  gifUrl      String?
-  source      String?  // 'ExerciseDB' or null for custom exercises
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  trainer     Registered @relation(fields: [trainerId], references: [id])
+  id               Int               @id @default(autoincrement())
+  trainerId        Int
+  name             String
+  videoUrl         String?
+  description      String?
+  category         String?
+  bodyPart         String?
+  equipment        String?
+  target           String?
+  secondaryMuscles String[]          @default([])
+  instructions     String[]          @default([])
+  gifUrl           String?
+  source           String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  trainer          Registered        @relation(fields: [trainerId], references: [id])
   programExercises ProgramExercise[]
 
   @@index([trainerId])
 }
 
 model Program {
-  id          Int      @id @default(autoincrement())
-  trainerId   Int
-  name        String
-  description String?
-  template    String?  // PDF template URL or design template
-  branding    Json?    // Branding settings (colors, logo, etc.)
-  pdfUrl      String?  // Generated PDF URL
-  // New fields for imported programs
-  isImported  Boolean  @default(false)
-  importedPdfUrl String? // URL to the uploaded PDF file
-  programDuration Int? // Duration in days/weeks/months
-  durationUnit String? // "days", "weeks", "months"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  trainer     Registered @relation(fields: [trainerId], references: [id])
-  weeks       ProgramWeek[]
+  id                Int                       @id @default(autoincrement())
+  trainerId         Int
+  name              String
+  description       String?
+  template          String?
+  branding          Json?
+  pdfUrl            String?
+  isImported        Boolean                   @default(false)
+  importedPdfUrl    String?
+  programDuration   Int?
+  durationUnit      String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
   clientAssignments ClientProgramAssignment[]
+  trainer           Registered                @relation(fields: [trainerId], references: [id])
+  weeks             ProgramWeek[]
 
   @@index([trainerId])
 }
 
-// Nutrition Program Models
 model NutritionProgram {
-  id          Int      @id @default(autoincrement())
-  trainerId   Int
-  name        String
-  description String?
-  template    String?  // PDF template URL or design template
-  branding    Json?    // Branding settings (colors, logo, etc.)
-  pdfUrl      String?  // Generated PDF URL
-  // New fields for imported programs
-  isImported  Boolean  @default(false)
-  importedPdfUrl String? // URL to the uploaded PDF file
-  programDuration Int? // Duration in days/weeks/months
-  durationUnit String? // "days", "weeks", "months"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  trainer     Registered @relation(fields: [trainerId], references: [id])
+  id                Int                         @id @default(autoincrement())
+  trainerId         Int
+  name              String
+  description       String?
+  template          String?
+  branding          Json?
+  pdfUrl            String?
+  isImported        Boolean                     @default(false)
+  importedPdfUrl    String?
+  programDuration   Int?
+  durationUnit      String?
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
   clientAssignments ClientNutritionAssignment[]
+  trainer           Registered                  @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId])
 }
 
 model ProgramWeek {
-  id        Int      @id @default(autoincrement())
-  programId Int
+  id         Int          @id @default(autoincrement())
+  programId  Int
   weekNumber Int
-  name      String?  // e.g., "Week 1", "Strength Week"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  program   Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
-  days      ProgramDay[]
+  name       String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  days       ProgramDay[]
+  program    Program      @relation(fields: [programId], references: [id], onDelete: Cascade)
 
   @@index([programId])
 }
 
 model ProgramDay {
-  id         Int      @id @default(autoincrement())
-  weekId     Int
-  dayNumber  Int
-  name       String?  // e.g., "Day 1", "Push Day"
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  week       ProgramWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
-  exercises  ProgramExercise[]
+  id        Int               @id @default(autoincrement())
+  weekId    Int
+  dayNumber Int
+  name      String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  week      ProgramWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  exercises ProgramExercise[]
 
   @@index([weekId])
 }
 
 model ProgramExercise {
-  id         Int      @id @default(autoincrement())
+  id         Int        @id @default(autoincrement())
   dayId      Int
   exerciseId Int
-  order      Int      // Order within the day
+  order      Int
   sets       Int?
   reps       Int?
   weight     Float?
-  duration   Int?     // Duration in seconds
-  restTime   Int?     // Rest time in seconds
+  duration   Int?
+  restTime   Int?
   notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
   day        ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  exercise   Exercise   @relation(fields: [exerciseId], references: [id])
 
   @@index([dayId])
   @@index([exerciseId])
 }
 
 model BrandingSettings {
-  id            Int       @id @default(autoincrement())
-  trainerId     Int
-  companyName   String
-  logoUrl       String?
-  contactEmail  String
-  contactPhone  String
-  website       String?
-  address       String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  trainer       Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  id           Int        @id @default(autoincrement())
+  trainerId    Int        @unique
+  companyName  String
+  logoUrl      String?
+  contactEmail String
+  contactPhone String
+  website      String?
+  address      String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  trainer      Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
-  @@unique([trainerId])
   @@index([trainerId])
 }
 
 model PDFTemplate {
-  id            Int       @id @default(autoincrement())
-  trainerId     Int
-  name          String
-  description   String?
-  fileUrl       String?   // For complete template uploads
-  category      String    @default("general")
-  isActive      Boolean   @default(true)
-  uploadType    String    @default("complete") // "complete" or "page-by-page"
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  trainer       Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  pages         PDFTemplatePage[]
+  id          Int               @id @default(autoincrement())
+  trainerId   Int
+  name        String
+  description String?
+  fileUrl     String?
+  category    String            @default("general")
+  isActive    Boolean           @default(true)
+  uploadType  String            @default("complete")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  trainer     Registered        @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  pages       PDFTemplatePage[]
 
   @@index([trainerId])
 }
 
 model PDFTemplatePage {
-  id            Int       @id @default(autoincrement())
-  templateId    Int
-  pageName      String    // Custom page name (e.g., "Intro", "Program", "Nutrition", "Outro")
-  pageOrder     Int       // Order of pages in the template
-  fileUrl       String    // PDF file for this specific page
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  template      PDFTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  id         Int         @id @default(autoincrement())
+  templateId Int
+  pageName   String
+  pageOrder  Int
+  fileUrl    String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  template   PDFTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([templateId])
   @@index([pageOrder])
 }
 
 model SupportRequest {
-  id          Int      @id @default(autoincrement())
-  trainerId   Int
-  subject     String
-  message     String
-  status      String   @default("pending") // pending, in_progress, resolved
-  priority    String   @default("medium") // low, medium, high
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  trainer     Registered @relation(fields: [trainerId], references: [id])
+  id        Int        @id @default(autoincrement())
+  trainerId Int
+  subject   String
+  message   String
+  status    String     @default("pending")
+  priority  String     @default("medium")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  trainer   Registered @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId])
 }
 
-// Unified Financial Records for Income and Expenses
 model FinancialRecord {
-  id            Int       @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   trainerId     Int
-  type          String    // "income" | "expense"
-  source        String    // Subscription | Service | Installment | Manual | Expense
-  category      String?   // For expenses: Ads, Salaries, Rent, Tools, Misc
+  type          String
+  source        String
+  category      String?
   clientId      Int?
   date          DateTime
-  amount        Decimal   @db.Decimal(12,2)
+  amount        Decimal        @db.Decimal(12, 2)
   paymentMethod String?
   notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  trainer       Registered @relation(fields: [trainerId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   client        TrainerClient? @relation(fields: [clientId], references: [id])
+  trainer       Registered     @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId, date, type])
   @@index([trainerId, type])
 }
 
 model TeamMember {
-  id          Int      @id @default(autoincrement())
-  trainerId   Int      // Owner's trainer ID
-  fullName    String
-  email       String   @unique
-  phone       String?
-  role        String   // Coach, Customer Support, Following Up, System Admin, Owner
-  password    String
-  status      String   @default("active") // active/inactive
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  trainer     Registered @relation(fields: [trainerId], references: [id])
+  id                Int                    @id @default(autoincrement())
+  trainerId         Int
+  fullName          String
+  email             String                 @unique
+  phone             String?
+  role              String
+  password          String
+  status            String                 @default("active")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
   clientAssignments ClientTeamAssignment[]
-  assignedTasks   Task[]
-  taskComments    TaskComment[]
-  leadsOwned      Lead[]
-  leadActivities  LeadActivity[]
+  leadsOwned        Lead[]
+  leadActivities    LeadActivity[]
+  assignedTasks     Task[]
+  taskComments      TaskComment[]
+  trainer           Registered             @relation(fields: [trainerId], references: [id])
 
   @@index([trainerId])
 }
 
 model ClientTeamAssignment {
-  id            Int         @id @default(autoincrement())
-  trainerId     Int
-  clientId      Int
-  teamMemberId  Int
-  assignedAt    DateTime    @default(now())
-  trainer       Registered  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  teamMember    TeamMember  @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  id           Int           @id @default(autoincrement())
+  trainerId    Int
+  clientId     Int
+  teamMemberId Int
+  assignedAt   DateTime      @default(now())
+  client       TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  teamMember   TeamMember    @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  trainer      Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, teamMemberId])
   @@index([trainerId])
@@ -637,20 +606,20 @@ model ClientTeamAssignment {
 }
 
 model ClientProgramAssignment {
-  id            Int         @id @default(autoincrement())
-  trainerId     Int
-  clientId      Int
-  programId     Int
-  assignedAt    DateTime    @default(now())
-  startDate     DateTime
-  endDate       DateTime?
+  id             Int           @id @default(autoincrement())
+  trainerId      Int
+  clientId       Int
+  programId      Int
+  assignedAt     DateTime      @default(now())
+  startDate      DateTime
+  endDate        DateTime?
   nextUpdateDate DateTime?
-  isActive      Boolean     @default(true)
-  status        String      @default("active") // "active", "completed", "paused"
-  notes         String?
-  trainer       Registered  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  program       Program     @relation(fields: [programId], references: [id], onDelete: Cascade)
+  isActive       Boolean       @default(true)
+  status         String        @default("active")
+  notes          String?
+  client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  program        Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  trainer        Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
   @@index([trainerId])
   @@index([clientId])
@@ -658,20 +627,20 @@ model ClientProgramAssignment {
 }
 
 model ClientNutritionAssignment {
-  id            Int         @id @default(autoincrement())
-  trainerId     Int
-  clientId      Int
+  id                 Int              @id @default(autoincrement())
+  trainerId          Int
+  clientId           Int
   nutritionProgramId Int
-  assignedAt    DateTime    @default(now())
-  startDate     DateTime
-  endDate       DateTime?
-  nextUpdateDate DateTime?
-  isActive      Boolean     @default(true)
-  status        String      @default("active") // "active", "completed", "paused"
-  notes         String?
-  trainer       Registered  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  nutritionProgram NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+  assignedAt         DateTime         @default(now())
+  startDate          DateTime
+  endDate            DateTime?
+  nextUpdateDate     DateTime?
+  isActive           Boolean          @default(true)
+  status             String           @default("active")
+  notes              String?
+  client             TrainerClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  nutritionProgram   NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+  trainer            Registered       @relation(fields: [trainerId], references: [id], onDelete: Cascade)
 
   @@index([trainerId])
   @@index([clientId])
@@ -679,29 +648,24 @@ model ClientNutritionAssignment {
 }
 
 model Task {
-  id            Int           @id @default(autoincrement())
-  trainerId     Int
-  title         String
-  description   String?
-  taskType      String        // "manual" or "automatic"
-  category      String        // "Payment", "Subscription", "Profile", "Manual", "Workout", "Nutrition"
-  status        String        @default("open") // "open", "done", "delayed"
-  assignedTo    Int?          // TeamMember ID
-  dueDate       DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  // For automatic tasks - reference to the client that triggered the task
-  clientId      Int?
-  // Optional link to a Lead for lead-related tasks
-  leadId        Int?
-  
-  // Relations
-  trainer       Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  assignedTeamMember TeamMember? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
-  client        TrainerClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  lead          Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  comments      TaskComment[]
+  id                 Int            @id @default(autoincrement())
+  trainerId          Int
+  title              String
+  description        String?
+  taskType           String
+  category           String
+  status             String         @default("open")
+  assignedTo         Int?
+  dueDate            DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  clientId           Int?
+  leadId             Int?
+  assignedTeamMember TeamMember?    @relation(fields: [assignedTo], references: [id])
+  client             TrainerClient? @relation(fields: [clientId], references: [id])
+  lead               Lead?          @relation(fields: [leadId], references: [id])
+  trainer            Registered     @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  comments           TaskComment[]
 
   @@index([trainerId])
   @@index([assignedTo])
@@ -713,26 +677,26 @@ model Task {
 }
 
 model TaskComment {
-  id          Int      @id @default(autoincrement())
-  taskId      Int
+  id           Int        @id @default(autoincrement())
+  taskId       Int
   teamMemberId Int
-  comment     String
-  createdAt   DateTime @default(now())
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  teamMember  TeamMember @relation(fields: [teamMemberId], references: [id])
+  comment      String
+  createdAt    DateTime   @default(now())
+  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  teamMember   TeamMember @relation(fields: [teamMemberId], references: [id])
 
   @@index([taskId])
   @@index([teamMemberId])
 }
 
 model ManuallyDeletedTask {
-  id            Int      @id @default(autoincrement())
-  trainerId     Int
-  clientId      Int?
-  category      String
-  taskType      String
+  id             Int      @id @default(autoincrement())
+  trainerId      Int
+  clientId       Int?
+  category       String
+  taskType       String
   originalTaskId Int
-  deletedAt     DateTime @default(now())
+  deletedAt      DateTime @default(now())
 
   @@index([trainerId])
   @@index([clientId])

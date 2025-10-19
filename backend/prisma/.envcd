@@ -1,0 +1,2 @@
+DATABASE_URL="postgresql://ahmed.hossam@localhost:5432/badehy_db"
+DATABASE_URL="backend"

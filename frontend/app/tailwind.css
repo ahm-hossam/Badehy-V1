@@ -2,6 +2,9 @@
 @import "tailwindcss/utilities";
 @import 'tailwindcss';
 
+/* Force class-based dark mode that we never enable, so OS dark preference doesn't apply */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: Inter, sans-serif;
   --font-sans--font-feature-settings: 'cv11';
