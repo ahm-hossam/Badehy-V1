@@ -86,6 +86,8 @@ model TrainerClient {
   selectedForm          CheckInForm?                @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
   trainer               Registered                  @relation(fields: [trainerId], references: [id])
   labels                Label[]                     @relation("ClientLabels")
+  // Back relation for ClientAuth one-to-one credentials
+  clientAuth            ClientAuth?
 
   @@index([trainerId])
 }
@@ -701,4 +703,20 @@ model ManuallyDeletedTask {
   @@index([trainerId])
   @@index([clientId])
   @@index([trainerId, clientId, category, taskType])
+}
+
+// Authentication credentials for mobile clients (trainees)
+model ClientAuth {
+  id           Int            @id @default(autoincrement())
+  clientId     Int            @unique
+  email        String?        @unique
+  phone        String?        @unique
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  client       TrainerClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([phone])
 }
