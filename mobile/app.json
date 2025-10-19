@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Badehy Mobile",
+    "slug": "badehy-mobile",
+    "scheme": "badehy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.anonymous.badehy-mobile"
+    },
+    "android": {},
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "local"
+      }
+    }
+  }
+}

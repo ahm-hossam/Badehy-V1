@@ -29,6 +29,8 @@ import servicesRoute from './routes/services';
 import leadsRoute from './routes/leads';
 import supportRoute from './routes/support';
 import financeRoute from './routes/finance';
+import mobileAuthRoute from './routes/mobile-auth';
+import mobileProgramsRoute from './routes/mobile-programs';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -78,6 +80,9 @@ app.use('/api/services', servicesRoute);
 app.use('/api/leads', leadsRoute);
 app.use('/api/support', supportRoute);
 app.use('/api/finance', financeRoute);
+// Mobile endpoints
+app.use('/mobile', mobileAuthRoute);
+app.use('/mobile', mobileProgramsRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');
