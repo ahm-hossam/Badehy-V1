@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
@@ -190,6 +190,33 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
   const [editingWeekId, setEditingWeekId] = React.useState<number | null>(null);
   const [editingDayKey, setEditingDayKey] = React.useState<string | null>(null);
 
+  // Generate stable IDs - moved outside to avoid recreation
+  const generateId = React.useMemo(() => {
+    return () => Math.floor(Date.now() * 1000 + Math.random() * 1000);
+  }, []);
+
+  // Separate state for editing inputs
+  const [editingWeekName, setEditingWeekName] = React.useState('');
+  const [editingDayName, setEditingDayName] = React.useState('');
+
+  const handleWeekNameChange = useCallback((weekIndex: number, value: string) => {
+    setWeeks(prev => {
+      const c = [...prev];
+      c[weekIndex] = { ...c[weekIndex], name: value };
+      return c;
+    });
+  }, []);
+
+  const handleDayNameChange = useCallback((weekIndex: number, dayIndex: number, value: string) => {
+    setWeeks(prev => {
+      const c = [...prev];
+      c[weekIndex] = { ...c[weekIndex] };
+      c[weekIndex].days = [...c[weekIndex].days];
+      c[weekIndex].days[dayIndex] = { ...c[weekIndex].days[dayIndex], name: value };
+      return c;
+    });
+  }, []);
+
   // dnd setup
   const sensors = useSensors(useSensor(PointerSensor));
   const onDragEnd = (evt: any) => {
@@ -274,13 +301,13 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
       setProgramName(initialData.name || '');
       setProgramDescription(initialData.description || '');
       const mapped: SimpleWeek[] = (initialData.weeks || []).map((w: any) => ({
-        id: w.id || Math.floor(Date.now() + Math.random()),
+        id: w.id || Math.floor(Date.now() * 1000 + Math.random() * 1000),
         name: w.name || `Week ${w.weekNumber}`,
         days: (w.days || []).map((d: any) => ({
-          id: d.id || Math.floor(Date.now() + Math.random()),
+          id: d.id || Math.floor(Date.now() * 1000 + Math.random() * 1000),
           name: d.name || `Day ${d.dayNumber}`,
           exercises: (d.exercises || []).map((e: any) => ({
-            id: e.id || Math.floor(Date.now() + Math.random()),
+            id: e.id || Math.floor(Date.now() * 1000 + Math.random() * 1000),
             exerciseId: e.exerciseId,
             name: e.exercise?.name,
             style: 'sets-reps',
@@ -296,16 +323,16 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
       setWeeks(mapped);
       setOpenWeeks(new Set(mapped.map(w => w.id)));
     } else if (mode === 'create' && weeks.length === 0) {
-      const newId = Math.floor(Date.now());
-      setWeeks([{ id: newId, name: 'Week 1', days: [{ id: newId + 1, name: 'Day 1', exercises: [] }] }]);
+      const newId = Math.floor(Date.now() * 1000 + Math.random() * 1000);
+      setWeeks([{ id: newId, name: 'Week 1', days: [{ id: Math.floor(Date.now() * 1000 + Math.random() * 1000), name: 'Day 1', exercises: [] }] }]);
       setOpenWeeks(new Set([newId]));
     }
   }, [mode, initialData]);
 
   const addWeek = () => {
-    const id = Math.floor(Date.now() + Math.random()*1000);
+    const id = generateId();
     setWeeks(prev => {
-      const next = [...prev, { id, name: `Week ${prev.length + 1}`, days: [{ id: id + 1, name: 'Day 1', exercises: [] }] }];
+      const next = [...prev, { id, name: `Week ${prev.length + 1}`, days: [{ id: generateId(), name: 'Day 1', exercises: [] }] }];
       return next;
     });
     setOpenWeeks(prev => {
@@ -317,7 +344,7 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
 
   const addDay = (weekIdx: number) => {
     setWeeks(prev => {
-      const next = prev.map((w, i) => i === weekIdx ? { ...w, days: [...w.days, { id: Math.floor(Date.now() + Math.random()*1000), name: `Day ${w.days.length + 1}`, exercises: [] }] } : w);
+      const next = prev.map((w, i) => i === weekIdx ? { ...w, days: [...w.days, { id: generateId(), name: `Day ${w.days.length + 1}`, exercises: [] }] } : w);
       return next;
     });
   };
@@ -348,7 +375,7 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
   const duplicateWeek = (weekIdx: number) => {
     const copy = [...weeks];
     const clone = JSON.parse(JSON.stringify(copy[weekIdx])) as SimpleWeek;
-    clone.id = Math.floor(Date.now() + Math.random()*1000);
+    clone.id = generateId();
     clone.name = `${clone.name} (copy)`;
     setWeeks([...copy, clone]);
     setOpenWeeks(prev => new Set([...Array.from(prev), clone.id]));
@@ -357,7 +384,7 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
   const duplicateDay = (weekIdx: number, dayIdx: number) => {
     const copy = [...weeks];
     const clone = JSON.parse(JSON.stringify(copy[weekIdx].days[dayIdx])) as SimpleDay;
-    clone.id = Math.floor(Date.now() + Math.random()*1000);
+    clone.id = generateId();
     clone.name = `${clone.name} (copy)`;
     copy[weekIdx].days.splice(dayIdx + 1, 0, clone);
     setWeeks(copy);
@@ -444,14 +471,33 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                     <div className="flex items-center gap-3">
                       {editingWeekId === week.id ? (
                         <Input
-                          value={week.name}
-                          onChange={(e) => { const c=[...weeks]; c[wi].name=(e.target as HTMLInputElement).value; setWeeks(c); }}
-                          onBlur={() => setEditingWeekId(null)}
+                          value={editingWeekName}
+                          onChange={(e) => setEditingWeekName(e.target.value)}
+                          onBlur={() => {
+                            handleWeekNameChange(wi, editingWeekName);
+                            setEditingWeekId(null);
+                            setEditingWeekName('');
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleWeekNameChange(wi, editingWeekName);
+                              setEditingWeekId(null);
+                              setEditingWeekName('');
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingWeekId(null);
+                              setEditingWeekName('');
+                            }
+                          }}
+                          autoFocus
                         />
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="font-semibold">{week.name}</span>
-                          <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => setEditingWeekId(week.id)} aria-label="Edit week name">
+                          <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => {
+                            setEditingWeekName(week.name);
+                            setEditingWeekId(week.id);
+                          }} aria-label="Edit week name">
                             <PencilIcon className="w-4 h-4 text-zinc-500" />
                           </button>
                         </div>
@@ -497,14 +543,33 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                               <div className="flex items-center gap-2">
                                 {editingDayKey === `${week.id}:${day.id}` ? (
                                   <Input
-                                    value={day.name}
-                                    onChange={(e) => { const c=[...weeks]; c[wi].days[di].name=(e.target as HTMLInputElement).value; setWeeks(c); }}
-                                    onBlur={() => setEditingDayKey(null)}
+                                    value={editingDayName}
+                                    onChange={(e) => setEditingDayName(e.target.value)}
+                                    onBlur={() => {
+                                      handleDayNameChange(wi, di, editingDayName);
+                                      setEditingDayKey(null);
+                                      setEditingDayName('');
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleDayNameChange(wi, di, editingDayName);
+                                        setEditingDayKey(null);
+                                        setEditingDayName('');
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setEditingDayKey(null);
+                                        setEditingDayName('');
+                                      }
+                                    }}
+                                    autoFocus
                                   />
                                 ) : (
                                   <>
                                     <span className="font-medium">{day.name}</span>
-                                    <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => setEditingDayKey(`${week.id}:${day.id}`)} aria-label="Edit day name">
+                                    <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => {
+                                      setEditingDayName(day.name);
+                                      setEditingDayKey(`${week.id}:${day.id}`);
+                                    }} aria-label="Edit day name">
                                       <PencilIcon className="w-4 h-4 text-zinc-500" />
                                     </button>
                                   </>
@@ -710,7 +775,7 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                 if (!newExerciseModal) return;
                 const { wi, di, editIndex, form } = newExerciseModal;
                 const exerciseData = { 
-                  id: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].id : Math.floor(Date.now()+Math.random()*1000), 
+                  id: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].id : generateId(), 
                   key: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].key : `${Date.now()}-${Math.random()}`, 
                   exerciseId: Number(form.exerciseId||0), 
                   style: form.style, 
