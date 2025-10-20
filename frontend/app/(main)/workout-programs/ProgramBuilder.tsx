@@ -21,6 +21,9 @@ interface Exercise {
   videoUrl?: string;
   exerciseType?: 'sets-reps' | 'sets-time' | 'time-only';
   weekStyles?: { [weekId: number]: 'normal' | 'dropset' | 'superset' | 'giantset' | 'rest-pause' | 'pyramid' | 'circuit' };
+  groupType?: 'none' | 'superset' | 'giant' | 'triset' | 'circuit';
+  groupId?: string;
+  notes?: string;
 }
 interface Day {
   name: string;
@@ -88,7 +91,10 @@ export default function ProgramBuilder({ mode, initialData }: { mode: 'create' |
       id: Date.now() + Math.random(),
       referenceId: 0,
       videoUrl: undefined,
-      exerciseType: 'sets-reps'
+      exerciseType: 'sets-reps',
+      groupType: 'none',
+      groupId: undefined,
+      notes: ''
     }],
     weeks: [
       { name: 'Week 1', id: 1 },
@@ -357,6 +363,11 @@ export default function ProgramBuilder({ mode, initialData }: { mode: 'create' |
             console.log(`Save: Parsed values - sets: ${sets}, reps: ${reps}, duration: ${duration}`);
             
             // Always include the exercise, even if empty
+            // Build a simple per-week schema payload for flexibility
+            const schemaForWeeks: any = {};
+            Object.entries(gridData[day.id]?.[exercise.id] || {}).forEach(([wk, { value }]) => {
+              schemaForWeeks[wk] = value;
+            });
             return {
               exerciseId: exercise.referenceId || 0,
               order: exerciseIndex + 1,
@@ -364,7 +375,11 @@ export default function ProgramBuilder({ mode, initialData }: { mode: 'create' |
               reps: reps,
               duration: duration,
               restTime: null,
-              notes: exercise.exerciseType || 'sets-reps'
+              notes: exercise.notes || '',
+              groupType: exercise.groupType || 'none',
+              groupId: exercise.groupId || null,
+              setSchema: Object.keys(schemaForWeeks).length ? { weeks: schemaForWeeks } : null,
+              videoUrl: exercise.videoUrl || null,
             };
           });
           
@@ -717,6 +732,28 @@ const DraggableDay = function DraggableDay({ day, dayIdx, days, setDays, deleteW
       <div className="flex justify-end mb-4">
         <Button color="white" className="font-semibold border border-zinc-200" onClick={() => addExerciseToDay(day.id)}>Add Exercise</Button>
         <Button color="white" className="font-semibold border border-zinc-200 ml-2" onClick={() => addWeekToDay(day.id)}>Add Week</Button>
+        <Dropdown>
+          <DropdownButton as="button" className="ml-2 border border-zinc-200 px-3 py-2 rounded-lg">Duplicate</DropdownButton>
+          <DropdownMenu>
+            <DropdownItem onClick={() => {
+              const newDays = [...days];
+              const copy: any = JSON.parse(JSON.stringify(day));
+              copy.id = Date.now();
+              newDays.splice(dayIdx + 1, 0, copy);
+              setDays(newDays);
+            }}>Duplicate day</DropdownItem>
+            <DropdownItem onClick={() => {
+              const newDays = days.map(d => {
+                if (d.id !== day.id) return d;
+                const lastWeek = d.weeks[d.weeks.length - 1];
+                if (!lastWeek) return d;
+                const copy = { ...lastWeek, id: Date.now() };
+                return { ...d, weeks: [...d.weeks, copy] };
+              });
+              setDays(newDays);
+            }}>Duplicate last week</DropdownItem>
+          </DropdownMenu>
+        </Dropdown>
       </div>
       <Table grid striped className="rounded-lg overflow-hidden">
         <TableHead>

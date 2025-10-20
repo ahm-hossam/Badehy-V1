@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import ProgramBuilder from '../../ProgramBuilder';
+import SimpleProgramBuilder from '../../SimpleProgramBuilder';
 
 export default function EditProgramPage() {
   const router = useRouter();
@@ -48,5 +48,5 @@ export default function EditProgramPage() {
   if (!program) return <div className="max-w-4xl mx-auto py-8 px-4 text-center text-red-500">Program not found.</div>;
   
   console.log('Rendering ProgramBuilder with program:', program);
-  return <ProgramBuilder mode="edit" initialData={program} />;
+  return <SimpleProgramBuilder mode="edit" initialData={program} />;
 } 

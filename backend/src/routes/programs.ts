@@ -198,3 +198,102 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router; 
+
+// Create program with nested weeks/days/exercises
+router.post('/', async (req, res) => {
+  try {
+    const { trainerId, name, description, weeks } = req.body || {};
+    if (!trainerId || !name) return res.status(400).json({ error: 'trainerId and name are required' });
+    const created = await prisma.program.create({
+      data: {
+        trainerId: Number(trainerId),
+        name,
+        description,
+        weeks: weeks && Array.isArray(weeks) ? {
+          create: weeks.map((w: any, wi: number) => ({
+            weekNumber: w.weekNumber ?? wi + 1,
+            name: w.name,
+            days: w.days && Array.isArray(w.days) ? {
+              create: w.days.map((d: any, di: number) => ({
+                dayNumber: d.dayNumber ?? di + 1,
+                name: d.name,
+                exercises: d.exercises && Array.isArray(d.exercises) ? {
+                  create: d.exercises.map((e: any, ei: number) => ({
+                    exerciseId: Number(e.exerciseId),
+                    order: e.order ?? ei + 1,
+                    sets: e.sets ?? null,
+                    reps: e.reps ?? null,
+                    weight: e.weight ?? null,
+                    duration: e.duration ?? null,
+                    restTime: e.restTime ?? null,
+                    notes: e.notes ?? null,
+                    groupId: e.groupId ?? null,
+                    groupType: e.groupType ?? null,
+                    setSchema: e.setSchema ?? null,
+                    videoUrl: e.videoUrl ?? null,
+                  }))
+                } : undefined,
+              }))
+            } : undefined,
+          }))
+        } : undefined,
+      },
+      include: { weeks: { include: { days: { include: { exercises: true } } } } },
+    });
+    return res.status(201).json(created);
+  } catch (e) {
+    console.error('Create program error', e);
+    return res.status(500).json({ error: 'Failed to create program' });
+  }
+});
+
+// Update program
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, weeks } = req.body || {};
+    // Simple approach: replace nested structure
+    // Delete existing nested entities then recreate
+    await prisma.programWeek.deleteMany({ where: { programId: Number(id) } });
+    const updated = await prisma.program.update({
+      where: { id: Number(id) },
+      data: {
+        name,
+        description,
+        weeks: weeks && Array.isArray(weeks) ? {
+          create: weeks.map((w: any, wi: number) => ({
+            weekNumber: w.weekNumber ?? wi + 1,
+            name: w.name,
+            days: w.days && Array.isArray(w.days) ? {
+              create: w.days.map((d: any, di: number) => ({
+                dayNumber: d.dayNumber ?? di + 1,
+                name: d.name,
+                exercises: d.exercises && Array.isArray(d.exercises) ? {
+                  create: d.exercises.map((e: any, ei: number) => ({
+                    exerciseId: Number(e.exerciseId),
+                    order: e.order ?? ei + 1,
+                    sets: e.sets ?? null,
+                    reps: e.reps ?? null,
+                    weight: e.weight ?? null,
+                    duration: e.duration ?? null,
+                    restTime: e.restTime ?? null,
+                    notes: e.notes ?? null,
+                    groupId: e.groupId ?? null,
+                    groupType: e.groupType ?? null,
+                    setSchema: e.setSchema ?? null,
+                    videoUrl: e.videoUrl ?? null,
+                  }))
+                } : undefined,
+              }))
+            } : undefined,
+          }))
+        } : undefined,
+      },
+      include: { weeks: { include: { days: { include: { exercises: true } } } } },
+    });
+    return res.json(updated);
+  } catch (e) {
+    console.error('Update program error', e);
+    return res.status(500).json({ error: 'Failed to update program' });
+  }
+});

@@ -480,6 +480,11 @@ model ProgramExercise {
   duration   Int?
   restTime   Int?
   notes      String?
+  // New flexible fields for advanced programming
+  groupId    String?
+  groupType  String?   // none | superset | giant | triset | circuit
+  setSchema  Json?     // arbitrary schema: sets×reps, time, RPE, tempo, rest per set, etc.
+  videoUrl   String?   // per-program exercise video override (YouTube/Vimeo/S3)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   day        ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)

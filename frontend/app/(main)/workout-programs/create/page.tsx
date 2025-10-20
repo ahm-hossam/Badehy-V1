@@ -428,8 +428,10 @@ function WeekGridBuilderWithMeta() {
   );
 }
 
+import SimpleProgramBuilder from '../SimpleProgramBuilder';
+
 export default function CreateProgramPage() {
-  return <ProgramBuilder mode="create" />;
+  return <SimpleProgramBuilder mode="create" />;
 }
 
 // Calendar Builder Component
