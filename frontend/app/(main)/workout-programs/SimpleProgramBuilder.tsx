@@ -253,11 +253,8 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
     const { setNodeRef, transform, transition, attributes, listeners } = sortable;
     const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
     return (
-      <div ref={setNodeRef} style={style} className="relative">
-        <div {...listeners} className="absolute -left-6 top-4 z-10 cursor-grab">
-          <Bars3Icon className="w-5 h-5 text-zinc-400" />
-        </div>
-        <div className={`pl-6 ${className || ''}`}>{render({ attributes, listeners })}{children}</div>
+      <div ref={setNodeRef} style={style}>
+        <div className={className || ''}>{render({ attributes, listeners })}{children}</div>
       </div>
     );
   }
@@ -441,39 +438,50 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
         <SortableContext items={weeks.map(w => `w-${w.id}`)} strategy={verticalListSortingStrategy}>
           <div className="space-y-6">
             {weeks.map((week, wi) => (
-              <DraggableContainer key={week.id} id={`w-${week.id}`} className="border border-zinc-200 rounded-xl bg-white" render={({attributes, listeners}) => (
-                <div className="flex items-center justify-between p-4 border-b border-zinc-200 bg-zinc-50 rounded-t-xl">
-                <div className="flex items-center gap-3">
-                  {editingWeekId === week.id ? (
-                    <Input
-                      value={week.name}
-                      onChange={(e) => { const c=[...weeks]; c[wi].name=(e.target as HTMLInputElement).value; setWeeks(c); }}
-                      onBlur={() => setEditingWeekId(null)}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{week.name}</span>
-                      <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => setEditingWeekId(week.id)} aria-label="Edit week name">
-                        <PencilIcon className="w-4 h-4 text-zinc-500" />
-                      </button>
+              <DraggableContainer key={week.id} id={`w-${week.id}`} className="border-2 border-dotted border-black rounded-xl bg-white" render={({attributes, listeners}) => (
+                <div className="bg-zinc-50">
+                  <div className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3">
+                      {editingWeekId === week.id ? (
+                        <Input
+                          value={week.name}
+                          onChange={(e) => { const c=[...weeks]; c[wi].name=(e.target as HTMLInputElement).value; setWeeks(c); }}
+                          onBlur={() => setEditingWeekId(null)}
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{week.name}</span>
+                          <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => setEditingWeekId(week.id)} aria-label="Edit week name">
+                            <PencilIcon className="w-4 h-4 text-zinc-500" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button type="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" onClick={() => setOpenWeeks(prev => { const n=new Set(prev); n.has(week.id) ? n.delete(week.id) : n.add(week.id); return n; })} aria-label="Toggle week">
-                    {openWeeks.has(week.id) ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
-                  </button>
-                  <Dropdown>
-                    <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Week actions">
-                      <EllipsisVerticalIcon className="w-4 h-4" />
-                    </DropdownButton>
-                    <DropdownMenu>
-                      <DropdownItem onClick={() => addDay(wi)}>Add day</DropdownItem>
-                      <DropdownItem onClick={() => duplicateWeek(wi)}>Duplicate Week</DropdownItem>
-                      <DropdownItem onClick={() => { const copy=[...weeks]; copy.splice(wi,1); setWeeks(copy); }}>Remove week</DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" onClick={() => setOpenWeeks(prev => { const n=new Set(prev); n.has(week.id) ? n.delete(week.id) : n.add(week.id); return n; })} aria-label="Toggle week">
+                        {openWeeks.has(week.id) ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                      </button>
+                      <button
+                        className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center cursor-grab"
+                        aria-label="Drag to reorder week"
+                        {...attributes}
+                        {...listeners}
+                      >
+                        <Bars3Icon className="w-4 h-4" />
+                      </button>
+                      <Dropdown>
+                        <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Week actions">
+                          <EllipsisVerticalIcon className="w-4 h-4" />
+                        </DropdownButton>
+                        <DropdownMenu>
+                          <DropdownItem onClick={() => addDay(wi)}>Add day</DropdownItem>
+                          <DropdownItem onClick={() => duplicateWeek(wi)}>Duplicate Week</DropdownItem>
+                          <DropdownItem onClick={() => { const copy=[...weeks]; copy.splice(wi,1); setWeeks(copy); }}>Remove week</DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
+                    </div>
+                  </div>
+                  <div className="h-px bg-zinc-200"></div>
                 </div>
                 )}>
 
@@ -503,25 +511,35 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                                 )}
                               </div>
                             </div>
-                            <Dropdown>
-                              <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Day actions">
-                                <EllipsisVerticalIcon className="w-4 h-4" />
-                              </DropdownButton>
-                              <DropdownMenu>
-                                <DropdownItem onClick={() => addExercise(wi, di)}>
-                                  <PlusIcon className="w-4 h-4" />
-                                  Add exercise
-                                </DropdownItem>
-                                <DropdownItem onClick={() => duplicateDay(wi, di)}>
-                                  <DocumentDuplicateIcon className="w-4 h-4" />
-                                  Duplicate Day
-                                </DropdownItem>
-                                <DropdownItem onClick={() => { const c=[...weeks]; c[wi].days.splice(di,1); setWeeks(c); }}>
-                                  <TrashIcon className="w-4 h-4" />
-                                  Remove Day
-                                </DropdownItem>
-                              </DropdownMenu>
-                            </Dropdown>
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center cursor-grab"
+                                aria-label="Drag to reorder day"
+                                {...dAttrs}
+                                {...dListeners}
+                              >
+                                <Bars3Icon className="w-4 h-4" />
+                              </button>
+                              <Dropdown>
+                                <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Day actions">
+                                  <EllipsisVerticalIcon className="w-4 h-4" />
+                                </DropdownButton>
+                                <DropdownMenu>
+                                  <DropdownItem onClick={() => addExercise(wi, di)}>
+                                    <PlusIcon className="w-4 h-4" />
+                                    Add exercise
+                                  </DropdownItem>
+                                  <DropdownItem onClick={() => duplicateDay(wi, di)}>
+                                    <DocumentDuplicateIcon className="w-4 h-4" />
+                                    Duplicate Day
+                                  </DropdownItem>
+                                  <DropdownItem onClick={() => { const c=[...weeks]; c[wi].days.splice(di,1); setWeeks(c); }}>
+                                    <TrashIcon className="w-4 h-4" />
+                                    Remove Day
+                                  </DropdownItem>
+                                </DropdownMenu>
+                              </Dropdown>
+                            </div>
                           </div>
                           )}>
 
