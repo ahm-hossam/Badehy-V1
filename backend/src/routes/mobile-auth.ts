@@ -92,8 +92,16 @@ router.post('/auth/login', async (req, res) => {
     const client = await prisma.trainerClient.findUnique({ where: { id: cred.clientId } });
     if (!client) return res.status(401).json({ error: 'Account not found.' });
 
+    // compute subscription status
+    const latestSub = await prisma.subscription.findFirst({
+      where: { clientId: cred.clientId },
+      orderBy: { endDate: 'desc' },
+    });
+    const now = new Date();
+    const subscriptionExpired = !latestSub || latestSub.isCanceled || latestSub.endDate < now;
+
     const { accessToken, refreshToken } = createTokens({ clientId: cred.clientId });
-    return res.json({ accessToken, refreshToken, client, requiresPasswordReset: cred.requiresPasswordReset });
+    return res.json({ accessToken, refreshToken, client, requiresPasswordReset: cred.requiresPasswordReset, subscriptionExpired, subscriptionEndDate: latestSub?.endDate ?? null });
   } catch (e) {
     console.error('Login error', e);
     return res.status(500).json({ error: 'Internal server error' });
@@ -104,7 +112,23 @@ router.get('/me', authMiddleware, async (req: any, res) => {
   try {
     const { clientId } = req.user as { clientId: number };
     const client = await prisma.trainerClient.findUnique({ where: { id: clientId } });
-    return res.json({ client });
+    const latestSub = await prisma.subscription.findFirst({
+      where: { clientId },
+      orderBy: { endDate: 'desc' },
+      include: { package: true },
+    });
+    const now = new Date();
+    const subscriptionExpired = !latestSub || latestSub.isCanceled || latestSub.endDate < now;
+    return res.json({
+      client,
+      subscription: {
+        expired: subscriptionExpired,
+        endDate: latestSub?.endDate ?? null,
+        durationValue: latestSub?.durationValue ?? null,
+        durationUnit: latestSub?.durationUnit ?? null,
+        packageName: latestSub?.package?.name ?? null,
+      },
+    });
   } catch (e) {
     return res.status(500).json({ error: 'Internal server error' });
   }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Text, View, ScrollView, StyleSheet, SafeAreaView, Pressable, Image } from 'react-native';
+import { Text, View, ScrollView, StyleSheet, SafeAreaView, Pressable, Image, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 
@@ -14,8 +14,7 @@ export default function ProgramScreen() {
   const logoSource: any = remoteLogo ? { uri: remoteLogo } : require('../assets/logo.png');
   const avatarPlaceholderUrl = process.env.EXPO_PUBLIC_AVATAR_PLACEHOLDER_URL as string | undefined;
 
-  useEffect(() => {
-    const run = async () => {
+  const fetchAll = async () => {
       try {
         setErr('');
         const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
@@ -23,7 +22,13 @@ export default function ProgramScreen() {
         // fetch profile (for avatar)
         const meRes = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
         const meJson = await meRes.json();
-        if (meRes.ok) setClient(meJson.client);
+        if (meRes.ok) {
+          setClient(meJson.client);
+          if (meJson?.subscription?.expired) {
+            router.replace('/blocked');
+            return;
+          }
+        }
         const res = await fetch(`${API}/mobile/programs/active`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -33,9 +38,16 @@ export default function ProgramScreen() {
       } catch (e: any) {
         setErr(e.message);
       }
-    };
-    run();
-  }, []);
+  };
+
+  useEffect(() => { fetchAll(); }, []);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchAll();
+    setRefreshing(false);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,7 +73,7 @@ export default function ProgramScreen() {
           )}
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 16 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         <Text style={styles.title}>Your Program</Text>
         {err ? <Text style={styles.err}>{err}</Text> : null}
         {!data ? <Text>Loading...</Text> : (
