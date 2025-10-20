@@ -49,7 +49,7 @@ export default function SetPasswordScreen() {
       if (data?.accessToken) {
         (globalThis as any).ACCESS_TOKEN = data.accessToken;
       }
-      router.replace('/program');
+      router.replace('/(tabs)/home');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -63,6 +63,9 @@ export default function SetPasswordScreen() {
     <SafeAreaView style={styles.root}>
       <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', android: undefined })} style={{ flex: 1 }}>
         <View style={styles.headerArea}>
+          <Pressable onPress={() => router.replace('/login')} style={styles.backButton} hitSlop={10}>
+            <Text style={styles.backIcon}>←</Text>
+          </Pressable>
           <Image source={logoSource} style={styles.logo} resizeMode="contain" />
           <View style={{ alignSelf: 'stretch', paddingHorizontal: 16 }}>
             <Text style={styles.headerTitle}>{isFirstLogin ? 'Create your password' : 'Change your password'}</Text>
@@ -102,6 +105,8 @@ export default function SetPasswordScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
   headerArea: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 16, alignItems: 'center' },
+  backButton: { position: 'absolute', left: 16, top: 12, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  backIcon: { fontSize: 22, color: '#111827' },
   logo: { width: 280, height: 80, marginBottom: 8 },
   headerTitle: { fontSize: 24, fontWeight: '700', color: '#0f172a', marginTop: 4, textAlign: 'left' },
   headerSubtitle: { marginTop: 6, fontSize: 14, color: '#64748b', textAlign: 'left' },

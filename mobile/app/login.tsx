@@ -52,7 +52,7 @@ export default function LoginScreen() {
       if (data?.requiresPasswordReset) {
         router.replace('/set-password');
       } else {
-        router.replace('/program');
+        router.replace('/(tabs)/home');
       }
     } catch (e: any) {
       setError(e.message || 'Login failed');
