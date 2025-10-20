@@ -7,13 +7,37 @@ const API = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000';
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('client@example.com');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<'email' | 'password'>('email');
   const remoteLogo = process.env.EXPO_PUBLIC_LOGO_URL;
   const logoSource: any = remoteLogo ? { uri: remoteLogo } : require('../assets/logo.png');
 
-  const onLogin = async () => {
+  const startByEmail = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await fetch(`${API}/mobile/auth/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed');
+      if (data?.firstLogin && data?.firstLoginToken) {
+        router.replace({ pathname: '/set-password', params: { token: data.firstLoginToken } as any });
+        return;
+      }
+      setPhase('password');
+    } catch (e: any) {
+      setError(e.message || 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginWithPassword = async () => {
     try {
       setLoading(true);
       setError('');
@@ -63,19 +87,21 @@ export default function LoginScreen() {
             />
           </View>
 
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry
-              style={styles.input}
-            />
-          </View>
+          {phase === 'password' && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
+          )}
 
-          <Pressable onPress={onLogin} style={({ pressed }) => [styles.button, pressed && { opacity: 0.9 }]}>
-            <Text style={styles.buttonText}>{loading ? 'Signing in…' : 'Sign in'}</Text>
+          <Pressable onPress={phase === 'email' ? startByEmail : loginWithPassword} style={({ pressed }) => [styles.button, pressed && { opacity: 0.9 }]}>
+            <Text style={styles.buttonText}>{loading ? 'Please wait…' : phase === 'email' ? 'Next' : 'Sign in'}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
