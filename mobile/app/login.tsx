@@ -49,6 +49,10 @@ export default function LoginScreen() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Login failed');
       (globalThis as any).ACCESS_TOKEN = data.accessToken;
+      if (data?.subscriptionExpired) {
+        router.replace('/blocked');
+        return;
+      }
       if (data?.requiresPasswordReset) {
         router.replace('/set-password');
       } else {

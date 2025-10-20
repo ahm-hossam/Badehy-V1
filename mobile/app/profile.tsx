@@ -8,6 +8,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [client, setClient] = useState<any>(null);
   const [err, setErr] = useState('');
+  const [subscription, setSubscription] = useState<any>(null);
 
   useEffect(() => {
     const run = async () => {
@@ -19,6 +20,7 @@ export default function ProfileScreen() {
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Failed');
         setClient(data.client);
+        setSubscription(data.subscription);
       } catch (e: any) {
         setErr(e.message);
       }
@@ -53,6 +55,9 @@ export default function ProfileScreen() {
             <View style={styles.row}><Text style={styles.label}>Name</Text><Text style={styles.value}>{client.fullName || '-'}</Text></View>
             <View style={styles.row}><Text style={styles.label}>Email</Text><Text style={styles.value}>{client.email || '-'}</Text></View>
             <View style={styles.row}><Text style={styles.label}>Phone</Text><Text style={styles.value}>{client.phone || '-'}</Text></View>
+            <View style={styles.row}><Text style={styles.label}>Current package</Text><Text style={styles.value}>{subscription?.packageName || '-'}</Text></View>
+            <View style={styles.row}><Text style={styles.label}>Subscription end</Text><Text style={styles.value}>{subscription?.endDate ? new Date(subscription.endDate).toLocaleDateString() : '-'}</Text></View>
+            <View style={styles.row}><Text style={styles.label}>Duration</Text><Text style={styles.value}>{subscription?.durationValue ? `${subscription.durationValue} ${subscription.durationUnit}` : '-'}</Text></View>
           </View>
         )}
 
