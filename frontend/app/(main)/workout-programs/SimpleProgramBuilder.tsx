@@ -10,6 +10,9 @@ import { getStoredUser } from '@/lib/auth';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Bars3Icon, PencilIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, PlusIcon, EllipsisVerticalIcon, DocumentDuplicateIcon } from '@heroicons/react/20/solid';
+import { Dropdown, DropdownButton, DropdownMenu, DropdownItem } from '@/components/dropdown';
+import { Dialog } from '@/components/dialog';
 
 type GroupType = 'none' | 'superset' | 'giant' | 'triset' | 'circuit';
 
@@ -33,6 +36,148 @@ type SimpleWeek = { id: number; key?: string; name: string; days: SimpleDay[] };
 
 type ExerciseOption = { id: number; name: string; videoUrl?: string };
 
+// Exercise Row Component
+const ExerciseRow = ({ 
+  exercise, 
+  exerciseIndex, 
+  weekIndex, 
+  dayIndex, 
+  exerciseName, 
+  styleText, 
+  restText, 
+  groupText, 
+  allExercises, 
+  onEdit, 
+  onDelete 
+}: {
+  exercise: SimpleExercise;
+  exerciseIndex: number;
+  weekIndex: number;
+  dayIndex: number;
+  exerciseName: string;
+  styleText: string;
+  restText: string;
+  groupText: string;
+  allExercises: ExerciseOption[];
+  onEdit: (form: any) => void;
+  onDelete: () => void;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+    id: `ex-${weekIndex}-${dayIndex}-${exercise.id}` 
+  });
+  
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="px-4 py-3 hover:bg-zinc-50 transition-colors">
+      <div className="grid grid-cols-12 gap-4 items-center">
+        <div className="col-span-4">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-zinc-900 truncate">{exerciseName}</span>
+            {(exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl) && (
+              <div className="flex items-center gap-1">
+                {(() => {
+                  const videoUrl = exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl;
+                  const isYouTube = videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be');
+                  const isUpload = videoUrl?.startsWith('/uploads/') || videoUrl?.includes('/api/exercises/upload');
+                  
+                  if (isYouTube) {
+                    return (
+                      <a 
+                        href={videoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-600 hover:bg-red-100 transition-colors"
+                        title="Watch on YouTube"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                        </svg>
+                        YouTube
+                      </a>
+                    );
+                  } else if (isUpload) {
+                    return (
+                      <a 
+                        href={videoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-600 hover:bg-blue-100 transition-colors"
+                        title="Watch uploaded video"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        Video
+                      </a>
+                    );
+                  } else {
+                    return (
+                      <a 
+                        href={videoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors"
+                        title="Watch video"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                        Video
+                      </a>
+                    );
+                  }
+                })()}
+              </div>
+            )}
+          </div>
+          {exercise.notes && (
+            <p className="text-xs text-zinc-500 mt-1 truncate">{exercise.notes}</p>
+          )}
+        </div>
+        <div className="col-span-2 text-sm text-zinc-700">{styleText}</div>
+        <div className="col-span-2 text-sm text-zinc-700">{restText}</div>
+        <div className="col-span-2 text-sm text-zinc-700">{groupText}</div>
+        <div className="col-span-2">
+          <div className="flex items-center gap-1">
+            <button
+              className="p-1.5 rounded hover:bg-zinc-100 transition-colors cursor-grab"
+              aria-label="Drag to reorder exercise"
+              {...attributes}
+              {...listeners}
+            >
+              <Bars3Icon className="w-4 h-4 text-zinc-400" />
+            </button>
+            <button
+              onClick={() => onEdit({ 
+                ...exercise, 
+                exerciseId: exercise.exerciseId || 0,
+                videoSource: exercise.videoUrl ? 'youtube' : 'youtube'
+              })}
+              className="p-1.5 rounded hover:bg-zinc-100 transition-colors"
+              aria-label="Edit exercise"
+            >
+              <PencilIcon className="w-4 h-4 text-zinc-500" />
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-1.5 rounded hover:bg-red-50 transition-colors"
+              aria-label="Delete exercise"
+            >
+              <TrashIcon className="w-4 h-4 text-red-500" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'create' | 'edit'; initialData?: any }) {
   const router = useRouter();
   const [programName, setProgramName] = React.useState('');
@@ -52,6 +197,7 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
     if (!over || active.id === over.id) return;
     const aid = String(active.id);
     const oid = String(over.id);
+    
     // weeks
     if (aid.startsWith('w-') && oid.startsWith('w-')) {
       const a = weeks.findIndex(w => `w-${w.id}` === aid);
@@ -74,6 +220,32 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
         setWeeks(copy);
       }
     }
+    // exercises within same day
+    if (aid.startsWith('ex-') && oid.startsWith('ex-')) {
+      const [ , aw, ad, ae ] = aid.split('-');
+      const [ , ow, od, oe ] = oid.split('-');
+      if (aw !== ow || ad !== od) return; // only reorder within same day
+      
+      const wi = parseInt(aw);
+      const di = parseInt(ad);
+      
+      if (wi < 0 || wi >= weeks.length) return;
+      if (di < 0 || di >= weeks[wi].days.length) return;
+      
+      const exerciseA = weeks[wi].days[di].exercises.find(ex => String(ex.id) === ae);
+      const exerciseB = weeks[wi].days[di].exercises.find(ex => String(ex.id) === oe);
+      
+      if (!exerciseA || !exerciseB) return;
+      
+      const a = weeks[wi].days[di].exercises.findIndex(ex => ex.id === exerciseA.id);
+      const b = weeks[wi].days[di].exercises.findIndex(ex => ex.id === exerciseB.id);
+      
+      if (a >= 0 && b >= 0 && a !== b) {
+        const copy = [...weeks];
+        copy[wi].days[di].exercises = arrayMove(copy[wi].days[di].exercises, a, b);
+        setWeeks(copy);
+      }
+    }
   };
 
   function DraggableContainer({ id, render, children, className }: { id: string; render: (handle: { attributes: any; listeners: any }) => React.ReactNode; children?: React.ReactNode; className?: string }) {
@@ -81,9 +253,11 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
     const { setNodeRef, transform, transition, attributes, listeners } = sortable;
     const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition };
     return (
-      <div ref={setNodeRef} style={style} className={className}>
-        {render({ attributes, listeners })}
-        {children}
+      <div ref={setNodeRef} style={style} className="relative">
+        <div {...listeners} className="absolute -left-6 top-4 z-10 cursor-grab">
+          <Bars3Icon className="w-5 h-5 text-zinc-400" />
+        </div>
+        <div className={`pl-6 ${className || ''}`}>{render({ attributes, listeners })}{children}</div>
       </div>
     );
   }
@@ -151,10 +325,21 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
     });
   };
 
+  const [newExerciseModal, setNewExerciseModal] = React.useState<{ open: boolean; wi: number; di: number; editIndex?: number; form: any } | null>(null);
   const addExercise = (weekIdx: number, dayIdx: number) => {
-    const copy = [...weeks];
-    copy[weekIdx].days[dayIdx].exercises.push({ id: Math.floor(Date.now() + Math.random()*1000), key: `${Date.now()}-${Math.random()}`, style: 'sets-reps', groupType: 'none' });
-    setWeeks(copy);
+    setNewExerciseModal({ open: true, wi: weekIdx, di: dayIdx, form: { exerciseId: 0, style: 'sets-reps', sets: '', reps: '', duration: '', groupType: 'none', rest: '', videoSource: 'youtube', videoUrl: '', notes: '' } });
+  };
+
+  const deleteExercise = (weekIdx: number, dayIdx: number, exerciseIdx: number) => {
+    setWeeks(prev => {
+      const newWeeks = [...prev];
+      const newDays = [...newWeeks[weekIdx].days];
+      const newExercises = [...newDays[dayIdx].exercises];
+      newExercises.splice(exerciseIdx, 1);
+      newDays[dayIdx] = { ...newDays[dayIdx], exercises: newExercises };
+      newWeeks[weekIdx] = { ...newWeeks[weekIdx], days: newDays };
+      return newWeeks;
+    });
   };
 
   const updateExercise = (weekIdx: number, dayIdx: number, exIdx: number, field: keyof SimpleExercise, value: any) => {
@@ -259,7 +444,6 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
               <DraggableContainer key={week.id} id={`w-${week.id}`} className="border border-zinc-200 rounded-xl bg-white" render={({attributes, listeners}) => (
                 <div className="flex items-center justify-between p-4 border-b border-zinc-200 bg-zinc-50 rounded-t-xl">
                 <div className="flex items-center gap-3">
-                  <span title="Drag" className="cursor-grab select-none order-2" {...attributes} {...listeners}>↕</span>
                   {editingWeekId === week.id ? (
                     <Input
                       value={week.name}
@@ -269,29 +453,40 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">{week.name}</span>
-                      <button type="button" className="px-2 py-1 rounded hover:bg-zinc-100" onClick={() => setEditingWeekId(week.id)}>✏️</button>
+                      <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => setEditingWeekId(week.id)} aria-label="Edit week name">
+                        <PencilIcon className="w-4 h-4 text-zinc-500" />
+                      </button>
                     </div>
                   )}
-                  <button type="button" className="px-2 py-1 rounded hover:bg-zinc-100" onClick={() => duplicateWeek(wi)}>Duplicate</button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" className="border border-zinc-200 rounded-lg px-3 py-2" onClick={() => addDay(wi)}>+ Add day</button>
-                  <button type="button" className="px-2 py-1 rounded hover:bg-zinc-100" onClick={() => { const copy=[...weeks]; copy.splice(wi,1); setWeeks(copy); }}>🗑️</button>
-                  <button type="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" onClick={() => setOpenWeeks(prev => { const n=new Set(prev); n.has(week.id) ? n.delete(week.id) : n.add(week.id); return n; })}>{openWeeks.has(week.id) ? '▾' : '▸'}</button>
+                  <button type="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" onClick={() => setOpenWeeks(prev => { const n=new Set(prev); n.has(week.id) ? n.delete(week.id) : n.add(week.id); return n; })} aria-label="Toggle week">
+                    {openWeeks.has(week.id) ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
+                  </button>
+                  <Dropdown>
+                    <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Week actions">
+                      <EllipsisVerticalIcon className="w-4 h-4" />
+                    </DropdownButton>
+                    <DropdownMenu>
+                      <DropdownItem onClick={() => addDay(wi)}>Add day</DropdownItem>
+                      <DropdownItem onClick={() => duplicateWeek(wi)}>Duplicate Week</DropdownItem>
+                      <DropdownItem onClick={() => { const copy=[...weeks]; copy.splice(wi,1); setWeeks(copy); }}>Remove week</DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
                 </div>
                 </div>
                 )}>
 
             {/* Days */}
                 {openWeeks.has(week.id) ? (
-                  <SortableContext items={week.days.map((d) => `d-${week.id}-${d.id}`)} strategy={verticalListSortingStrategy}>
-                    <div className="p-4 space-y-5">
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                    <SortableContext items={week.days.map((d) => `d-${week.id}-${d.id}`)} strategy={verticalListSortingStrategy}>
+                      <div className="p-4 space-y-5">
                       {week.days.map((day, di) => (
                         <DraggableContainer key={day.id} id={`d-${week.id}-${day.id}`} className="border border-zinc-200 rounded-lg" render={({attributes: dAttrs, listeners: dListeners}) => (
                           <div className="flex items-center justify-between p-3 border-b border-zinc-100">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
-                                <span title="Drag" className="cursor-grab select-none order-2" {...dAttrs} {...dListeners}>↕</span>
                                 {editingDayKey === `${week.id}:${day.id}` ? (
                                   <Input
                                     value={day.name}
@@ -301,84 +496,240 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                                 ) : (
                                   <>
                                     <span className="font-medium">{day.name}</span>
-                                    <button type="button" className="px-2 py-1 rounded hover:bg-zinc-100" onClick={() => setEditingDayKey(`${week.id}:${day.id}`)}>✏️</button>
+                                    <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => setEditingDayKey(`${week.id}:${day.id}`)} aria-label="Edit day name">
+                                      <PencilIcon className="w-4 h-4 text-zinc-500" />
+                                    </button>
                                   </>
                                 )}
                               </div>
-                              <button type="button" className="px-2 py-1 rounded hover:bg-zinc-100" onClick={() => duplicateDay(wi, di)}>Duplicate</button>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button type="button" className="border border-zinc-200 rounded-lg px-3 py-2" onClick={() => addExercise(wi, di)}>+ Add exercise</button>
-                              <button type="button" className="px-2 py-1 rounded hover:bg-zinc-100" onClick={() => { const c=[...weeks]; c[wi].days.splice(di,1); setWeeks(c); }}>🗑️</button>
-                            </div>
+                            <Dropdown>
+                              <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Day actions">
+                                <EllipsisVerticalIcon className="w-4 h-4" />
+                              </DropdownButton>
+                              <DropdownMenu>
+                                <DropdownItem onClick={() => addExercise(wi, di)}>
+                                  <PlusIcon className="w-4 h-4" />
+                                  Add exercise
+                                </DropdownItem>
+                                <DropdownItem onClick={() => duplicateDay(wi, di)}>
+                                  <DocumentDuplicateIcon className="w-4 h-4" />
+                                  Duplicate Day
+                                </DropdownItem>
+                                <DropdownItem onClick={() => { const c=[...weeks]; c[wi].days.splice(di,1); setWeeks(c); }}>
+                                  <TrashIcon className="w-4 h-4" />
+                                  Remove Day
+                                </DropdownItem>
+                              </DropdownMenu>
+                            </Dropdown>
                           </div>
                           )}>
 
                   {/* Exercises */}
-                          <div className="p-3 space-y-3">
-                    {day.exercises.length === 0 && (
-                      <p className="text-sm text-zinc-500">No exercises yet.</p>
-                    )}
-                    {day.exercises.map((ex, ei) => (
-                      <div key={ex.key || ex.id} className="rounded-md border border-zinc-200 p-3 grid grid-cols-1 md:grid-cols-12 gap-3">
-                        <div className="md:col-span-4">
-                          <Select value={ex.exerciseId || 0} onChange={(e) => {
-                            const selectedId = Number((e.target as HTMLSelectElement).value);
-                            const selected = allExercises.find(x => x.id === selectedId);
-                            updateExercise(wi, di, ei, 'exerciseId', selected ? selected.id : 0);
-                            updateExercise(wi, di, ei, 'name', selected ? selected.name : '');
-                            updateExercise(wi, di, ei, 'videoUrl', selected?.videoUrl || '');
-                          }}>
-                            <option value={0}>Select exercise…</option>
-                            {allExercises.map(opt => (
-                              <option key={opt.id} value={opt.id}>{opt.name}</option>
-                            ))}
-                          </Select>
-                        </div>
-                        <div className="md:col-span-2">
-                          <Select value={ex.style} onChange={(e) => updateExercise(wi, di, ei, 'style', (e.target as HTMLSelectElement).value as any)}>
-                            <option value="sets-reps">Sets × Reps</option>
-                            <option value="sets-time">Sets × Time</option>
-                            <option value="time-only">Time Only</option>
-                          </Select>
-                        </div>
-                        <div className="md:col-span-2">
-                          <Input placeholder="Sets" value={ex.sets || ''} onChange={(e) => updateExercise(wi, di, ei, 'sets', (e.target as HTMLInputElement).value)} />
-                        </div>
-                        <div className="md:col-span-2">
-                          <Input placeholder={ex.style === 'time-only' ? 'Time (s)' : 'Reps'} value={ex.reps || (ex.style === 'time-only' ? '' : ex.reps || '')} onChange={(e) => updateExercise(wi, di, ei, ex.style === 'time-only' ? 'duration' : 'reps', (e.target as HTMLInputElement).value)} />
-                        </div>
-                        <div className="md:col-span-2">
-                          <Select value={ex.groupType} onChange={(e) => updateExercise(wi, di, ei, 'groupType', (e.target as HTMLSelectElement).value as GroupType)}>
-                            <option value="none">No group</option>
-                            <option value="superset">Superset</option>
-                            <option value="giant">Giant</option>
-                            <option value="triset">Triset</option>
-                            <option value="circuit">Circuit</option>
-                          </Select>
-                        </div>
-                        <div className="md:col-span-2">
-                          <Input placeholder="Group ID (optional)" value={ex.groupId || ''} onChange={(e) => updateExercise(wi, di, ei, 'groupId', (e.target as HTMLInputElement).value)} />
-                        </div>
-                        <div className="md:col-span-6">
-                          <Input placeholder="Video URL (YouTube/Vimeo/S3)" value={ex.videoUrl || ''} onChange={(e) => updateExercise(wi, di, ei, 'videoUrl', (e.target as HTMLInputElement).value)} />
-                        </div>
-                        <div className="md:col-span-6">
-                          <Input placeholder="Notes (optional)" value={ex.notes || ''} onChange={(e) => updateExercise(wi, di, ei, 'notes', (e.target as HTMLInputElement).value)} />
-                        </div>
+                  <div className="p-3">
+                    {day.exercises.length === 0 ? (
+                      <div className="text-center py-8 text-zinc-500">
+                        <p className="text-sm">No exercises yet.</p>
+                        <p className="text-xs mt-1">Click "Add exercise" to get started</p>
                       </div>
-                    ))}
+                    ) : (
+                      <div className="overflow-hidden border border-zinc-200 rounded-lg">
+                        {/* Table Header */}
+                        <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-2">
+                          <div className="grid grid-cols-12 gap-4 text-xs font-medium text-zinc-600 uppercase tracking-wide">
+                            <div className="col-span-4">Exercise</div>
+                            <div className="col-span-2">Sets × Reps</div>
+                            <div className="col-span-2">Rest</div>
+                            <div className="col-span-2">Group</div>
+                            <div className="col-span-2">Actions</div>
                           </div>
+                        </div>
+                        {/* Table Body */}
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+                          <SortableContext items={day.exercises.map(ex => `ex-${week.id}-${day.id}-${ex.id}`)} strategy={verticalListSortingStrategy}>
+                            <div className="divide-y divide-zinc-200">
+                          {day.exercises.map((ex, ei) => {
+                            const exerciseName = allExercises.find(x => x.id === ex.exerciseId)?.name || ex.name || 'Unknown Exercise';
+                            const styleText = ex.style === 'sets-reps' 
+                              ? `${ex.sets || '?'} × ${ex.reps || '?'}`
+                              : ex.style === 'sets-time' 
+                              ? `${ex.sets || '?'} × ${ex.duration || '?'}s`
+                              : `${ex.duration || '?'}s`;
+                            const restText = ex.rest ? `${ex.rest}s` : '-';
+                            const groupText = ex.groupType !== 'none' ? ex.groupType.charAt(0).toUpperCase() + ex.groupType.slice(1) : '-';
+                            
+                            return (
+                              <ExerciseRow 
+                                key={ex.key || ex.id}
+                                exercise={ex}
+                                exerciseIndex={ei}
+                                weekIndex={wi}
+                                dayIndex={di}
+                                exerciseName={exerciseName}
+                                styleText={styleText}
+                                restText={restText}
+                                groupText={groupText}
+                                allExercises={allExercises}
+                                onEdit={(form) => setNewExerciseModal({ open: true, wi, di, editIndex: ei, form })}
+                                onDelete={() => deleteExercise(wi, di, ei)}
+                              />
+                            );
+                          })}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      </div>
+                    )}
+                  </div>
                         </DraggableContainer>
                       ))}
-                    </div>
-                  </SortableContext>
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 ) : null}
               </DraggableContainer>
             ))}
           </div>
         </SortableContext>
       </DndContext>
+      {newExerciseModal?.open && (
+        <Dialog open onClose={() => setNewExerciseModal(null)}>
+          <div className="p-4 w-[680px] max-w-full">
+            <h3 className="text-lg font-semibold mb-3">{newExerciseModal.editIndex !== undefined ? 'Edit exercise' : 'Add exercise'}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+              {/* Row 1: Exercise + Style */}
+              <div className="md:col-span-8">
+                <Select value={newExerciseModal.form.exerciseId} onChange={(e) => {
+                  const selectedId = Number((e.target as HTMLSelectElement).value);
+                  const selectedExercise = allExercises.find(x => x.id === selectedId);
+                  setNewExerciseModal(m => m && { 
+                    ...m, 
+                    form: { 
+                      ...m.form, 
+                      exerciseId: selectedId,
+                      videoUrl: selectedExercise?.videoUrl || m.form.videoUrl
+                    } 
+                  });
+                }}>
+                  <option value={0}>Select exercise…</option>
+                  {allExercises.map(opt => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+                </Select>
+              </div>
+              <div className="md:col-span-4">
+                <Select value={newExerciseModal.form.style} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, style: (e.target as HTMLSelectElement).value } })}>
+                  <option value="sets-reps">Sets × Reps</option>
+                  <option value="sets-time">Sets × Time</option>
+                  <option value="time-only">Time Only</option>
+                </Select>
+              </div>
+              {/* Row 2: Sets/Reps(or Time) + Rest */}
+              <div className="md:col-span-3">
+                <Input placeholder="Sets" value={newExerciseModal.form.sets} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, sets: (e.target as HTMLInputElement).value } })} />
+              </div>
+              <div className="md:col-span-3">
+                <Input placeholder={newExerciseModal.form.style === 'time-only' ? 'Time (s)' : 'Reps'} value={newExerciseModal.form.style === 'time-only' ? newExerciseModal.form.duration : newExerciseModal.form.reps} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, [m.form.style === 'time-only' ? 'duration' : 'reps']: (e.target as HTMLInputElement).value } })} />
+              </div>
+              <div className="md:col-span-3">
+                <Input placeholder="Rest between sets (s)" value={newExerciseModal.form.rest} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, rest: (e.target as HTMLInputElement).value } })} />
+              </div>
+              {/* Row 3: Workout style/group */}
+              <div className="md:col-span-3">
+                <Select value={newExerciseModal.form.groupType} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, groupType: (e.target as HTMLSelectElement).value } })}>
+                  <option value="none">No group</option>
+                  <option value="superset">Superset</option>
+                  <option value="giant">Giant</option>
+                  <option value="triset">Triset</option>
+                  <option value="circuit">Circuit</option>
+                </Select>
+              </div>
+              <div className="md:col-span-12">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                  <div className="md:col-span-3">
+                    <Select value={newExerciseModal.form.videoSource || 'youtube'} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoSource: (e.target as HTMLSelectElement).value } })}>
+                      <option value="youtube">YouTube/Vimeo URL</option>
+                      <option value="upload">Upload video</option>
+                    </Select>
+                  </div>
+                  {newExerciseModal.form.videoSource !== 'upload' ? (
+                    <div className="md:col-span-9">
+                      <Input placeholder="Video URL (YouTube/Vimeo/S3)" value={newExerciseModal.form.videoUrl} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoUrl: (e.target as HTMLInputElement).value } })} />
+                    </div>
+                  ) : (
+                    <div className="md:col-span-9">
+                      <div className="flex gap-2">
+                        <Input placeholder="No file chosen" value={newExerciseModal.form.videoFileName || ''} readOnly />
+                        <button type="button" className="border border-zinc-200 rounded-lg px-3 py-2" onClick={async () => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'video/*';
+                          input.onchange = async () => {
+                            if (!input.files || input.files.length === 0) return;
+                            const file = input.files[0];
+                            setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoFileName: file.name } });
+                            const form = new FormData();
+                            const user = getStoredUser();
+                            form.append('video', file);
+                            form.append('trainerId', String(user?.id || ''));
+                            form.append('name', 'Exercise video');
+                            const res = await fetch('/api/exercises/upload', { method: 'POST', body: form });
+                            const data = await res.json().catch(() => ({}));
+                            if (res.ok && data?.videoUrl) setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoUrl: data.videoUrl } });
+                          };
+                          input.click();
+                        }}>Choose file</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="md:col-span-12">
+                <Input placeholder="Notes (optional)" value={newExerciseModal.form.notes} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, notes: (e.target as HTMLInputElement).value } })} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button className="border border-zinc-200 rounded-lg px-3 py-2" onClick={() => setNewExerciseModal(null)}>Cancel</button>
+              <button className="bg-zinc-900 text-white rounded-lg px-3 py-2" onClick={() => {
+                if (!newExerciseModal) return;
+                const { wi, di, editIndex, form } = newExerciseModal;
+                const exerciseData = { 
+                  id: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].id : Math.floor(Date.now()+Math.random()*1000), 
+                  key: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].key : `${Date.now()}-${Math.random()}`, 
+                  exerciseId: Number(form.exerciseId||0), 
+                  style: form.style, 
+                  sets: form.sets, 
+                  reps: form.style==='time-only'?'':form.reps, 
+                  duration: form.style==='time-only'? form.duration : '', 
+                  rest: form.rest, 
+                  groupType: form.groupType, 
+                  videoUrl: form.videoUrl, 
+                  notes: form.notes 
+                };
+                
+                if (editIndex !== undefined) {
+                  // Edit existing exercise
+                  setWeeks(prev => prev.map((w, i) => i === wi ? { 
+                    ...w, 
+                    days: w.days.map((d, j) => j === di ? { 
+                      ...d, 
+                      exercises: d.exercises.map((ex, k) => k === editIndex ? exerciseData : ex)
+                    } : d) 
+                  } : w));
+                } else {
+                  // Add new exercise
+                  setWeeks(prev => prev.map((w, i) => i === wi ? { 
+                    ...w, 
+                    days: w.days.map((d, j) => j === di ? { 
+                      ...d, 
+                      exercises: [...d.exercises, exerciseData]
+                    } : d) 
+                  } : w));
+                }
+                setNewExerciseModal(null);
+              }}>Save</button>
+            </div>
+          </div>
+        </Dialog>
+      )}
       <div className="flex justify-start mt-4">
         <Button className="bg-zinc-900 text-white hover:bg-zinc-800" onClick={addWeek}>+ Add week</Button>
       </div>
