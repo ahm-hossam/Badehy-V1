@@ -45,9 +45,6 @@ const CORE_QUESTIONS = [
   { key: 'fullName', label: 'Full Name', type: 'text', required: true },
   { key: 'email', label: 'Email', type: 'email', required: true },
   { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
-  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
-  { key: 'age', label: 'Age', type: 'number', required: true },
-  { key: 'source', label: 'Source', type: 'text', required: true },
 ];
 
 // Legacy GROUPS structure (kept for reference but not used in client creation)
@@ -58,9 +55,6 @@ const GROUPS = [
       { key: 'fullName', label: 'Full Name', type: 'text', required: true },
       { key: 'email', label: 'Email', type: 'email', required: true },
       { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
-      { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
-      { key: 'age', label: 'Age', type: 'number', required: true },
-      { key: 'source', label: 'Source', type: 'text', required: true },
     ],
   },
 ];
@@ -86,6 +80,7 @@ export default function CreateClientPage() {
     }
   };
 
+  const [step, setStep] = useState<'basic' | 'form' | 'complete'>('basic');
   const [forms, setForms] = useState<any[]>([]);
   const [selectedFormId, setSelectedFormId] = useState<string>("");
   const [selectedForm, setSelectedForm] = useState<any>(null);
@@ -93,6 +88,22 @@ export default function CreateClientPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  
+  // Basic client info for step 1
+  const [basicInfo, setBasicInfo] = useState({
+    fullName: '',
+    email: '',
+    phone: ''
+  });
+  
+  // Additional state variables needed for the new flow
+  const [packages, setPackages] = useState<any[]>([]);
+  const [labels, setLabels] = useState<any[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [labelError, setLabelError] = useState('');
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
   const [subscription, setSubscription] = useState<any>({
     startDate: "",
     durationValue: "",
@@ -111,19 +122,12 @@ export default function CreateClientPage() {
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   
   // Extras section state
-  const [labels, setLabels] = useState<any[]>([]);
-  const [selectedLabels, setSelectedLabels] = useState<number[]>([]);
-  const [newLabelName, setNewLabelName] = useState('');
   const [showAddLabel, setShowAddLabel] = useState(false);
-  const [labelError, setLabelError] = useState('');
-  const [notes, setNotes] = useState<any[]>([]);
-  const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [showTransactionImage, setShowTransactionImage] = useState(false);
   const [showDiscountValue, setShowDiscountValue] = useState(false);
   const [showPriceFields, setShowPriceFields] = useState(false);
-  const [packages, setPackages] = useState<any[]>([]);
   const [newPackageName, setNewPackageName] = useState('');
   const [showAddPackage, setShowAddPackage] = useState(false);
   const [packageError, setPackageError] = useState('');
@@ -150,7 +154,15 @@ export default function CreateClientPage() {
     setLoading(true);
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/checkins?trainerId=${user.id}`)
       .then(res => res.json())
-      .then(data => setForms(data || []))
+      .then(data => {
+        setForms(data || []);
+        // Set the main form as default if available
+        const mainForm = data?.find((form: any) => form.isMainForm);
+        if (mainForm) {
+          setSelectedFormId(String(mainForm.id));
+          setSelectedForm(mainForm);
+        }
+      })
       .catch(() => setError("Failed to load check-in forms."))
       .finally(() => setLoading(false));
   }, [user]);
@@ -354,6 +366,39 @@ export default function CreateClientPage() {
     setFormData((prev: any) => ({ ...prev, [key]: value }));
   };
 
+  const handleBasicInfoChange = (key: string, value: any) => {
+    setBasicInfo((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddLabel = async () => {
+    if (!newLabelName.trim()) return;
+    
+    try {
+      const user = getStoredUser();
+      if (!user) return;
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trainerId: user.id,
+          name: newLabelName.trim()
+        })
+      });
+      
+      if (response.ok) {
+        const newLabel = await response.json();
+        setLabels(prev => [...prev, newLabel]);
+        setNewLabelName('');
+        setLabelError('');
+      } else {
+        setLabelError('Failed to create label');
+      }
+    } catch (error) {
+      setLabelError('Failed to create label');
+    }
+  };
+
   const handleMultiSelectChange = (key: string, value: string, checked: boolean) => {
     const currentValues = formData[key] ? (Array.isArray(formData[key]) ? formData[key] : [formData[key]]) : [];
     const updatedValues = checked
@@ -443,6 +488,76 @@ export default function CreateClientPage() {
           endDate: endDate,
         }));
       }
+    }
+  };
+
+  const handleBasicInfoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    
+    // Validate basic info
+    if (!basicInfo.fullName || !basicInfo.email || !basicInfo.phone) {
+      setError("Please fill in all required fields.");
+      setLoading(false);
+      return;
+    }
+    
+    if (!selectedFormId) {
+      setError("Please select a check-in form.");
+      setLoading(false);
+      return;
+    }
+    
+    // Validate subscription if package is selected
+    if (subscription.packageId && !subscription.startDate) {
+      setError("Please select a subscription start date.");
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const user = getStoredUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      // Create client with ALL form data (basic info + subscription + labels + notes)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          trainerId: user.id, 
+          client: { 
+            ...basicInfo, 
+            registrationDate, 
+            selectedFormId, 
+            labels: selectedLabels 
+          }, 
+          subscription,
+          installments: installments.filter(inst => inst.date && inst.amount).map(inst => ({
+            paidDate: inst.date,
+            amount: inst.amount,
+            nextInstallment: inst.nextDate,
+            remaining: inst.remaining || 0,
+            status: 'paid'
+          })),
+          notes: notes.map(note => ({ content: note.content })),
+          createClientAuth: true // Flag to create client auth account
+        }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setStep('complete');
+        // Store client info for display
+        setFormData({ ...basicInfo, clientId: data.client?.id });
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to create client.");
+      }
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -668,34 +783,6 @@ export default function CreateClientPage() {
   const addInstallment = () => setInstallments(insts => [...insts, { date: '', amount: '', image: null, nextDate: '' }]);
   const removeInstallment = (idx: number) => setInstallments(insts => insts.length > 1 ? insts.filter((_, i) => i !== idx) : insts);
 
-  // Labels handlers
-  const handleAddLabel = async () => {
-    setLabelError('');
-    if (!user) return;
-    if (!newLabelName.trim()) {
-      setLabelError('Label name is required.');
-      return;
-    }
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/labels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trainerId: user.id, name: newLabelName.trim() }),
-      });
-      if (res.ok) {
-        const label = await res.json();
-        setLabels(prev => [...prev, label]);
-        setSelectedLabels(prev => [...prev, label.id]);
-        setNewLabelName('');
-        setShowAddLabel(false);
-      } else {
-        const data = await res.json();
-        setLabelError(data.error || 'Failed to create label.');
-      }
-    } catch (err) {
-      setLabelError('Network error.');
-    }
-  };
 
   const handleLabelToggle = (labelId: number) => {
     setSelectedLabels(prev => 
@@ -739,31 +826,495 @@ export default function CreateClientPage() {
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-2">Create Client</h1>
-        <p className="mb-6 text-zinc-600">Select a check-in form to fill out and add a new client. You can complete any missing profile fields after selecting a form.</p>
-      {/* Select Check-in Form */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium mb-1">Select Check-in Form</label>
-        <Select
-          value={selectedFormId}
-          onChange={e => setSelectedFormId(e.target.value)}
-          className="w-full"
-        >
-          <option value="">-- Select a form --</option>
-          {forms.map((form: any) => (
-            <option key={form.id} value={form.id}>{form.name}</option>
-          ))}
-        </Select>
-      </div>
-      {/* Only show the grouped questions after a form is selected */}
-      {!selectedForm ? (
-        <div className="text-center text-zinc-500 py-12">
-          <div className="mb-4">Please select a check-in form to continue.<br />
-            The form will determine the field types and options for client creation.
+        
+        {/* Step Indicator */}
+        <div className="mb-8">
+          <div className="flex items-center justify-center space-x-4">
+            <div className={`flex items-center ${step === 'basic' ? 'text-blue-600' : step === 'form' ? 'text-green-600' : 'text-green-600'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                step === 'basic' ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'
+              }`}>
+                1
+              </div>
+              <span className="ml-2 text-sm font-medium">Basic Info</span>
+            </div>
+            <div className={`w-8 h-1 ${step === 'form' || step === 'complete' ? 'bg-green-600' : 'bg-gray-300'}`}></div>
+            <div className={`flex items-center ${step === 'form' ? 'text-blue-600' : step === 'complete' ? 'text-green-600' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                step === 'form' ? 'bg-blue-600 text-white' : step === 'complete' ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+              }`}>
+                2
+              </div>
+              <span className="ml-2 text-sm font-medium">Form Selection</span>
+            </div>
+            <div className={`w-8 h-1 ${step === 'complete' ? 'bg-green-600' : 'bg-gray-300'}`}></div>
+            <div className={`flex items-center ${step === 'complete' ? 'text-green-600' : 'text-gray-400'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                step === 'complete' ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'
+              }`}>
+                3
+              </div>
+              <span className="ml-2 text-sm font-medium">Complete</span>
+            </div>
           </div>
         </div>
-      ) : (
+
+        {/* Step 1: Basic Info */}
+        {step === 'basic' && (
+          <div className="space-y-6">
+            {/* Basic Information */}
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Client Information</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Enter the client's information, subscription details, and preferences. They will complete the detailed check-in form themselves in the mobile app.
+              </p>
+              
+              <form onSubmit={handleBasicInfoSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {CORE_QUESTIONS.map(field => (
+                    <div key={field.key} className="flex flex-col">
+                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                        {field.label}
+                        {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {field.type === 'select' ? (
+                        <Select
+                          value={basicInfo[field.key] || ''}
+                          onChange={e => handleBasicInfoChange(field.key, e.target.value)}
+                          required={field.required}
+                          className="w-full"
+                        >
+                          <option value="">Select {field.label}</option>
+                          {field.options?.map((option: string) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Input
+                          type={field.type}
+                          value={basicInfo[field.key] || ''}
+                          onChange={e => handleBasicInfoChange(field.key, e.target.value)}
+                          required={field.required}
+                          className="w-full"
+                          placeholder={`Enter ${field.label}`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Form Selection */}
+                <div className="mt-6">
+                  <label className="block text-sm font-medium mb-2">Check-in Form</label>
+                  <Select
+                    value={selectedFormId}
+                    onChange={e => setSelectedFormId(e.target.value)}
+                    className="w-full"
+                  >
+                    <option value="">-- Select a form --</option>
+                    {forms.map((form: any) => (
+                      <option key={form.id} value={form.id}>{form.name}</option>
+                    ))}
+                  </Select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    The client will complete this form in the mobile app after login.
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Subscription Details */}
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Subscription Details</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Package</label>
+                  <Select
+                    value={subscription.packageId || ''}
+                    onChange={e => {
+                      handleSubscriptionChange('packageId', e.target.value);
+                      setShowSubscriptionFields(!!e.target.value);
+                    }}
+                    className="w-full"
+                  >
+                    <option value="">Select package...</option>
+                    {packages.map((pkg: any) => (
+                      <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+                    ))}
+                  </Select>
+                </div>
+                
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Registration Date</label>
+                  <Input type="date" value={registrationDate} onChange={e => setRegistrationDate(e.target.value)} />
+                </div>
+                
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium mb-1">Subscription Start Date</label>
+                  <Input type="date" value={subscription.startDate} onChange={e => handleSubscriptionChange('startDate', e.target.value)} />
+                </div>
+                
+                {/* Show subscription fields only after package is selected */}
+                {showSubscriptionFields && (
+                  <>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Subscription Duration</label>
+                      <div className="flex gap-2">
+                        <Input type="number" min="1" value={subscription.durationValue} onChange={e => handleSubscriptionChange('durationValue', e.target.value)} className="w-1/2" />
+                        <Select value={subscription.durationUnit} onChange={e => handleSubscriptionChange('durationUnit', e.target.value)} className="w-1/2">
+                          <option value="month">Month(s)</option>
+                          <option value="week">Week(s)</option>
+                          <option value="day">Day(s)</option>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Subscription End Date (Auto)</label>
+                      <Input type="date" value={subscription.endDate} readOnly disabled className="bg-zinc-100" />
+                    </div>
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium mb-1">Payment Status</label>
+                      <Select
+                        value={subscription.paymentStatus}
+                        onChange={e => {
+                          handleSubscriptionChange('paymentStatus', e.target.value);
+                          setShowPaymentMethod(['paid', 'installments'].includes(e.target.value));
+                          setShowDiscountFields(['paid', 'installments'].includes(e.target.value));
+                          setShowTransactionImage(e.target.value === 'paid');
+                        }}
+                      >
+                        <option value="">Select...</option>
+                        <option value="paid">Paid</option>
+                        <option value="free">Free</option>
+                        <option value="free_trial">Free Trial</option>
+                        <option value="pending">Pending</option>
+                        <option value="installments">Installments</option>
+                      </Select>
+                    </div>
+                    {showPaymentMethod && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Payment Method</label>
+                        <Select value={subscription.paymentMethod} onChange={e => handleSubscriptionChange('paymentMethod', e.target.value)}>
+                          <option value="">Select...</option>
+                          <option value="instapay">Instapay</option>
+                          <option value="vodafone_cash">Vodafone Cash</option>
+                          <option value="fawry">Fawry</option>
+                          <option value="bank_transfer">Bank Transfer</option>
+                        </Select>
+                      </div>
+                    )}
+                    {['paid', 'installments'].includes(subscription.paymentStatus) && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Price Before Discount (EGP)</label>
+                        <Input
+                          type="number"
+                          value={subscription.priceBeforeDisc || ''}
+                          onChange={e => handleSubscriptionChange('priceBeforeDisc', e.target.value)}
+                        />
+                      </div>
+                    )}
+                    {showDiscountFields && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Discount</label>
+                        <Select
+                          value={subscription.discount}
+                          onChange={e => {
+                            handleSubscriptionChange('discount', e.target.value);
+                            setShowDiscountValue(e.target.value === 'yes');
+                            setShowPriceFields(e.target.value === 'yes');
+                          }}
+                        >
+                          <option value="no">No</option>
+                          <option value="yes">Yes</option>
+                        </Select>
+                      </div>
+                    )}
+                    {showDiscountValue && (
+                      <>
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium mb-1">Discount Value</label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="number"
+                              value={subscription.discountValue || ''}
+                              onChange={e => handleSubscriptionChange('discountValue', e.target.value)}
+                              className="w-1/2"
+                            />
+                            <Select
+                              value={discountType}
+                              onChange={e => setDiscountType(e.target.value as 'fixed' | 'percentage')}
+                              className="w-1/2"
+                            >
+                              <option value="fixed">Fixed Amount</option>
+                              <option value="percentage">Percentage</option>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <label className="text-sm font-medium mb-1">Price After Discount (EGP)</label>
+                          <Input
+                            type="number"
+                            value={(() => {
+                              const before = Number(subscription.priceBeforeDisc) || 0;
+                              const discount = Number(subscription.discountValue) || 0;
+                              if (discountType === 'fixed') return before - discount;
+                              if (discountType === 'percentage') return before - (before * discount / 100);
+                              return before;
+                            })()}
+                            readOnly
+                            disabled
+                            className="bg-zinc-100"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {showTransactionImage && (
+                      <div className="flex flex-col">
+                        <label className="text-sm font-medium mb-1">Transaction Image</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          ref={fileInputRef}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            setTransactionImage(file);
+                          }}
+                          className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        />
+                        {transactionImage && (
+                          <div className="mt-2 text-xs text-zinc-600">Selected: {transactionImage.name}</div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Installments Management section */}
+            {subscription.paymentStatus === 'installments' && (
+              <div className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">Installments Management</h2>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeader>Installment Date</TableHeader>
+                        <TableHeader>Amount</TableHeader>
+                        <TableHeader>Remaining</TableHeader>
+                        <TableHeader>Transaction Image</TableHeader>
+                        <TableHeader>Next Installment Date</TableHeader>
+                        <TableHeader>Actions</TableHeader>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {installments.map((inst, idx) => (
+                        <TableRow key={inst.id || idx}>
+                          <TableCell>
+                            <Input type="date" value={inst.date} onChange={e => handleInstallmentChange(idx, 'date', e.target.value)} />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" value={inst.amount} onChange={e => handleInstallmentChange(idx, 'amount', e.target.value)} />
+                          </TableCell>
+                          <TableCell>
+                            <Input type="number" value={getInstallmentRemaining(idx)} readOnly disabled className="bg-zinc-100" />
+                          </TableCell>
+                          <TableCell>
+                            <input type="file" accept="image/*" onChange={e => handleInstallmentImage(idx, e.target.files?.[0] || null)} className="block w-full border border-zinc-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white" />
+                            {inst.image && <div className="mt-1 text-xs text-zinc-600">{inst.image.name}</div>}
+                          </TableCell>
+                          <TableCell>
+                            <Input type="date" value={inst.nextDate} onChange={e => handleInstallmentChange(idx, 'nextDate', e.target.value)} />
+                          </TableCell>
+                          <TableCell className="flex gap-2 items-center">
+                            <button type="button" onClick={() => removeInstallment(idx)} disabled={installments.length === 1} className="text-red-500 disabled:opacity-50"><TrashIcon className="w-5 h-5" /></button>
+                            <button type="button" onClick={addInstallment} className="text-green-600"><PlusIcon className="w-5 h-5" /></button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            {/* Labels */}
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Labels</h2>
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {labels.map((label: any) => (
+                    <button
+                      key={label.id}
+                      type="button"
+                      onClick={() => {
+                        if (selectedLabels.includes(label.id)) {
+                          setSelectedLabels(prev => prev.filter(id => id !== label.id));
+                        } else {
+                          setSelectedLabels(prev => [...prev, label.id]);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                        selectedLabels.includes(label.id)
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label.name}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Input
+                    value={newLabelName}
+                    onChange={e => setNewLabelName(e.target.value)}
+                    placeholder="Add new label"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddLabel}
+                    disabled={!newLabelName.trim()}
+                    className="px-4 py-2"
+                  >
+                    Add
+                  </Button>
+                </div>
+                {labelError && (
+                  <p className="text-sm text-red-600">{labelError}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="bg-white rounded-xl shadow p-6">
+              <h2 className="text-lg font-semibold mb-4">Notes</h2>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Input
+                    value={newNote}
+                    onChange={e => setNewNote(e.target.value)}
+                    placeholder="Add a note about this client"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleAddNote}
+                    disabled={!newNote.trim()}
+                    className="px-4 py-2"
+                  >
+                    Add
+                  </Button>
+                </div>
+
+                {notes.length > 0 && (
+                  <div className="space-y-2">
+                    {notes.map((note) => (
+                      <div
+                        key={note.id}
+                        className="bg-gray-50 border border-gray-200 rounded-lg p-3"
+                      >
+                        <p className="text-sm text-gray-700">{note.content}</p>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNote(note.id)}
+                          className="text-xs text-red-600 hover:text-red-800 mt-1"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Button at the end of the page */}
+            <div className="flex justify-end mt-8">
+              <Button
+                onClick={handleBasicInfoSubmit}
+                disabled={loading}
+                className="px-6 py-2"
+              >
+                {loading ? 'Creating Client...' : 'Create Client Account'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Complete */}
+        {step === 'complete' && (
+          <div className="bg-white rounded-xl shadow p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Client Created Successfully!</h2>
+              <p className="text-gray-600 mb-6">
+                The client account has been created and they can now login to the mobile app to complete their check-in form.
+              </p>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left">
+                <h3 className="font-medium text-blue-900 mb-2">Client Login Information:</h3>
+                <div className="space-y-1 text-sm text-blue-800">
+                  <p><strong>Name:</strong> {formData.fullName}</p>
+                  <p><strong>Email:</strong> {formData.email}</p>
+                  <p><strong>Phone:</strong> {formData.phone}</p>
+                  <p><strong>Form:</strong> {selectedForm?.name || 'Selected form'}</p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6 text-left">
+                <h3 className="font-medium text-yellow-900 mb-2">Next Steps:</h3>
+                <ul className="text-sm text-yellow-800 space-y-1">
+                  <li>• Client will receive login credentials via email/SMS</li>
+                  <li>• Client downloads the mobile app and logs in</li>
+                  <li>• Client completes the check-in form in the app</li>
+                  <li>• You can view their responses in the client details page</li>
+                </ul>
+              </div>
+
+              <div className="flex justify-center space-x-4">
+                <Button
+                  onClick={() => router.push('/clients')}
+                  className="px-6 py-2"
+                >
+                  View All Clients
+                </Button>
+                <Button
+                  onClick={() => {
+                    setStep('basic');
+                    setBasicInfo({
+                      fullName: '',
+                      email: '',
+                      phone: ''
+                    });
+                    setSelectedFormId('');
+                    setError(null);
+                  }}
+                  outline
+                  className="px-6 py-2"
+                >
+                  Create Another Client
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Form Selection (Legacy - keeping for reference) */}
+        {step === 'form' && (
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Check-In Data Section */}
           {checkInFields.length > 0 && (

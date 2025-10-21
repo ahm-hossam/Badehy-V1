@@ -14,6 +14,34 @@ export default function LoginScreen() {
   const remoteLogo = process.env.EXPO_PUBLIC_LOGO_URL;
   const logoSource: any = remoteLogo ? { uri: remoteLogo } : require('../assets/logo.png');
 
+  const checkFormCompletion = async () => {
+    try {
+      const token = (globalThis as any).ACCESS_TOKEN;
+      const response = await fetch(`${API}/mobile/forms/main`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        if (data.completed) {
+          // Form already completed, go to main app
+          router.replace('/(tabs)/home');
+        } else {
+          // Form not completed, redirect to form
+          router.replace('/form');
+        }
+      } else {
+        // If no form exists, go to main app
+        router.replace('/(tabs)/home');
+      }
+    } catch (error) {
+      console.error('Error checking form completion:', error);
+      // On error, go to main app
+      router.replace('/(tabs)/home');
+    }
+  };
+
   const startByEmail = async () => {
     try {
       setLoading(true);
@@ -56,7 +84,8 @@ export default function LoginScreen() {
       if (data?.requiresPasswordReset) {
         router.replace('/set-password');
       } else {
-        router.replace('/(tabs)/home');
+        // Check if client needs to complete main form
+        checkFormCompletion();
       }
     } catch (e: any) {
       setError(e.message || 'Login failed');
