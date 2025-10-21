@@ -111,6 +111,7 @@ const ExerciseRow = ({
                 {(() => {
                   const rawVideoUrl = exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl;
                   const isYouTube = rawVideoUrl?.includes('youtube.com') || rawVideoUrl?.includes('youtu.be');
+                  const isShorts = rawVideoUrl?.includes('/shorts/');
                   const isUpload = rawVideoUrl?.startsWith('/uploads/') || rawVideoUrl?.includes('/api/exercises/upload');
                   
                   // Handle video URL based on type
@@ -126,12 +127,16 @@ const ExerciseRow = ({
                     return (
                       <button
                         onClick={() => onVideoClick(videoUrl)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                          isShorts 
+                            ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' 
+                            : 'bg-red-100 text-red-800 hover:bg-red-200'
+                        }`}
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                         </svg>
-                        YouTube
+                        {isShorts ? 'Shorts' : 'YouTube'}
                       </button>
                     );
                   } else if (isUpload) {
@@ -1129,6 +1134,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                   {(() => {
                                     const rawVideoUrl = exercise.videoUrl || allExercises.find(ex => ex.id === exercise.exerciseId)?.videoUrl;
                                     const isYouTube = rawVideoUrl?.includes('youtube.com') || rawVideoUrl?.includes('youtu.be');
+                                    const isShorts = rawVideoUrl?.includes('/shorts/');
                                     
                                     // Handle video URL based on type
                                     const videoUrl = rawVideoUrl ? (() => {
@@ -1143,12 +1149,16 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                       return (
                                         <button
                                           onClick={() => setVideoModal({ open: true, url: videoUrl })}
-                                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors cursor-pointer"
+                                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+                                            isShorts 
+                                              ? 'bg-purple-100 text-purple-800 hover:bg-purple-200' 
+                                              : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                          }`}
                                         >
                                           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                                           </svg>
-                                          YouTube
+                                          {isShorts ? 'Shorts' : 'YouTube'}
                                         </button>
                                       );
                                     } else {
@@ -1433,7 +1443,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
           
           {/* Side Panel */}
           <div 
-            className={`fixed right-0 top-0 h-full w-[500px] bg-white shadow-xl z-50 transition-transform duration-300 ease-out ${
+            className={`fixed right-0 top-0 h-full w-[700px] bg-white shadow-xl z-50 transition-transform duration-300 ease-out ${
               previewModal.isClosing ? 'translate-x-full' : 
               previewModal.isOpening ? 'translate-x-full' : 'translate-x-0'
             }`}
@@ -1557,8 +1567,12 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                     // Join all parts with pipe separators
                                     const mainLine = mainLineParts.join(' | ');
 
+                                    // Get video URL from exercise data (for default programs)
+                                    const exerciseData = allExercises.find(ex => ex.id === exercise.exerciseId);
+                                    const videoUrl = exercise.videoUrl || exerciseData?.videoUrl;
+                                    
                                     // Check if exercise has video
-                                    const hasVideo = exercise.videoUrl && exercise.videoUrl.trim() !== '';
+                                    const hasVideo = videoUrl && videoUrl.trim() !== '';
                                     
                                     // Handle video URL based on type
                                     const getVideoUrl = (videoUrl: string) => {
@@ -1599,16 +1613,21 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                         <span className="text-zinc-400 mr-2 mt-0.5">•</span>
                                         <div className="flex-1 flex items-center gap-2">
                                           {hasVideo && (() => {
-                                            const videoUrl = getVideoUrl(exercise.videoUrl);
-                                            const isYouTube = exercise.videoUrl.includes('youtube') || exercise.videoUrl.includes('youtu.be');
-                                            const isUpload = exercise.videoUrl.startsWith('/uploads/');
+                                            const processedVideoUrl = getVideoUrl(videoUrl);
+                                            const isYouTube = videoUrl.includes('youtube') || videoUrl.includes('youtu.be');
+                                            const isShorts = videoUrl.includes('/shorts/');
+                                            const isUpload = videoUrl.startsWith('/uploads/');
                                             
                                             if (isYouTube) {
                                               return (
                                                 <button
-                                                  onClick={() => setVideoModal({ open: true, url: videoUrl })}
-                                                  className="flex-shrink-0 w-5 h-5 bg-red-600 hover:bg-red-700 rounded flex items-center justify-center transition-colors"
-                                                  title="Open YouTube video"
+                                                  onClick={() => setVideoModal({ open: true, url: processedVideoUrl })}
+                                                  className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                                                    isShorts 
+                                                      ? 'bg-purple-600 hover:bg-purple-700' 
+                                                      : 'bg-red-600 hover:bg-red-700'
+                                                  }`}
+                                                  title={isShorts ? "Open YouTube Short" : "Open YouTube video"}
                                                 >
                                                   <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
                                                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
@@ -1618,7 +1637,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                             } else if (isUpload) {
                                               return (
                                                 <button
-                                                  onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                                                  onClick={() => setVideoModal({ open: true, url: processedVideoUrl })}
                                                   className="flex-shrink-0 w-5 h-5 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center transition-colors"
                                                   title="Open uploaded video"
                                                 >
@@ -1630,7 +1649,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                             } else {
                                               return (
                                                 <button
-                                                  onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                                                  onClick={() => setVideoModal({ open: true, url: processedVideoUrl })}
                                                   className="flex-shrink-0 w-5 h-5 bg-gray-600 hover:bg-gray-700 rounded flex items-center justify-center transition-colors"
                                                   title="Open video"
                                                 >
@@ -1666,23 +1685,60 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
         <div className="p-4">
           {videoModal.url && (
             <div>
-              {videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be') ? (
-                // YouTube video - embed it
-                <iframe
-                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(videoModal.url)}`}
-                  title="Exercise Video"
-                  className="w-full h-64 rounded"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : videoModal.url.startsWith('http') ? (
-                // External video URL
-                <video src={videoModal.url} controls autoPlay className="w-full rounded" />
-              ) : (
-                // Local video file - prefix with backend URL
-                <video src={`http://localhost:4000${videoModal.url}`} controls autoPlay className="w-full rounded" />
-              )}
+              {(() => {
+                console.log('Video Modal URL:', videoModal.url);
+                console.log('Is YouTube?', videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be'));
+                
+                if (videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be')) {
+                  const videoId = getYouTubeVideoId(videoModal.url);
+                  
+                  // Check if it's a YouTube Short
+                  const isShorts = videoModal.url.includes('/shorts/');
+                  console.log('Is Shorts?', isShorts);
+                  console.log('Video ID:', videoId);
+                  
+                  if (isShorts) {
+                    // For YouTube Shorts, convert to embed format but keep mobile dimensions
+                    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                    console.log('YouTube Shorts - Original URL:', videoModal.url);
+                    console.log('YouTube Shorts - Video ID:', videoId);
+                    console.log('YouTube Shorts - Embed URL:', embedUrl);
+                    return (
+                      <iframe
+                        src={embedUrl}
+                        title="Exercise Video"
+                        className="w-full h-[600px] rounded"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        style={{ aspectRatio: '9/16' }}
+                      />
+                    );
+                  } else {
+                    // For regular YouTube videos, use embed URL
+                    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                    
+                    return (
+                      <iframe
+                        src={embedUrl}
+                        title="Exercise Video"
+                        className="w-full h-64 rounded"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    );
+                  }
+                } else if (videoModal.url.startsWith('http')) {
+                  return (
+                    <video src={videoModal.url} controls autoPlay className="w-full rounded" />
+                  );
+                } else {
+                  return (
+                    <video src={`http://localhost:4000${videoModal.url}`} controls autoPlay className="w-full rounded" />
+                  );
+                }
+              })()}
             </div>
           )}
         </div>
@@ -1691,7 +1747,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
   );
 }
 
-// Helper function to extract YouTube video ID
+// Helper function to extract YouTube video ID (supports regular videos and Shorts)
 const getYouTubeVideoId = (url: string): string | null => {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
@@ -1699,7 +1755,9 @@ const getYouTubeVideoId = (url: string): string | null => {
   
   for (const pattern of patterns) {
     const match = url.match(pattern);
-    if (match) return match[1];
+    if (match) {
+      return match[1];
+    }
   }
   return null;
 };

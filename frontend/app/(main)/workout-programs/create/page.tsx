@@ -1257,23 +1257,49 @@ function DraggableDay({ day, dayIdx, days, setDays, deleteWeek, deleteExercise, 
         <div className="p-4">
           {videoModal.url && (
             <div>
-              {videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be') ? (
-                // YouTube video - embed it
-                <iframe
-                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(videoModal.url)}`}
-                  title="Exercise Video"
-                  className="w-full h-64 rounded"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : videoModal.url.startsWith('http') ? (
-                // External video URL
-                <video src={videoModal.url} controls autoPlay className="w-full rounded" />
-              ) : (
-                // Local video file - prefix with backend URL
-                <video src={`http://localhost:4000${videoModal.url}`} controls autoPlay className="w-full rounded" />
-              )}
+              {(() => {
+                if (videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be')) {
+                  const videoId = getYouTubeVideoId(videoModal.url);
+                  const isShorts = videoModal.url.includes('/shorts/');
+                  
+                  if (isShorts) {
+                    // For YouTube Shorts, convert to embed format but keep mobile dimensions
+                    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                    return (
+                      <iframe
+                        src={embedUrl}
+                        title="Exercise Video"
+                        className="w-full h-[600px] rounded"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        style={{ aspectRatio: '9/16' }}
+                      />
+                    );
+                  } else {
+                    // For regular YouTube videos, use embed URL
+                    const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+                    return (
+                      <iframe
+                        src={embedUrl}
+                        title="Exercise Video"
+                        className="w-full h-64 rounded"
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    );
+                  }
+                } else if (videoModal.url.startsWith('http')) {
+                  return (
+                    <video src={videoModal.url} controls autoPlay className="w-full rounded" />
+                  );
+                } else {
+                  return (
+                    <video src={`http://localhost:4000${videoModal.url}`} controls autoPlay className="w-full rounded" />
+                  );
+                }
+              })()}
             </div>
           )}
         </div>

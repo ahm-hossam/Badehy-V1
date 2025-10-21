@@ -55,7 +55,12 @@ router.get('/', async (req: Request, res: Response) => {
     }
     
     const exercises = await prisma.exercise.findMany({
-      where: { trainerId },
+      where: {
+        OR: [
+          { trainerId },
+          { trainerId: 6 } // Include default exercises from Ahmed Hossam
+        ]
+      },
       orderBy: { name: 'asc' },
     });
     
