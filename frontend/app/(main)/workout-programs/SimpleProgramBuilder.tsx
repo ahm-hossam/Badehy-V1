@@ -10,7 +10,7 @@ import { getStoredUser } from '@/lib/auth';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Bars3Icon, PencilIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, PlusIcon, EllipsisVerticalIcon, DocumentDuplicateIcon } from '@heroicons/react/20/solid';
+import { Bars3Icon, PencilIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, PlusIcon, EllipsisVerticalIcon, DocumentDuplicateIcon, PlayIcon, PauseIcon, EyeIcon, XMarkIcon } from '@heroicons/react/20/solid';
 import { Dropdown, DropdownButton, DropdownMenu, DropdownItem } from '@/components/dropdown';
 import { Dialog } from '@/components/dialog';
 
@@ -46,6 +46,7 @@ type SimpleDay = {
   id: number;
   name: string;
   exercises: SimpleExercise[];
+  dayType: 'workout' | 'off';
 };
 
 type SimpleWeek = {
@@ -218,6 +219,15 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
     editIndex?: number;
     exerciseGroups: any[];
   } | null>(null);
+  const [previewModal, setPreviewModal] = React.useState<{
+    open: boolean;
+    isClosing: boolean;
+    isOpening: boolean;
+  }>({
+    open: false,
+    isClosing: false,
+    isOpening: false
+  });
 
   // Generate stable IDs - moved outside to avoid recreation
   const generateId = React.useMemo(() => {
@@ -252,6 +262,28 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       setNewExerciseModal(null);
       setIsClosing(false);
     }, 300); // Match animation duration
+  }, []);
+
+  const openPreview = React.useCallback(() => {
+    setPreviewModal({
+      open: true,
+      isClosing: false,
+      isOpening: true
+    });
+    setTimeout(() => {
+      setPreviewModal(prev => ({ ...prev, isOpening: false }));
+    }, 50);
+  }, []);
+
+  const closePreview = React.useCallback(() => {
+    setPreviewModal(prev => ({ ...prev, isClosing: true }));
+    setTimeout(() => {
+      setPreviewModal({
+        open: false,
+        isClosing: false,
+        isOpening: false
+      });
+    }, 300);
   }, []);
 
   // Track scroll position to prevent jumping to top
@@ -300,7 +332,8 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
         days: [{
           id: generateId(),
           name: 'Day 1',
-          exercises: []
+          exercises: [],
+          dayType: 'workout'
         }]
       }]);
       // Open the default week by default
@@ -377,7 +410,8 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       days: [{
         id: generateId(),
         name: 'Day 1',
-        exercises: []
+        exercises: [],
+        dayType: 'workout'
       }]
     }]);
     // Restore scroll position after state update
@@ -386,7 +420,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
 
   const addDay = useCallback((wi: number) => {
     const currentScroll = window.scrollY;
-    setWeeks(prev => prev.map((w, i) => i === wi ? { ...w, days: [...w.days, { id: generateId(), name: `Day ${w.days.length + 1}`, exercises: [] }] } : w));
+    setWeeks(prev => prev.map((w, i) => i === wi ? { ...w, days: [...w.days, { id: generateId(), name: `Day ${w.days.length + 1}`, exercises: [], dayType: 'workout' }] } : w));
     // Restore scroll position after state update
     setTimeout(() => window.scrollTo(0, currentScroll), 0);
   }, [generateId]);
@@ -422,6 +456,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
         ...w.days[di],
         id: generateId(),
         name: `${w.days[di].name} (Copy)`,
+        dayType: w.days[di].dayType,
         exercises: w.days[di].exercises.map(ex => ({
           ...ex,
           id: generateId(),
@@ -430,6 +465,17 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       })
     } : w));
   }, [generateId]);
+
+  const toggleDayType = useCallback((wi: number, di: number) => {
+    setWeeks(prev => prev.map((w, i) => i === wi ? {
+      ...w,
+      days: w.days.map((d, j) => j === di ? {
+        ...d,
+        dayType: d.dayType === 'workout' ? 'off' : 'workout',
+        exercises: d.dayType === 'workout' ? [] : d.exercises // Clear exercises when switching to off day
+      } : d)
+    } : w));
+  }, []);
 
   const handleWeekNameChange = useCallback((wi: number, newName: string) => {
     setWeeks(prev => prev.map((w, i) => i === wi ? { ...w, name: newName } : w));
@@ -541,6 +587,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
           name: week.name,
           days: week.days.map(day => ({
             name: day.name,
+            dayType: day.dayType || 'workout',
             exercises: day.exercises.map(ex => ({
               exerciseId: ex.exerciseId,
               style: ex.style,
@@ -663,8 +710,8 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                 {openWeeks.has(week.id) && (
                   <div className="p-4 space-y-5">
                     {week.days.map((day, di) => (
-                      <DraggableContainer key={day.id} id={`d-${week.id}-${day.id}`} className="border border-zinc-200 rounded-lg" render={({attributes: dAttrs, listeners: dListeners}) => (
-                        <div className="flex items-center justify-between p-3 border-b border-zinc-100">
+                      <DraggableContainer key={day.id} id={`d-${week.id}-${day.id}`} className={`border rounded-lg ${day.dayType === 'off' ? 'border-orange-200 bg-orange-50' : 'border-zinc-200'}`} render={({attributes: dAttrs, listeners: dListeners}) => (
+                        <div className={`flex items-center justify-between p-3 border-b ${day.dayType === 'off' ? 'border-orange-100' : 'border-zinc-100'}`}>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-2">
                               {editingDayKey === `${week.id}:${day.id}` ? (
@@ -687,7 +734,11 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                 />
                               ) : (
                                 <>
-                                  <span className="font-medium">{day.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    {day.dayType === 'off' && <span className="text-orange-500">😴</span>}
+                                    <span className={`font-medium ${day.dayType === 'off' ? 'text-orange-700' : ''}`}>{day.name}</span>
+                                    {day.dayType === 'off' && <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">Rest Day</span>}
+                                  </div>
                                   <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => {
                                     setEditingDayName(day.name);
                                     setEditingDayKey(`${week.id}:${day.id}`);
@@ -716,6 +767,14 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                   <PlusIcon className="w-4 h-4" />
                                   Add exercise
                                 </DropdownItem>
+                                <DropdownItem onClick={() => toggleDayType(wi, di)}>
+                                  {day.dayType === 'workout' ? (
+                                    <PauseIcon className="w-4 h-4" />
+                                  ) : (
+                                    <PlayIcon className="w-4 h-4" />
+                                  )}
+                                  {day.dayType === 'workout' ? 'Make Off Day' : 'Make Workout Day'}
+                                </DropdownItem>
                                 <DropdownItem onClick={() => duplicateDay(wi, di)}>
                                   <DocumentDuplicateIcon className="w-4 h-4" />
                                   Duplicate Day
@@ -731,8 +790,9 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                       )}>
 
                   {/* Exercises */}
-                  <div className="p-3">
-                    {day.exercises.length === 0 ? (
+                  {day.dayType !== 'off' && (
+                    <div className="p-3">
+                      {day.exercises.length === 0 ? (
                       <div className="text-center py-8 text-zinc-500">
                         <p className="text-sm">No exercises yet.</p>
                         <p className="text-xs mt-1">Click "Add exercise" to get started</p>
@@ -828,7 +888,8 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                         </DndContext>
                       </div>
                     )}
-                  </div>
+                    </div>
+                  )}
                       </DraggableContainer>
                     ))}
                   </div>
@@ -855,7 +916,14 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       )}
 
       {/* Save Button */}
-      <div className="mt-6 flex justify-end">
+      <div className="mt-6 flex justify-end gap-3">
+        <button 
+          onClick={openPreview} 
+          className="px-6 py-2 flex items-center gap-2 bg-white border border-zinc-300 text-black hover:bg-zinc-50 rounded-md font-medium transition-colors"
+        >
+          <EyeIcon className="w-4 h-4" />
+          Preview Program
+        </button>
         <Button onClick={handleSave} disabled={saving} className="px-8">
           {saving ? 'Saving...' : 'Save Program'}
         </Button>
@@ -1325,6 +1393,187 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
               <Button onClick={handleSaveExercise}>
                 {newExerciseModal.editIndex !== undefined ? 'Update Exercise' : 'Add Exercise'}
               </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Preview Side Panel */}
+      {previewModal.open && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ease-out ${
+              previewModal.isClosing ? 'opacity-0' : 'opacity-100'
+            }`}
+            onClick={closePreview}
+          />
+          
+          {/* Side Panel */}
+          <div 
+            className={`fixed right-0 top-0 h-full w-[500px] bg-white shadow-xl z-50 transition-transform duration-300 ease-out ${
+              previewModal.isClosing ? 'translate-x-full' : 
+              previewModal.isOpening ? 'translate-x-full' : 'translate-x-0'
+            }`}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-200">
+              <h2 className="text-lg font-semibold text-zinc-900">Program Preview</h2>
+              <button
+                onClick={closePreview}
+                className="p-1 rounded hover:bg-zinc-100"
+                aria-label="Close preview"
+              >
+                <XMarkIcon className="w-5 h-5 text-zinc-500" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4 max-h-[calc(100vh-80px)]">
+              {/* Program Info */}
+              <div className="mb-6">
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">{programName || 'Untitled Program'}</h3>
+                {programDescription && (
+                  <p className="text-sm text-zinc-600">{programDescription}</p>
+                )}
+              </div>
+
+              {/* Weeks */}
+              <div className="space-y-4">
+                {weeks.map((week, wi) => (
+                  <div key={week.id} className="border border-zinc-200 rounded-lg">
+                    {/* Week Header */}
+                    <div className="bg-zinc-50 px-4 py-3 border-b border-zinc-200">
+                      <h4 className="font-semibold text-zinc-900">{week.name}</h4>
+                    </div>
+
+                    {/* Days */}
+                    <div className="p-4 space-y-3">
+                      {week.days.map((day, di) => (
+                        <div key={day.id} className={`border rounded-lg ${
+                          day.dayType === 'off' ? 'border-orange-200 bg-orange-50' : 'border-zinc-200 bg-white'
+                        }`}>
+                          {/* Day Header */}
+                          <div className={`px-3 py-2 border-b ${
+                            day.dayType === 'off' ? 'border-orange-100' : 'border-zinc-100'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              {day.dayType === 'off' && <span className="text-orange-500">😴</span>}
+                              <span className={`font-medium text-sm ${
+                                day.dayType === 'off' ? 'text-orange-700' : 'text-zinc-900'
+                              }`}>
+                                {day.name}
+                              </span>
+                              {day.dayType === 'off' && (
+                                <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                                  Rest Day
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Day Content */}
+                          {day.dayType !== 'off' && (
+                            <div className="p-3">
+                              {day.exercises.length === 0 ? (
+                                <p className="text-xs text-zinc-500 text-center py-2">No exercises</p>
+                              ) : (
+                                <ul className="space-y-1">
+                                  {day.exercises.map((exercise, ei) => {
+                                    const exerciseName = allExercises.find(x => x.id === exercise.exerciseId)?.name || exercise.name || 'Unknown Exercise';
+                                    
+                                    // Build the main exercise line with separators
+                                    let mainLineParts = [exerciseName];
+                                    
+                                    // Add sets and reps/time
+                                    if (exercise.style === 'sets-reps') {
+                                      const reps = exercise.sets.map(set => set.reps || '?').join(',');
+                                      mainLineParts.push(`${exercise.sets.length} × ${reps}`);
+                                    } else if (exercise.style === 'sets-time') {
+                                      const times = exercise.sets.map(set => `${set.reps || '?'}s`).join(',');
+                                      mainLineParts.push(`${exercise.sets.length} × ${times}`);
+                                    } else if (exercise.style === 'time-only') {
+                                      mainLineParts.push(exercise.duration);
+                                    } else if (exercise.style === 'distance') {
+                                      const distances = exercise.sets.map(set => `${set.reps || '?'}m`).join(',');
+                                      mainLineParts.push(`${exercise.sets.length} × ${distances}`);
+                                    } else if (exercise.style === 'calories') {
+                                      const calories = exercise.sets.map(set => `${set.reps || '?'} cal`).join(',');
+                                      mainLineParts.push(`${exercise.sets.length} × ${calories}`);
+                                    }
+                                    
+                                    // Add modifiers
+                                    const modifiers = [];
+                                    if (exercise.dropset) modifiers.push('Dropset');
+                                    if (exercise.singleLeg) modifiers.push('Single Leg');
+                                    if (exercise.failure) modifiers.push('To Failure');
+                                    if (modifiers.length > 0) {
+                                      mainLineParts.push(modifiers.join(', '));
+                                    }
+                                    
+                                    // Add rest time
+                                    const restTimes = exercise.sets.map(set => `${set.rest || '?'}s`).join(',');
+                                    mainLineParts.push(`Rest ${restTimes}`);
+                                    
+                                    // Add tempo if present
+                                    const tempoValues = exercise.sets.map(set => set.tempo || '').filter(t => t).join(',');
+                                    if (tempoValues) {
+                                      mainLineParts.push(`Tempo ${tempoValues}`);
+                                    }
+                                    
+                                    // Add group type if not single
+                                    if (exercise.groupType && exercise.groupType !== 'none') {
+                                      mainLineParts.push(`Group: ${exercise.groupType}`);
+                                    }
+                                    
+                                    // Join all parts with pipe separators
+                                    const mainLine = mainLineParts.join(' | ');
+
+                                    // Check if exercise has video
+                                    const hasVideo = exercise.videoUrl && exercise.videoUrl.trim() !== '';
+                                    
+                                    // Handle video URL based on type
+                                    const getVideoUrl = (videoUrl: string) => {
+                                      if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                                        return videoUrl; // YouTube URLs are already complete
+                                      } else if (videoUrl.startsWith('http')) {
+                                        return videoUrl; // External URLs are already complete
+                                      } else {
+                                        // Local uploaded video - prefix with backend URL
+                                        return `http://localhost:4000${videoUrl}`;
+                                      }
+                                    };
+                                    
+                                    return (
+                                      <li key={exercise.id} className="text-sm text-zinc-900 flex items-start">
+                                        <span className="text-zinc-400 mr-2 mt-0.5">•</span>
+                                        <div className="flex-1 flex items-center gap-2">
+                                          {hasVideo && (
+                                            <button
+                                              onClick={() => window.open(getVideoUrl(exercise.videoUrl), '_blank')}
+                                              className="flex-shrink-0 w-5 h-5 bg-red-600 hover:bg-red-700 rounded flex items-center justify-center transition-colors"
+                                              title="Open video"
+                                            >
+                                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M8 5v10l8-5-8-5z"/>
+                                              </svg>
+                                            </button>
+                                          )}
+                                          <span className="flex-1">{mainLine}</span>
+                                        </div>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </>
