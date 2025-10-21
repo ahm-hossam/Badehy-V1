@@ -63,9 +63,102 @@ router.get('/main', authMiddleware, async (req: any, res: any) => {
       });
     }
     
+    // Pre-fill form with client data
+    // Map client fields to form questions based on question labels
+    const preFillData: Record<number, any> = {};
+    
+    // Helper function to normalize text for matching
+    const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    // Map common question labels to client fields
+    const fieldMapping: Record<string, any> = {
+      'fullname': client.fullName,
+      'name': client.fullName,
+      'clientname': client.fullName,
+      'yourname': client.fullName,
+      'email': client.email,
+      'emailaddress': client.email,
+      'youremail': client.email,
+      'phone': client.phone,
+      'phonenumber': client.phone,
+      'mobile': client.phone,
+      'mobilenumber': client.phone,
+      'contact': client.phone,
+      'gender': client.gender,
+      'sex': client.gender,
+      'age': client.age?.toString(),
+      'yourage': client.age?.toString(),
+      'source': client.source,
+      'referralsource': client.source,
+      'howdidyouhear': client.source,
+      'height': client.height?.toString(),
+      'yourheight': client.height?.toString(),
+      'weight': client.weight?.toString(),
+      'yourweight': client.weight?.toString(),
+      'currentweight': client.weight?.toString(),
+      'goal': client.goal,
+      'goals': client.goals.length > 0 ? client.goals : null,
+      'fitnessgoal': client.goal,
+      'fitnessgoals': client.goals.length > 0 ? client.goals : null,
+      'traininggoals': client.goals.length > 0 ? client.goals : null,
+      'workoutplace': client.workoutPlace,
+      'traininglocation': client.workoutPlace,
+      'wheredo youworkout': client.workoutPlace,
+      'level': client.level,
+      'fitnesslevel': client.level,
+      'experiencelevel': client.level,
+      'injuries': client.injuriesHealthNotes.length > 0 ? client.injuriesHealthNotes.join(', ') : null,
+      'healthnotes': client.injuriesHealthNotes.length > 0 ? client.injuriesHealthNotes.join(', ') : null,
+      'medicalconditions': client.injuriesHealthNotes.length > 0 ? client.injuriesHealthNotes.join(', ') : null,
+      'preferredtrainingdays': client.preferredTrainingDays,
+      'trainingdays': client.preferredTrainingDays,
+      'preferredtrainingtime': client.preferredTrainingTime,
+      'trainingtime': client.preferredTrainingTime,
+      'equipment': client.equipmentAvailability,
+      'equipmentavailability': client.equipmentAvailability,
+      'availableequipment': client.equipmentAvailability,
+      'trainingstyle': client.favoriteTrainingStyle,
+      'favoritetrainingstyle': client.favoriteTrainingStyle,
+      'preferredtrainingstyle': client.favoriteTrainingStyle,
+      'weakareas': client.weakAreas,
+      'areastoimprov': client.weakAreas,
+      'nutritiongoal': client.nutritionGoal,
+      'dietgoal': client.nutritionGoal,
+      'dietpreference': client.dietPreference,
+      'diettype': client.dietPreference,
+      'eatingpreference': client.dietPreference,
+      'mealcount': client.mealCount?.toString(),
+      'mealsperday': client.mealCount?.toString(),
+      'foodallergies': client.foodAllergies,
+      'allergies': client.foodAllergies,
+      'dislikedingredients': client.dislikedIngredients,
+      'foodsdislike': client.dislikedIngredients,
+      'currentnutritionplan': client.currentNutritionPlan,
+      'nutritionplan': client.currentNutritionPlan,
+    };
+    
+    // Match form questions with client data
+    mainForm.questions.forEach((question) => {
+      const normalizedLabel = normalize(question.label);
+      const value = fieldMapping[normalizedLabel];
+      
+      if (value !== null && value !== undefined && value !== '') {
+        // Handle multi-select questions
+        if (question.type === 'multi' && Array.isArray(value)) {
+          preFillData[question.id] = value;
+        } else if (question.type === 'multi' && typeof value === 'string') {
+          // If it's a string but question expects multi, convert to array
+          preFillData[question.id] = [value];
+        } else {
+          preFillData[question.id] = value;
+        }
+      }
+    });
+    
     res.json({ 
       form: mainForm, 
-      completed: false 
+      completed: false,
+      preFillData: preFillData
     });
   } catch (error) {
     console.error('Error fetching main form:', error);

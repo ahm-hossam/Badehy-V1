@@ -33,12 +33,19 @@ export default function SetPasswordScreen() {
           router.replace('/form');
         }
       } else {
-        // If no form exists, go to main app
-        router.replace('/(tabs)/home');
+        console.error('Form API error:', data);
+        // If error is 404 (no form found), still try to show the form screen
+        // The form screen will handle displaying the appropriate error message
+        if (response.status === 404) {
+          router.replace('/form');
+        } else {
+          // For other errors, go to main app
+          router.replace('/(tabs)/home');
+        }
       }
     } catch (error) {
       console.error('Error checking form completion:', error);
-      // On error, go to main app
+      // On network error, go to main app
       router.replace('/(tabs)/home');
     }
   };

@@ -513,6 +513,7 @@ function handlePreview(checkinName: string, questions: QuestionData[]) {
 export default function CheckInCreatePage() {
   const [checkinName, setCheckinName] = useState("");
   const [isMainForm, setIsMainForm] = useState(false);
+  const [published, setPublished] = useState(true);
   const [questions, setQuestions] = useState<QuestionData[]>([
     {
       id: Math.random().toString(36).slice(2),
@@ -638,6 +639,7 @@ export default function CheckInCreatePage() {
           name: checkinName,
           questions: validQuestions,
           isMainForm: isMainForm,
+          published: published,
         }),
       });
       if (!res.ok) {
@@ -716,6 +718,30 @@ export default function CheckInCreatePage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Published Toggle */}
+        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Switch 
+                checked={published} 
+                onChange={setPublished}
+                className="data-[state=checked]:bg-green-600"
+              />
+              <div>
+                <label className="text-sm font-medium text-gray-900">
+                  Published
+                </label>
+                <p className="text-xs text-gray-600 mt-1">
+                  Only published forms will be visible to clients in the mobile app.
+                </p>
+              </div>
+            </div>
+            <div className={`text-xs px-2 py-1 rounded ${published ? 'text-green-700 bg-green-100' : 'text-gray-600 bg-gray-100'}`}>
+              {published ? 'Visible to clients' : 'Draft - not visible'}
+            </div>
+          </div>
         </div>
         
         {error && <div className="text-red-500 text-sm mt-1">{error}</div>}

@@ -36,6 +36,7 @@ export default function FormScreen() {
   const [form, setForm] = useState<Form | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, any>>({});
+  const [preFillData, setPreFillData] = useState<Record<number, any>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +69,12 @@ export default function FormScreen() {
           return;
         }
         setForm(data.form);
+        
+        // Set pre-filled data from trainer
+        if (data.preFillData && Object.keys(data.preFillData).length > 0) {
+          setPreFillData(data.preFillData);
+          setAnswers(data.preFillData); // Initialize answers with pre-filled data
+        }
       } else {
         setError(data.error || 'Failed to load form');
       }
@@ -311,8 +318,22 @@ export default function FormScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>{error}</Text>
+          {error.includes('No main form found') && (
+            <View style={styles.instructionsContainer}>
+              <Text style={styles.instructionsTitle}>What does this mean?</Text>
+              <Text style={styles.instructionsText}>
+                Your trainer needs to create and publish a check-in form for you. Please contact your trainer to:
+              </Text>
+              <Text style={styles.instructionsBullet}>• Create a check-in form</Text>
+              <Text style={styles.instructionsBullet}>• Mark it as "Main Form"</Text>
+              <Text style={styles.instructionsBullet}>• Enable "Published" toggle</Text>
+            </View>
+          )}
           <Pressable style={styles.retryButton} onPress={fetchMainForm}>
             <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+          <Pressable style={styles.skipButton} onPress={() => router.replace('/(tabs)/home')}>
+            <Text style={styles.skipButtonText}>Skip for now</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -358,6 +379,15 @@ export default function FormScreen() {
             {currentQuestion.label}
             {currentQuestion.required && <Text style={styles.required}> *</Text>}
           </Text>
+          
+          {/* Show pre-filled badge if this question has pre-filled data */}
+          {preFillData[currentQuestion.id] && (
+            <View style={styles.preFilledBadge}>
+              <Text style={styles.preFilledText}>
+                ✓ Pre-filled by your trainer (you can edit)
+              </Text>
+            </View>
+          )}
           
           {renderQuestion(currentQuestion)}
         </View>
@@ -430,10 +460,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
+    marginBottom: 12,
   },
   retryButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
+  },
+  skipButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  skipButtonText: {
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  instructionsContainer: {
+    backgroundColor: '#F3F4F6',
+    padding: 16,
+    borderRadius: 12,
+    marginVertical: 20,
+    maxWidth: '100%',
+  },
+  instructionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 8,
+  },
+  instructionsText: {
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  instructionsBullet: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 8,
+    marginBottom: 4,
   },
   header: {
     padding: 20,
@@ -481,6 +546,20 @@ const styles = StyleSheet.create({
   },
   required: {
     color: '#EF4444',
+  },
+  preFilledBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#93C5FD',
+  },
+  preFilledText: {
+    fontSize: 13,
+    color: '#1E40AF',
+    fontWeight: '500',
   },
   input: {
     borderWidth: 1,
