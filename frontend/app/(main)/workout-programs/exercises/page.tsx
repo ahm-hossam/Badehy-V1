@@ -42,6 +42,7 @@ export default function ExercisesPage() {
   const [showDeletedToast, setShowDeletedToast] = useState(false);
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [videoModal, setVideoModal] = useState<{ open: boolean; url: string | null }>({ open: false, url: null });
 
   // Filter exercises based on search term
   const filteredExercises = exercises.filter(exercise => {
@@ -425,27 +426,44 @@ export default function ExercisesPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {exercise.videoUrl ? (
                           <div className="flex items-center space-x-2">
-                            {exercise.videoUrl.includes('youtube') ? (
-                              <a
-                                href={exercise.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-red-600 hover:text-red-800 text-sm flex items-center"
-                              >
-                                <PlayIcon className="w-4 h-4 mr-1" />
-                                YouTube
-                              </a>
-                            ) : (
-                              <a
-                                href={exercise.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
-                              >
-                                <LinkIcon className="w-4 h-4 mr-1" />
-                                View Video
-                              </a>
-                            )}
+                            {(() => {
+                              // Handle video URL based on type
+                              const getVideoUrl = (videoUrl: string) => {
+                                if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                                  return videoUrl; // YouTube URLs are already complete
+                                } else if (videoUrl.startsWith('http')) {
+                                  return videoUrl; // External URLs are already complete
+                                } else {
+                                  // Local uploaded video - prefix with backend URL
+                                  return `http://localhost:4000${videoUrl}`;
+                                }
+                              };
+                              
+                              const processedVideoUrl = getVideoUrl(exercise.videoUrl);
+                              const isYouTube = exercise.videoUrl.includes('youtube') || exercise.videoUrl.includes('youtu.be');
+                              
+                              if (isYouTube) {
+                                return (
+                                  <button
+                                    onClick={() => setVideoModal({ open: true, url: processedVideoUrl })}
+                                    className="text-red-600 hover:text-red-800 text-sm flex items-center"
+                                  >
+                                    <PlayIcon className="w-4 h-4 mr-1" />
+                                    YouTube
+                                  </button>
+                                );
+                              } else {
+                                return (
+                                  <button
+                                    onClick={() => setVideoModal({ open: true, url: processedVideoUrl })}
+                                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center"
+                                  >
+                                    <LinkIcon className="w-4 h-4 mr-1" />
+                                    View Video
+                                  </button>
+                                );
+                              }
+                            })()}
                           </div>
                         ) : (
                           <span className="text-gray-400">-</span>
@@ -739,9 +757,48 @@ export default function ExercisesPage() {
           </div>
         )}
 
+        {/* Video Modal */}
+        <Dialog open={videoModal.open} onClose={() => setVideoModal({ open: false, url: null })}>
+          <div className="p-4">
+            {videoModal.url && (
+              <div>
+                {videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be') ? (
+                  // YouTube video - embed it
+                  <iframe
+                    src={`https://www.youtube.com/embed/${getYouTubeVideoId(videoModal.url)}`}
+                    title="Exercise Video"
+                    className="w-full h-64 rounded"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : videoModal.url.startsWith('http') ? (
+                  // External video URL
+                  <video src={videoModal.url} controls autoPlay className="w-full rounded" />
+                ) : (
+                  // Local video file - prefix with backend URL
+                  <video src={`http://localhost:4000${videoModal.url}`} controls autoPlay className="w-full rounded" />
+                )}
+              </div>
+            )}
+          </div>
+        </Dialog>
 
       </div>
     </div>
   );
 }
+
+// Helper function to extract YouTube video ID
+const getYouTubeVideoId = (url: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+};
  

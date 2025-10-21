@@ -107,51 +107,54 @@ const ExerciseRow = ({
             {(exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl) && (
               <div className="flex items-center gap-1">
                 {(() => {
-                  const videoUrl = exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl;
-                  const isYouTube = videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be');
-                  const isUpload = videoUrl?.startsWith('/uploads/') || videoUrl?.includes('/api/exercises/upload');
+                  const rawVideoUrl = exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl;
+                  const isYouTube = rawVideoUrl?.includes('youtube.com') || rawVideoUrl?.includes('youtu.be');
+                  const isUpload = rawVideoUrl?.startsWith('/uploads/') || rawVideoUrl?.includes('/api/exercises/upload');
+                  
+                  // Handle video URL based on type
+                  const videoUrl = rawVideoUrl ? (() => {
+                    if (isYouTube || rawVideoUrl.startsWith('http')) {
+                      return rawVideoUrl; // YouTube and external URLs are complete
+                    } else {
+                      return `http://localhost:4000${rawVideoUrl}`; // Local uploaded videos need backend prefix
+                    }
+                  })() : '';
                   
                   if (isYouTube) {
                     return (
-                      <a
-                        href={videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => setVideoModal({ open: true, url: videoUrl })}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                         </svg>
                         YouTube
-                      </a>
+                      </button>
                     );
                   } else if (isUpload) {
                     return (
-                      <a
-                        href={videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => setVideoModal({ open: true, url: videoUrl })}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M8 5v14l11-7z"/>
                         </svg>
                         Video
-                      </a>
+                      </button>
                     );
                   } else {
                     return (
-                      <a
-                        href={videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => setVideoModal({ open: true, url: videoUrl })}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M8 5v14l11-7z"/>
                         </svg>
                         Video
-                      </a>
+                      </button>
                     );
                   }
                 })()}
@@ -227,6 +230,13 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
     open: false,
     isClosing: false,
     isOpening: false
+  });
+  const [videoModal, setVideoModal] = React.useState<{
+    open: boolean;
+    url: string | null;
+  }>({
+    open: false,
+    url: null
   });
 
   // Generate stable IDs - moved outside to avoid recreation
@@ -1110,36 +1120,41 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                               {(exercise.videoUrl || allExercises.find(ex => ex.id === exercise.exerciseId)?.videoUrl) && (
                                 <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                                   {(() => {
-                                    const videoUrl = exercise.videoUrl || allExercises.find(ex => ex.id === exercise.exerciseId)?.videoUrl;
-                                    const isYouTube = videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be');
+                                    const rawVideoUrl = exercise.videoUrl || allExercises.find(ex => ex.id === exercise.exerciseId)?.videoUrl;
+                                    const isYouTube = rawVideoUrl?.includes('youtube.com') || rawVideoUrl?.includes('youtu.be');
+                                    
+                                    // Handle video URL based on type
+                                    const videoUrl = rawVideoUrl ? (() => {
+                                      if (isYouTube || rawVideoUrl.startsWith('http')) {
+                                        return rawVideoUrl; // YouTube and external URLs are complete
+                                      } else {
+                                        return `http://localhost:4000${rawVideoUrl}`; // Local uploaded videos need backend prefix
+                                      }
+                                    })() : '';
                                     
                                     if (isYouTube) {
                                       return (
-                                        <a
-                                          href={videoUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          onClick={() => setVideoModal({ open: true, url: videoUrl })}
                                           className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors cursor-pointer"
                                         >
                                           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                                           </svg>
                                           YouTube
-                                        </a>
+                                        </button>
                                       );
                                     } else {
                                       return (
-                                        <a
-                                          href={videoUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
+                                        <button
+                                          onClick={() => setVideoModal({ open: true, url: videoUrl })}
                                           className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors cursor-pointer"
                                         >
                                           <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M8 5v14l11-7z"/>
                                           </svg>
                                           Video
-                                        </a>
+                                        </button>
                                       );
                                     }
                                   })()}
@@ -1534,13 +1549,35 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                     
                                     // Handle video URL based on type
                                     const getVideoUrl = (videoUrl: string) => {
+                                      console.log('Processing video URL:', videoUrl);
+                                      console.log('Video URL type:', typeof videoUrl);
+                                      console.log('Video URL length:', videoUrl?.length);
+                                      
                                       if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                                        console.log('Detected YouTube video');
                                         return videoUrl; // YouTube URLs are already complete
                                       } else if (videoUrl.startsWith('http')) {
+                                        console.log('Detected external URL');
                                         return videoUrl; // External URLs are already complete
                                       } else {
-                                        // Local uploaded video - prefix with backend URL
-                                        return `http://localhost:4000${videoUrl}`;
+                                        // Local uploaded video - try different backend ports
+                                        // Video URLs are stored as /uploads/videos/filename
+                                        const ports = [4000, 3001, 5000];
+                                        const baseUrl = `http://localhost:${ports[0]}`;
+                                        const fullUrl = `${baseUrl}${videoUrl}`;
+                                        console.log('Generated video URL:', fullUrl);
+                                        console.log('Testing URL accessibility...');
+                                        
+                                        // Test if the URL is accessible
+                                        fetch(fullUrl, { method: 'HEAD' })
+                                          .then(response => {
+                                            console.log('Video URL test result:', response.status, response.statusText);
+                                          })
+                                          .catch(error => {
+                                            console.log('Video URL test error:', error);
+                                          });
+                                        
+                                        return fullUrl;
                                       }
                                     };
                                     
@@ -1578,6 +1615,46 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
           </div>
         </>
       )}
+
+      {/* Video Modal */}
+      <Dialog open={videoModal.open} onClose={() => setVideoModal({ open: false, url: null })}>
+        <div className="p-4">
+          {videoModal.url && (
+            <div>
+              {videoModal.url.includes('youtube.com') || videoModal.url.includes('youtu.be') ? (
+                // YouTube video - embed it
+                <iframe
+                  src={`https://www.youtube.com/embed/${getYouTubeVideoId(videoModal.url)}`}
+                  title="Exercise Video"
+                  className="w-full h-64 rounded"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : videoModal.url.startsWith('http') ? (
+                // External video URL
+                <video src={videoModal.url} controls autoPlay className="w-full rounded" />
+              ) : (
+                // Local video file - prefix with backend URL
+                <video src={`http://localhost:4000${videoModal.url}`} controls autoPlay className="w-full rounded" />
+              )}
+            </div>
+          )}
+        </div>
+      </Dialog>
     </div>
   );
 }
+
+// Helper function to extract YouTube video ID
+const getYouTubeVideoId = (url: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+};
