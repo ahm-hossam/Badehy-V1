@@ -474,17 +474,18 @@ model ProgramExercise {
   dayId      Int
   exerciseId Int
   order      Int
-  sets       Int?
-  reps       Int?
-  weight     Float?
-  duration   Int?
-  restTime   Int?
+  // Per-set configuration stored as JSON
+  sets       Json?      // Array of { reps, rest, tempo, weight, rpe }
+  duration   Int?       // For time-only exercises
   notes      String?
   // New flexible fields for advanced programming
   groupId    String?
-  groupType  String?   // none | superset | giant | triset | circuit
-  setSchema  Json?     // arbitrary schema: sets×reps, time, RPE, tempo, rest per set, etc.
-  videoUrl   String?   // per-program exercise video override (YouTube/Vimeo/S3)
+  groupType  String?    // none | superset | giant | triset | circuit
+  videoUrl   String?    // per-program exercise video override (YouTube/Vimeo/S3)
+  // Exercise modifiers
+  dropset    Boolean    @default(false)  // Last set is dropset
+  singleLeg  Boolean    @default(false) // Each leg gets specified reps
+  failure    Boolean    @default(false)  // Do as many reps as possible
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   day        ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)

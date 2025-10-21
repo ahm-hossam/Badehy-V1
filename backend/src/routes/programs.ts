@@ -221,16 +221,15 @@ router.post('/', async (req, res) => {
                   create: d.exercises.map((e: any, ei: number) => ({
                     exerciseId: Number(e.exerciseId),
                     order: e.order ?? ei + 1,
-                    sets: e.sets ?? null,
-                    reps: e.reps ?? null,
-                    weight: e.weight ?? null,
+                    sets: e.sets ?? null, // JSON array of per-set data
                     duration: e.duration ?? null,
-                    restTime: e.restTime ?? null,
                     notes: e.notes ?? null,
                     groupId: e.groupId ?? null,
                     groupType: e.groupType ?? null,
-                    setSchema: e.setSchema ?? null,
                     videoUrl: e.videoUrl ?? null,
+                    dropset: e.dropset ?? false,
+                    singleLeg: e.singleLeg ?? false,
+                    failure: e.failure ?? false,
                   }))
                 } : undefined,
               }))
@@ -272,16 +271,15 @@ router.put('/:id', async (req, res) => {
                   create: d.exercises.map((e: any, ei: number) => ({
                     exerciseId: Number(e.exerciseId),
                     order: e.order ?? ei + 1,
-                    sets: e.sets ?? null,
-                    reps: e.reps ?? null,
-                    weight: e.weight ?? null,
+                    sets: e.sets ?? null, // JSON array of per-set data
                     duration: e.duration ?? null,
-                    restTime: e.restTime ?? null,
                     notes: e.notes ?? null,
                     groupId: e.groupId ?? null,
                     groupType: e.groupType ?? null,
-                    setSchema: e.setSchema ?? null,
                     videoUrl: e.videoUrl ?? null,
+                    dropset: e.dropset ?? false,
+                    singleLeg: e.singleLeg ?? false,
+                    failure: e.failure ?? false,
                   }))
                 } : undefined,
               }))
