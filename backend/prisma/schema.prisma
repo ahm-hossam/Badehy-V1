@@ -411,6 +411,7 @@ model Program {
   branding          Json?
   pdfUrl            String?
   isImported        Boolean                   @default(false)
+  isDefault         Boolean                   @default(false) // Mark default programs
   importedPdfUrl    String?
   programDuration   Int?
   durationUnit      String?

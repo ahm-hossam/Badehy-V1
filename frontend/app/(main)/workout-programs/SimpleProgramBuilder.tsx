@@ -843,14 +843,16 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                               ? ex.sets.length > 0
                                 ? `${ex.sets.length} × ${ex.sets.map(set => `${set.reps || '?'}s`).join(', ')}`
                                 : 'No sets'
+                              : ex.sets && ex.sets.length > 0
+                              ? `${ex.sets.length} × ${ex.sets.map(set => `${set.reps || '?'}`).join(', ')}`
                               : `${ex.duration || '?'}s`;
                             
                             const modifierText = `${ex.dropset ? ' + Dropset' : ''}${ex.singleLeg ? ' + Single Leg' : ''}${ex.failure ? ' + Failure' : ''}`;
                             const finalStyleText = styleText + modifierText;
-                            const restText = ex.sets.length > 0 
+                            const restText = ex.sets && ex.sets.length > 0 
                               ? ex.sets.map(set => `${set.rest || '?'}s`).join(', ')
                               : '-';
-                            const tempoText = ex.sets.length > 0
+                            const tempoText = ex.sets && ex.sets.length > 0 
                               ? ex.sets.map(set => set.tempo || '-').join(', ')
                               : '-';
                             const groupText = ex.groupType === 'none' ? 'Single' : ex.groupType.charAt(0).toUpperCase() + ex.groupType.slice(1);
@@ -1230,7 +1232,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                               {/* Table Body */}
                               <div className="divide-y divide-zinc-200">
                                 {exercise.sets.map((set: any, setIndex: number) => (
-                                  <div key={set.id} className="px-4 py-3">
+                                  <div key={set.id || `set-${setIndex}`} className="px-4 py-3">
                                     <div className="grid grid-cols-5 gap-4 items-center">
                                       <div className="text-sm font-medium text-zinc-700">
                                         {setIndex + 1}
@@ -1520,6 +1522,10 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                     } else if (exercise.style === 'calories') {
                                       const calories = exercise.sets.map(set => `${set.reps || '?'} cal`).join(',');
                                       mainLineParts.push(`${exercise.sets.length} × ${calories}`);
+                                    } else if (exercise.sets && exercise.sets.length > 0) {
+                                      // Handle default program format
+                                      const reps = exercise.sets.map(set => set.reps || '?').join(',');
+                                      mainLineParts.push(`${exercise.sets.length} × ${reps}`);
                                     }
                                     
                                     // Add modifiers
@@ -1532,13 +1538,15 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                     }
                                     
                                     // Add rest time
-                                    const restTimes = exercise.sets.map(set => `${set.rest || '?'}s`).join(',');
-                                    mainLineParts.push(`Rest ${restTimes}`);
-                                    
-                                    // Add tempo if present
-                                    const tempoValues = exercise.sets.map(set => set.tempo || '').filter(t => t).join(',');
-                                    if (tempoValues) {
-                                      mainLineParts.push(`Tempo ${tempoValues}`);
+                                    if (exercise.sets && exercise.sets.length > 0) {
+                                      const restTimes = exercise.sets.map(set => `${set.rest || '?'}s`).join(',');
+                                      mainLineParts.push(`Rest ${restTimes}`);
+                                      
+                                      // Add tempo if present
+                                      const tempoValues = exercise.sets.map(set => set.tempo || '').filter(t => t).join(',');
+                                      if (tempoValues) {
+                                        mainLineParts.push(`Tempo ${tempoValues}`);
+                                      }
                                     }
                                     
                                     // Add group type if not single

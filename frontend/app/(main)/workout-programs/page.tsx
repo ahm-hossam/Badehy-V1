@@ -36,6 +36,7 @@ interface Program {
   branding?: any;
   pdfUrl?: string;
   isImported?: boolean;
+  isDefault?: boolean;
   importedPdfUrl?: string;
   programDuration?: number;
   durationUnit?: string;
@@ -346,7 +347,7 @@ export default function ProgramsPage() {
                   </TableCell>
                 </TableRow>
               ) : programs.map((program) => (
-                <TableRow key={program.id} className={program.isImported ? 'bg-blue-50' : ''}>
+                <TableRow key={program.id} className={program.isImported ? 'bg-blue-50' : program.isDefault ? 'bg-green-50' : ''}>
                   <TableCell className="font-mono text-xs text-zinc-500">{program.id}</TableCell>
                   <TableCell>
                     <div>
@@ -355,6 +356,11 @@ export default function ProgramsPage() {
                         {program.isImported && (
                           <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             Imported
+                          </span>
+                        )}
+                        {program.isDefault && (
+                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Default
                           </span>
                         )}
                       </div>
