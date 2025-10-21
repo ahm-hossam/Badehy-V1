@@ -51,7 +51,7 @@ router.post('/', async (req: Request, res: Response) => {
     - Only uses fields that exist in the current Prisma schema
   */
   try {
-    const { trainerId, client, subscription, installments, notes, answers } = req.body;
+    const { trainerId, client, subscription, installments, notes, answers, createClientAuth } = req.body;
     
     // Basic validation
     if (!trainerId || !client || !subscription) {
@@ -158,23 +158,27 @@ router.post('/', async (req: Request, res: Response) => {
           labels: client.labels && Array.isArray(client.labels) ? { connect: client.labels.map((id: number) => ({ id })) } : undefined,
         },
       });
-      // Create initial app access for the trainee (default enabled)
-      const generatePassword = (length = 10) => {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
-        return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-      };
-      const tempPassword = generatePassword(10);
-      try {
-        await tx.clientAuth.create({
-          data: {
-            clientId: createdClient.id,
-            email: createdClient.email || null,
-            phone: createdClient.phone || null,
-            passwordHash: await bcrypt.hash(tempPassword, 10),
-          },
-        });
-      } catch (e) {
-        // if it already exists (edge case), ignore creation here
+      // Create initial app access for the trainee (only if createClientAuth flag is set)
+      let tempPassword = null;
+      if (createClientAuth) {
+        const generatePassword = (length = 10) => {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+          return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        };
+        tempPassword = generatePassword(10);
+        try {
+          await tx.clientAuth.create({
+            data: {
+              clientId: createdClient.id,
+              email: createdClient.email || null,
+              phone: createdClient.phone || null,
+              passwordHash: await bcrypt.hash(tempPassword, 10),
+              requiresPasswordReset: true, // Client needs to set their own password
+            },
+          });
+        } catch (e) {
+          // if it already exists (edge case), ignore creation here
+        }
       }
       // 1b. Create notes if provided
       if (Array.isArray(notes) && notes.length > 0) {
@@ -188,8 +192,8 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
       // After creating the client (in POST)
-      
-      if (answers && client.selectedFormId) {
+      // Only submit form if it's the old flow (not createClientAuth)
+      if (answers && client.selectedFormId && !createClientAuth) {
         await tx.checkInSubmission.create({
           data: {
             clientId: createdClient.id,
