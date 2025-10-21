@@ -70,7 +70,8 @@ const ExerciseRow = ({
   groupText, 
   allExercises, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onVideoClick
 }: {
   exercise: SimpleExercise;
   exerciseIndex: number;
@@ -84,6 +85,7 @@ const ExerciseRow = ({
   allExercises: ExerciseOption[];
   onEdit: (form: any) => void;
   onDelete: () => void;
+  onVideoClick: (url: string) => void;
 }) => {
   const {
     attributes,
@@ -123,7 +125,7 @@ const ExerciseRow = ({
                   if (isYouTube) {
                     return (
                       <button
-                        onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                        onClick={() => onVideoClick(videoUrl)}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
@@ -135,7 +137,7 @@ const ExerciseRow = ({
                   } else if (isUpload) {
                     return (
                       <button
-                        onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                        onClick={() => onVideoClick(videoUrl)}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
@@ -147,7 +149,7 @@ const ExerciseRow = ({
                   } else {
                     return (
                       <button
-                        onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                        onClick={() => onVideoClick(videoUrl)}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
@@ -890,6 +892,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                   });
                                 }}
                                 onDelete={() => deleteExercise(wi, di, ei)}
+                                onVideoClick={(url) => setVideoModal({ open: true, url })}
                               />
                             );
                           })}
