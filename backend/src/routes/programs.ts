@@ -217,12 +217,13 @@ router.post('/', async (req, res) => {
               create: w.days.map((d: any, di: number) => ({
                 dayNumber: d.dayNumber ?? di + 1,
                 name: d.name,
+                dayType: d.dayType ?? 'workout',
                 exercises: d.exercises && Array.isArray(d.exercises) ? {
-                  create: d.exercises.map((e: any, ei: number) => ({
+                  create: d.exercises.filter((e: any) => e.exerciseId && Number(e.exerciseId) > 0).map((e: any, ei: number) => ({
                     exerciseId: Number(e.exerciseId),
                     order: e.order ?? ei + 1,
                     sets: e.sets ?? null, // JSON array of per-set data
-                    duration: e.duration ?? null,
+                    duration: e.duration && e.duration !== '' ? parseInt(e.duration) : null,
                     notes: e.notes ?? null,
                     groupId: e.groupId ?? null,
                     groupType: e.groupType ?? null,
@@ -267,12 +268,13 @@ router.put('/:id', async (req, res) => {
               create: w.days.map((d: any, di: number) => ({
                 dayNumber: d.dayNumber ?? di + 1,
                 name: d.name,
+                dayType: d.dayType ?? 'workout',
                 exercises: d.exercises && Array.isArray(d.exercises) ? {
-                  create: d.exercises.map((e: any, ei: number) => ({
+                  create: d.exercises.filter((e: any) => e.exerciseId && Number(e.exerciseId) > 0).map((e: any, ei: number) => ({
                     exerciseId: Number(e.exerciseId),
                     order: e.order ?? ei + 1,
                     sets: e.sets ?? null, // JSON array of per-set data
-                    duration: e.duration ?? null,
+                    duration: e.duration && e.duration !== '' ? parseInt(e.duration) : null,
                     notes: e.notes ?? null,
                     groupId: e.groupId ?? null,
                     groupType: e.groupType ?? null,
