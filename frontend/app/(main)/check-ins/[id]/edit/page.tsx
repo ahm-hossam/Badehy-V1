@@ -405,6 +405,7 @@ export default function CheckInEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkinName, setCheckinName] = useState("");
   const [isMainForm, setIsMainForm] = useState(false);
+  const [published, setPublished] = useState(true);
   const [questions, setQuestions] = useState<any[]>([]);
 
   useEffect(() => {
@@ -417,6 +418,7 @@ export default function CheckInEditPage() {
         const data = await res.json();
         setCheckinName(data.name || "");
         setIsMainForm(data.isMainForm || false);
+        setPublished(data.published !== undefined ? data.published : true);
         setQuestions((data.questions || []).map((q: any) => {
           const isStatic = q.label && QUESTION_CONFIGS[q.label];
           return {
@@ -522,6 +524,7 @@ export default function CheckInEditPage() {
           name: checkinName,
           questions: validQuestions,
           isMainForm: isMainForm,
+          published: published,
         }),
       });
       if (!res.ok) {
@@ -596,6 +599,30 @@ export default function CheckInEditPage() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Published Toggle */}
+        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Switch 
+                checked={published} 
+                onChange={setPublished}
+                className="data-[state=checked]:bg-green-600"
+              />
+              <div>
+                <label className="text-sm font-medium text-gray-900">
+                  Published
+                </label>
+                <p className="text-xs text-gray-600 mt-1">
+                  Only published forms will be visible to clients in the mobile app.
+                </p>
+              </div>
+            </div>
+            <div className={`text-xs px-2 py-1 rounded ${published ? 'text-green-700 bg-green-100' : 'text-gray-600 bg-gray-100'}`}>
+              {published ? 'Visible to clients' : 'Draft - not visible'}
+            </div>
+          </div>
         </div>
         
         {error && <div className="text-red-500 text-sm mt-1">{error}</div>}

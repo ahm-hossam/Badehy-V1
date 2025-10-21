@@ -22,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
 
 // POST /api/checkins
 router.post('/', async (req: Request, res: Response) => {
-  const { trainerId, name, questions, isMainForm } = req.body;
+  const { trainerId, name, questions, isMainForm, published } = req.body;
   if (!trainerId || !name || !Array.isArray(questions) || questions.length === 0) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -34,6 +34,7 @@ router.post('/', async (req: Request, res: Response) => {
         trainerId: Number(trainerId),
         name,
         isMainForm: !!isMainForm,
+        published: published !== undefined ? !!published : true,
         questions: {
           create: questions.map((q: any, idx: number) => {
             try { console.log('Question', idx, 'keys:', Object.keys(q || {})) } catch {}
