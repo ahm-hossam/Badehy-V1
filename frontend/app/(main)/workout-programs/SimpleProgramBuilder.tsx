@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -18,21 +18,33 @@ type GroupType = 'none' | 'superset' | 'giant' | 'triset' | 'circuit';
 
 type SimpleExercise = {
   id: number;
-  key?: string;
-  exerciseId?: number;
+  key: string;
+  exerciseId: number;
   name?: string;
   style: 'sets-reps' | 'sets-time' | 'time-only';
-  sets?: string;
-  reps?: string;
-  duration?: string;
+  sets: string;
+  reps: string;
+  duration: string;
+  rest: string;
+  tempo: string;
+  videoUrl: string;
+  notes: string;
   groupType: GroupType;
-  notes?: string;
-  videoUrl?: string;
+  groupId?: string;
+  order: number;
 };
 
-type SimpleDay = { id: number; key?: string; name: string; exercises: SimpleExercise[] };
+type SimpleDay = {
+  id: number;
+  name: string;
+  exercises: SimpleExercise[];
+};
 
-type SimpleWeek = { id: number; key?: string; name: string; days: SimpleDay[] };
+type SimpleWeek = {
+  id: number;
+  name: string;
+  days: SimpleDay[];
+};
 
 type ExerciseOption = { id: number; name: string; videoUrl?: string };
 
@@ -62,19 +74,21 @@ const ExerciseRow = ({
   onEdit: (form: any) => void;
   onDelete: () => void;
 }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
-    id: `ex-${weekIndex}-${dayIndex}-${exercise.id}` 
-  });
-  
-  const style = {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: `ex-${weekIndex}-${dayIndex}-${exercise.id}` });
+
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.7 : 1,
-    zIndex: isDragging ? 10 : undefined,
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="px-4 py-3 hover:bg-zinc-50 transition-colors">
+    <div ref={setNodeRef} style={style} className="px-4 py-3 hover:bg-zinc-50">
       <div className="grid grid-cols-12 gap-4 items-center">
         <div className="col-span-4">
           <div className="flex items-center gap-2">
@@ -88,12 +102,11 @@ const ExerciseRow = ({
                   
                   if (isYouTube) {
                     return (
-                      <a 
-                        href={videoUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-600 hover:bg-red-100 transition-colors"
-                        title="Watch on YouTube"
+                      <a
+                        href={videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
@@ -103,12 +116,11 @@ const ExerciseRow = ({
                     );
                   } else if (isUpload) {
                     return (
-                      <a 
-                        href={videoUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-600 hover:bg-blue-100 transition-colors"
-                        title="Watch uploaded video"
+                      <a
+                        href={videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M8 5v14l11-7z"/>
@@ -118,12 +130,11 @@ const ExerciseRow = ({
                     );
                   } else {
                     return (
-                      <a 
-                        href={videoUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors"
-                        title="Watch video"
+                      <a
+                        href={videoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
                       >
                         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M8 5v14l11-7z"/>
@@ -146,7 +157,7 @@ const ExerciseRow = ({
         <div className="col-span-2">
           <div className="flex items-center gap-1">
             <button
-              className="p-1.5 rounded hover:bg-zinc-100 transition-colors cursor-grab"
+              className="p-1 rounded hover:bg-zinc-100 cursor-grab active:cursor-grabbing"
               aria-label="Drag to reorder exercise"
               {...attributes}
               {...listeners}
@@ -155,18 +166,24 @@ const ExerciseRow = ({
             </button>
             <button
               onClick={() => onEdit({ 
-                ...exercise, 
-                exerciseId: exercise.exerciseId || 0,
-                videoSource: exercise.videoUrl ? 'youtube' : 'youtube'
+                exerciseId: exercise.exerciseId, 
+                style: exercise.style, 
+                sets: exercise.sets, 
+                reps: exercise.reps, 
+                duration: exercise.duration, 
+                rest: exercise.rest, 
+                tempo: exercise.tempo, 
+                videoUrl: exercise.videoUrl, 
+                notes: exercise.notes 
               })}
-              className="p-1.5 rounded hover:bg-zinc-100 transition-colors"
+              className="p-1 rounded hover:bg-zinc-100"
               aria-label="Edit exercise"
             >
               <PencilIcon className="w-4 h-4 text-zinc-500" />
             </button>
             <button
               onClick={onDelete}
-              className="p-1.5 rounded hover:bg-red-50 transition-colors"
+              className="p-1 rounded hover:bg-red-50"
               aria-label="Delete exercise"
             >
               <TrashIcon className="w-4 h-4 text-red-500" />
@@ -178,17 +195,21 @@ const ExerciseRow = ({
   );
 };
 
-export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'create' | 'edit'; initialData?: any }) {
-  const router = useRouter();
+export default function SimpleProgramBuilder({ mode = 'create', initialData }: { mode?: 'create' | 'edit'; initialData?: any }) {
+  const [weeks, setWeeks] = React.useState<SimpleWeek[]>([]);
   const [programName, setProgramName] = React.useState('');
   const [programDescription, setProgramDescription] = React.useState('');
-  const [weeks, setWeeks] = React.useState<SimpleWeek[]>([]);
-  const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState('');
   const [allExercises, setAllExercises] = React.useState<ExerciseOption[]>([]);
   const [openWeeks, setOpenWeeks] = React.useState<Set<number>>(new Set());
   const [editingWeekId, setEditingWeekId] = React.useState<number | null>(null);
   const [editingDayKey, setEditingDayKey] = React.useState<string | null>(null);
+  const [newExerciseModal, setNewExerciseModal] = React.useState<{
+    open: boolean;
+    wi: number;
+    di: number;
+    editIndex?: number;
+    exerciseGroups: any[];
+  } | null>(null);
 
   // Generate stable IDs - moved outside to avoid recreation
   const generateId = React.useMemo(() => {
@@ -199,37 +220,45 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
   const [editingWeekName, setEditingWeekName] = React.useState('');
   const [editingDayName, setEditingDayName] = React.useState('');
 
-  const handleWeekNameChange = useCallback((weekIndex: number, value: string) => {
-    setWeeks(prev => {
-      const c = [...prev];
-      c[weekIndex] = { ...c[weekIndex], name: value };
-      return c;
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const router = useRouter();
+
+  // Load exercises
+  React.useEffect(() => {
+    const user = getStoredUser();
+    if (!user) return;
+    fetch(`/api/exercises?trainerId=${user.id}`).then(async r => {
+      const j = await r.json().catch(() => []);
+      if (Array.isArray(j)) setAllExercises(j);
     });
   }, []);
 
-  const handleDayNameChange = useCallback((weekIndex: number, dayIndex: number, value: string) => {
-    setWeeks(prev => {
-      const c = [...prev];
-      c[weekIndex] = { ...c[weekIndex] };
-      c[weekIndex].days = [...c[weekIndex].days];
-      c[weekIndex].days[dayIndex] = { ...c[weekIndex].days[dayIndex], name: value };
-      return c;
-    });
-  }, []);
+  // Hydrate edit
+  React.useEffect(() => {
+    if (mode === 'edit' && initialData) {
+      setProgramName(initialData.name || '');
+      setProgramDescription(initialData.description || '');
+      if (initialData.weeks) {
+        setWeeks(initialData.weeks);
+      }
+    }
+  }, [mode, initialData]);
 
   // dnd setup
   const sensors = useSensors(useSensor(PointerSensor));
   const onDragEnd = (evt: any) => {
     const { active, over } = evt;
     if (!over || active.id === over.id) return;
+    
     const aid = String(active.id);
     const oid = String(over.id);
     
     // weeks
     if (aid.startsWith('w-') && oid.startsWith('w-')) {
       const a = weeks.findIndex(w => `w-${w.id}` === aid);
-      const b = weeks.findIndex(w => `w-${w.id}` === oid);
-      if (a >= 0 && b >= 0) setWeeks(arrayMove(weeks, a, b));
+      const o = weeks.findIndex(w => `w-${w.id}` === oid);
+      if (a >= 0 && o >= 0) setWeeks(arrayMove(weeks, a, o));
       return;
     }
     // days within same week
@@ -239,12 +268,12 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
       if (aw !== ow) return; // only reorder within same week
       const wi = weeks.findIndex(w => String(w.id) === aw);
       if (wi < 0) return;
-      const a = weeks[wi].days.findIndex(d => String(d.id) === ad);
-      const b = weeks[wi].days.findIndex(d => String(d.id) === od);
-      if (a >= 0 && b >= 0) {
-        const copy = [...weeks];
-        copy[wi].days = arrayMove(copy[wi].days, a, b);
-        setWeeks(copy);
+      const a = weeks[wi].days.findIndex(d => `d-${weeks[wi].id}-${d.id}` === aid);
+      const o = weeks[wi].days.findIndex(d => `d-${weeks[wi].id}-${d.id}` === oid);
+      if (a >= 0 && o >= 0) {
+        const newWeeks = [...weeks];
+        newWeeks[wi].days = arrayMove(newWeeks[wi].days, a, o);
+        setWeeks(newWeeks);
       }
     }
     // exercises within same day
@@ -255,22 +284,13 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
       
       const wi = parseInt(aw);
       const di = parseInt(ad);
-      
-      if (wi < 0 || wi >= weeks.length) return;
-      if (di < 0 || di >= weeks[wi].days.length) return;
-      
-      const exerciseA = weeks[wi].days[di].exercises.find(ex => String(ex.id) === ae);
-      const exerciseB = weeks[wi].days[di].exercises.find(ex => String(ex.id) === oe);
-      
-      if (!exerciseA || !exerciseB) return;
-      
-      const a = weeks[wi].days[di].exercises.findIndex(ex => ex.id === exerciseA.id);
-      const b = weeks[wi].days[di].exercises.findIndex(ex => ex.id === exerciseB.id);
-      
-      if (a >= 0 && b >= 0 && a !== b) {
-        const copy = [...weeks];
-        copy[wi].days[di].exercises = arrayMove(copy[wi].days[di].exercises, a, b);
-        setWeeks(copy);
+      if (wi < 0 || di < 0) return;
+      const a = weeks[wi].days[di].exercises.findIndex(e => `ex-${wi}-${di}-${e.id}` === aid);
+      const o = weeks[wi].days[di].exercises.findIndex(e => `ex-${wi}-${di}-${e.id}` === oid);
+      if (a >= 0 && o >= 0) {
+        const newWeeks = [...weeks];
+        newWeeks[wi].days[di].exercises = arrayMove(newWeeks[wi].days[di].exercises, a, o);
+        setWeeks(newWeeks);
       }
     }
   };
@@ -286,140 +306,168 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
     );
   }
 
-  React.useEffect(() => {
-    const user = getStoredUser();
-    if (!user) return;
-    fetch(`/api/exercises?trainerId=${user.id}`).then(async r => {
-      const j = await r.json().catch(() => []);
-      if (Array.isArray(j)) setAllExercises(j);
-    });
-  }, []);
+  const addWeek = useCallback(() => {
+    setWeeks(prev => [...prev, { id: generateId(), name: `Week ${prev.length + 1}`, days: [] }]);
+  }, [generateId]);
 
-  // Hydrate edit
-  React.useEffect(() => {
-    if (mode === 'edit' && initialData) {
-      setProgramName(initialData.name || '');
-      setProgramDescription(initialData.description || '');
-      const mapped: SimpleWeek[] = (initialData.weeks || []).map((w: any) => ({
-        id: w.id || Math.floor(Date.now() * 1000 + Math.random() * 1000),
-        name: w.name || `Week ${w.weekNumber}`,
-        days: (w.days || []).map((d: any) => ({
-          id: d.id || Math.floor(Date.now() * 1000 + Math.random() * 1000),
-          name: d.name || `Day ${d.dayNumber}`,
-          exercises: (d.exercises || []).map((e: any) => ({
-            id: e.id || Math.floor(Date.now() * 1000 + Math.random() * 1000),
-            exerciseId: e.exerciseId,
-            name: e.exercise?.name,
-            style: 'sets-reps',
-            sets: e.sets ? String(e.sets) : undefined,
-            reps: e.reps ? String(e.reps) : undefined,
-            duration: e.duration ? String(e.duration) : undefined,
-            groupType: (e.groupType as GroupType) || 'none',
-            notes: e.notes || '',
-            videoUrl: e.videoUrl || '',
-          })),
-        })),
-      }));
-      setWeeks(mapped);
-      setOpenWeeks(new Set(mapped.map(w => w.id)));
-    } else if (mode === 'create' && weeks.length === 0) {
-      const newId = Math.floor(Date.now() * 1000 + Math.random() * 1000);
-      setWeeks([{ id: newId, name: 'Week 1', days: [{ id: Math.floor(Date.now() * 1000 + Math.random() * 1000), name: 'Day 1', exercises: [] }] }]);
-      setOpenWeeks(new Set([newId]));
-    }
-  }, [mode, initialData]);
+  const addDay = useCallback((wi: number) => {
+    setWeeks(prev => prev.map((w, i) => i === wi ? { ...w, days: [...w.days, { id: generateId(), name: `Day ${w.days.length + 1}`, exercises: [] }] } : w));
+  }, [generateId]);
 
-  const addWeek = () => {
-    const id = generateId();
+  const duplicateWeek = useCallback((wi: number) => {
     setWeeks(prev => {
-      const next = [...prev, { id, name: `Week ${prev.length + 1}`, days: [{ id: generateId(), name: 'Day 1', exercises: [] }] }];
-      return next;
-    });
-    setOpenWeeks(prev => {
-      const n = new Set(prev);
-      n.add(id);
-      return n;
-    });
-  };
-
-  const addDay = (weekIdx: number) => {
-    setWeeks(prev => {
-      const next = prev.map((w, i) => i === weekIdx ? { ...w, days: [...w.days, { id: generateId(), name: `Day ${w.days.length + 1}`, exercises: [] }] } : w);
-      return next;
-    });
-  };
-
-  const [newExerciseModal, setNewExerciseModal] = React.useState<{ open: boolean; wi: number; di: number; editIndex?: number; form: any; linkedExercises?: any[] } | null>(null);
-  const addExercise = (weekIdx: number, dayIdx: number) => {
-    setNewExerciseModal({ open: true, wi: weekIdx, di: dayIdx, form: { exerciseId: 0, style: 'sets-reps', sets: '', reps: '', duration: '', groupType: 'none', rest: '', videoSource: 'youtube', videoUrl: '', notes: '' } });
-  };
-
-  const deleteExercise = (weekIdx: number, dayIdx: number, exerciseIdx: number) => {
-    setWeeks(prev => {
+      const week = prev[wi];
+      const newWeek = {
+        ...week,
+        id: generateId(),
+        name: `${week.name} (Copy)`,
+        days: week.days.map(day => ({
+          ...day,
+          id: generateId(),
+          name: `${day.name} (Copy)`,
+          exercises: day.exercises.map(ex => ({
+            ...ex,
+            id: generateId(),
+            key: `ex-${generateId()}`
+          }))
+        }))
+      };
       const newWeeks = [...prev];
-      const newDays = [...newWeeks[weekIdx].days];
-      const newExercises = [...newDays[dayIdx].exercises];
-      newExercises.splice(exerciseIdx, 1);
-      newDays[dayIdx] = { ...newDays[dayIdx], exercises: newExercises };
-      newWeeks[weekIdx] = { ...newWeeks[weekIdx], days: newDays };
+      newWeeks.splice(wi + 1, 0, newWeek);
       return newWeeks;
     });
-  };
+  }, [generateId]);
 
-  const updateExercise = (weekIdx: number, dayIdx: number, exIdx: number, field: keyof SimpleExercise, value: any) => {
-    const copy = [...weeks];
-    (copy[weekIdx].days[dayIdx].exercises[exIdx] as any)[field] = value;
-    setWeeks(copy);
-  };
+  const duplicateDay = useCallback((wi: number, di: number) => {
+    setWeeks(prev => prev.map((w, i) => i === wi ? {
+      ...w,
+      days: w.days.map((d, j) => j === di ? d : d).concat({
+        ...w.days[di],
+        id: generateId(),
+        name: `${w.days[di].name} (Copy)`,
+        exercises: w.days[di].exercises.map(ex => ({
+          ...ex,
+          id: generateId(),
+          key: `ex-${generateId()}`
+        }))
+      })
+    } : w));
+  }, [generateId]);
 
-  const duplicateWeek = (weekIdx: number) => {
-    const copy = [...weeks];
-    const clone = JSON.parse(JSON.stringify(copy[weekIdx])) as SimpleWeek;
-    clone.id = generateId();
-    clone.name = `${clone.name} (copy)`;
-    setWeeks([...copy, clone]);
-    setOpenWeeks(prev => new Set([...Array.from(prev), clone.id]));
-  };
+  const handleWeekNameChange = useCallback((wi: number, newName: string) => {
+    setWeeks(prev => prev.map((w, i) => i === wi ? { ...w, name: newName } : w));
+    setEditingWeekId(null);
+    setEditingWeekName('');
+  }, []);
 
-  const duplicateDay = (weekIdx: number, dayIdx: number) => {
-    const copy = [...weeks];
-    const clone = JSON.parse(JSON.stringify(copy[weekIdx].days[dayIdx])) as SimpleDay;
-    clone.id = generateId();
-    clone.name = `${clone.name} (copy)`;
-    copy[weekIdx].days.splice(dayIdx + 1, 0, clone);
-    setWeeks(copy);
-  };
+  const handleDayNameChange = useCallback((wi: number, di: number, newName: string) => {
+    setWeeks(prev => prev.map((w, i) => i === wi ? {
+      ...w,
+      days: w.days.map((d, j) => j === di ? { ...d, name: newName } : d)
+    } : w));
+    setEditingDayKey(null);
+    setEditingDayName('');
+  }, []);
+
+  const addExercise = useCallback((wi: number, di: number) => {
+    setNewExerciseModal({
+      open: true,
+      wi,
+      di,
+      exerciseGroups: [{
+        id: generateId(),
+        groupType: 'none',
+        exercises: [{
+          id: generateId(),
+          exerciseId: 0,
+          style: 'sets-reps',
+          sets: '',
+          reps: '',
+          duration: '',
+          rest: '',
+          tempo: '',
+          videoUrl: '',
+          notes: ''
+        }]
+      }]
+    });
+  }, [generateId]);
+
+  const deleteExercise = useCallback((wi: number, di: number, ei: number) => {
+    setWeeks(prev => prev.map((w, i) => i === wi ? {
+      ...w,
+      days: w.days.map((d, j) => j === di ? {
+        ...d,
+        exercises: d.exercises.filter((_, k) => k !== ei)
+      } : d)
+    } : w));
+  }, []);
+
+  const handleSaveExercise = useCallback(() => {
+    if (!newExerciseModal) return;
+    
+    const { wi, di, editIndex, exerciseGroups } = newExerciseModal;
+    
+    // Flatten all exercises from all groups
+    const allExercises = exerciseGroups.flatMap(group => 
+      group.exercises.map((exercise: any) => ({
+        id: exercise.id,
+        key: `ex-${exercise.id}`,
+        exerciseId: exercise.exerciseId,
+        style: exercise.style,
+        sets: exercise.sets,
+        reps: exercise.reps,
+        duration: exercise.duration,
+        rest: exercise.rest,
+        tempo: exercise.tempo,
+        videoUrl: exercise.videoUrl,
+        notes: exercise.notes,
+        groupType: group.groupType,
+        order: 0
+      }))
+    );
+
+    setWeeks(prev => prev.map((w, i) => i === wi ? {
+      ...w,
+      days: w.days.map((d, j) => j === di ? {
+        ...d,
+        exercises: editIndex !== undefined 
+          ? d.exercises.map((ex, k) => k === editIndex ? allExercises[0] : ex)
+          : [...d.exercises, ...allExercises]
+      } : d)
+    } : w));
+
+    setNewExerciseModal(null);
+  }, [newExerciseModal]);
 
   const handleSave = async () => {
+    setSaving(true);
+    setError('');
     try {
-      setSaving(true);
-      setError('');
       const user = getStoredUser();
       if (!user) throw new Error('Not authenticated');
-      if (!programName.trim()) throw new Error('Program name is required');
 
       const payload = {
+        name: programName,
+        description: programDescription,
         trainerId: user.id,
-        name: programName.trim(),
-        description: programDescription || '',
-        weeks: weeks.map((w, wi) => ({
-          weekNumber: wi + 1,
-          name: w.name,
-          days: w.days.map((d, di) => ({
-            dayNumber: di + 1,
-            name: d.name,
-            exercises: d.exercises.map((e, ei) => ({
-              exerciseId: Number(e.exerciseId || 0),
-              order: ei + 1,
-              sets: e.sets ? Number(e.sets) : null,
-              reps: e.reps ? Number(e.reps) : null,
-              duration: e.duration ? Number(e.duration) : null,
-              restTime: null,
-              notes: e.notes || '',
-              groupType: e.groupType || 'none',
-              groupId: e.groupId || null,
-              setSchema: null,
-              videoUrl: e.videoUrl || null,
+        weeks: weeks.map(week => ({
+          name: week.name,
+          days: week.days.map(day => ({
+            name: day.name,
+            exercises: day.exercises.map(ex => ({
+              exerciseId: ex.exerciseId,
+              style: ex.style,
+              sets: ex.sets,
+              reps: ex.reps,
+              duration: ex.duration,
+              rest: ex.rest,
+              tempo: ex.tempo,
+              videoUrl: ex.videoUrl,
+              notes: ex.notes,
+              groupType: ex.groupType,
+              groupId: ex.groupId,
+              order: ex.order
             }))
           }))
         }))
@@ -430,8 +478,8 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to save');
       }
       router.push('/workout-programs?created=1');
@@ -468,21 +516,24 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
               <DraggableContainer key={week.id} id={`w-${week.id}`} className="border-2 border-dotted border-black rounded-xl bg-white" render={({attributes, listeners}) => (
                 <div className="bg-zinc-50">
                   <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="p-1 rounded hover:bg-zinc-200 cursor-grab active:cursor-grabbing"
+                        {...attributes}
+                        {...listeners}
+                      >
+                        <Bars3Icon className="w-4 h-4 text-zinc-500" />
+                      </button>
                       {editingWeekId === week.id ? (
                         <Input
                           value={editingWeekName}
                           onChange={(e) => setEditingWeekName(e.target.value)}
                           onBlur={() => {
                             handleWeekNameChange(wi, editingWeekName);
-                            setEditingWeekId(null);
-                            setEditingWeekName('');
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               handleWeekNameChange(wi, editingWeekName);
-                              setEditingWeekId(null);
-                              setEditingWeekName('');
                             }
                             if (e.key === 'Escape') {
                               setEditingWeekId(null);
@@ -507,14 +558,6 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                       <button type="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" onClick={() => setOpenWeeks(prev => { const n=new Set(prev); n.has(week.id) ? n.delete(week.id) : n.add(week.id); return n; })} aria-label="Toggle week">
                         {openWeeks.has(week.id) ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                       </button>
-                      <button
-                        className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center cursor-grab"
-                        aria-label="Drag to reorder week"
-                        {...attributes}
-                        {...listeners}
-                      >
-                        <Bars3Icon className="w-4 h-4" />
-                      </button>
                       <Dropdown>
                         <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Week actions">
                           <EllipsisVerticalIcon className="w-4 h-4" />
@@ -529,84 +572,77 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                   </div>
                   <div className="h-px bg-zinc-200"></div>
                 </div>
-                )}>
-
-            {/* Days */}
-                {openWeeks.has(week.id) ? (
-                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-                    <SortableContext items={week.days.map((d) => `d-${week.id}-${d.id}`)} strategy={verticalListSortingStrategy}>
-                      <div className="p-4 space-y-5">
-                      {week.days.map((day, di) => (
-                        <DraggableContainer key={day.id} id={`d-${week.id}-${day.id}`} className="border border-zinc-200 rounded-lg" render={({attributes: dAttrs, listeners: dListeners}) => (
-                          <div className="flex items-center justify-between p-3 border-b border-zinc-100">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                {editingDayKey === `${week.id}:${day.id}` ? (
-                                  <Input
-                                    value={editingDayName}
-                                    onChange={(e) => setEditingDayName(e.target.value)}
-                                    onBlur={() => {
+              )}>
+                {/* Days */}
+                {openWeeks.has(week.id) && (
+                  <div className="p-4 space-y-5">
+                    {week.days.map((day, di) => (
+                      <DraggableContainer key={day.id} id={`d-${week.id}-${day.id}`} className="border border-zinc-200 rounded-lg" render={({attributes: dAttrs, listeners: dListeners}) => (
+                        <div className="flex items-center justify-between p-3 border-b border-zinc-100">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              {editingDayKey === `${week.id}:${day.id}` ? (
+                                <Input
+                                  value={editingDayName}
+                                  onChange={(e) => setEditingDayName(e.target.value)}
+                                  onBlur={() => {
+                                    handleDayNameChange(wi, di, editingDayName);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
                                       handleDayNameChange(wi, di, editingDayName);
+                                    }
+                                    if (e.key === 'Escape') {
                                       setEditingDayKey(null);
                                       setEditingDayName('');
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        handleDayNameChange(wi, di, editingDayName);
-                                        setEditingDayKey(null);
-                                        setEditingDayName('');
-                                      }
-                                      if (e.key === 'Escape') {
-                                        setEditingDayKey(null);
-                                        setEditingDayName('');
-                                      }
-                                    }}
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <>
-                                    <span className="font-medium">{day.name}</span>
-                                    <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => {
-                                      setEditingDayName(day.name);
-                                      setEditingDayKey(`${week.id}:${day.id}`);
-                                    }} aria-label="Edit day name">
-                                      <PencilIcon className="w-4 h-4 text-zinc-500" />
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center cursor-grab"
-                                aria-label="Drag to reorder day"
-                                {...dAttrs}
-                                {...dListeners}
-                              >
-                                <Bars3Icon className="w-4 h-4" />
-                              </button>
-                              <Dropdown>
-                                <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Day actions">
-                                  <EllipsisVerticalIcon className="w-4 h-4" />
-                                </DropdownButton>
-                                <DropdownMenu>
-                                  <DropdownItem onClick={() => addExercise(wi, di)}>
-                                    <PlusIcon className="w-4 h-4" />
-                                    Add exercise
-                                  </DropdownItem>
-                                  <DropdownItem onClick={() => duplicateDay(wi, di)}>
-                                    <DocumentDuplicateIcon className="w-4 h-4" />
-                                    Duplicate Day
-                                  </DropdownItem>
-                                  <DropdownItem onClick={() => { const c=[...weeks]; c[wi].days.splice(di,1); setWeeks(c); }}>
-                                    <TrashIcon className="w-4 h-4" />
-                                    Remove Day
-                                  </DropdownItem>
-                                </DropdownMenu>
-                              </Dropdown>
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                              ) : (
+                                <>
+                                  <span className="font-medium">{day.name}</span>
+                                  <button type="button" className="p-1 rounded hover:bg-zinc-100" onClick={() => {
+                                    setEditingDayName(day.name);
+                                    setEditingDayKey(`${week.id}:${day.id}`);
+                                  }} aria-label="Edit day name">
+                                    <PencilIcon className="w-4 h-4 text-zinc-500" />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
-                          )}>
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center cursor-grab"
+                              aria-label="Drag to reorder day"
+                              {...dAttrs}
+                              {...dListeners}
+                            >
+                              <Bars3Icon className="w-4 h-4" />
+                            </button>
+                            <Dropdown>
+                              <DropdownButton as="button" className="w-7 h-7 rounded border border-zinc-300 flex items-center justify-center" aria-label="Day actions">
+                                <EllipsisVerticalIcon className="w-4 h-4" />
+                              </DropdownButton>
+                              <DropdownMenu>
+                                <DropdownItem onClick={() => addExercise(wi, di)}>
+                                  <PlusIcon className="w-4 h-4" />
+                                  Add exercise
+                                </DropdownItem>
+                                <DropdownItem onClick={() => duplicateDay(wi, di)}>
+                                  <DocumentDuplicateIcon className="w-4 h-4" />
+                                  Duplicate Day
+                                </DropdownItem>
+                                <DropdownItem onClick={() => { const c=[...weeks]; c[wi].days.splice(di,1); setWeeks(c); }}>
+                                  <TrashIcon className="w-4 h-4" />
+                                  Remove Day
+                                </DropdownItem>
+                              </DropdownMenu>
+                            </Dropdown>
+                          </div>
+                        </div>
+                      )}>
 
                   {/* Exercises */}
                   <div className="p-3">
@@ -653,7 +689,30 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                                 restText={restText}
                                 groupText={groupText}
                                 allExercises={allExercises}
-                                onEdit={(form) => setNewExerciseModal({ open: true, wi, di, editIndex: ei, form })}
+                                onEdit={(form) => {
+                                  setNewExerciseModal({
+                                    open: true,
+                                    wi,
+                                    di,
+                                    editIndex: ei,
+                                    exerciseGroups: [{
+                                      id: generateId(),
+                                      groupType: 'none',
+                                      exercises: [{
+                                        id: ex.id,
+                                        exerciseId: ex.exerciseId,
+                                        style: ex.style,
+                                        sets: ex.sets,
+                                        reps: ex.reps,
+                                        duration: ex.duration,
+                                        rest: ex.rest,
+                                        tempo: ex.tempo,
+                                        videoUrl: ex.videoUrl,
+                                        notes: ex.notes
+                                      }]
+                                    }]
+                                  });
+                                }}
                                 onDelete={() => deleteExercise(wi, di, ei)}
                               />
                             );
@@ -664,182 +723,320 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                       </div>
                     )}
                   </div>
-                        </DraggableContainer>
-                      ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                ) : null}
+                      </DraggableContainer>
+                    ))}
+                  </div>
+                )}
               </DraggableContainer>
             ))}
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Add Week Button */}
+      <div className="mt-6 flex justify-start">
+        <Button onClick={addWeek} className="px-6">
+          <PlusIcon className="w-4 h-4 mr-2" />
+          Add Week
+        </Button>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Save Button */}
+      <div className="mt-6 flex justify-end">
+        <Button onClick={handleSave} disabled={saving} className="px-8">
+          {saving ? 'Saving...' : 'Save Program'}
+        </Button>
+      </div>
+
+      {/* Exercise Side Panel */}
       {newExerciseModal?.open && (
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            className="fixed inset-0 bg-black/50 z-40"
             onClick={() => setNewExerciseModal(null)}
           />
           
           {/* Side Panel */}
-          <div className="fixed top-0 right-0 h-full w-[800px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+          <div className="fixed right-0 top-0 h-full w-[800px] bg-white shadow-xl z-50 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
-              <h3 className="text-xl font-semibold">{newExerciseModal.editIndex !== undefined ? 'Edit exercise' : 'Add exercise'}</h3>
-              <button 
+            <div className="flex items-center justify-between p-4 border-b border-zinc-200">
+              <h3 className="text-lg font-semibold text-zinc-900">
+                {newExerciseModal.editIndex !== undefined ? 'Edit Exercise' : 'Add Exercise'}
+              </h3>
+              <button
                 onClick={() => setNewExerciseModal(null)}
-                className="text-zinc-400 hover:text-zinc-600 transition-colors"
+                className="p-2 rounded-lg hover:bg-zinc-100"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto px-6 py-6">
-            {/* Main Exercise Table */}
-            <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-zinc-50 border-b border-zinc-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Exercise</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Style</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Sets</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Reps/Time</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Rest (s)</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Group</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-zinc-100">
-                    <td className="px-4 py-3">
-                      <Select value={newExerciseModal.form.exerciseId} onChange={(e) => {
-                        const selectedId = Number((e.target as HTMLSelectElement).value);
-                        const selectedExercise = allExercises.find(x => x.id === selectedId);
-                        setNewExerciseModal(m => m && { 
-                          ...m, 
-                          form: { 
-                            ...m.form, 
-                            exerciseId: selectedId,
-                            videoUrl: selectedExercise?.videoUrl || m.form.videoUrl
-                          } 
-                        });
-                      }}>
-                        <option value={0}>Select exercise…</option>
-                        {allExercises.map(opt => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                      </Select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Select value={newExerciseModal.form.style} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, style: (e.target as HTMLSelectElement).value } })}>
-                        <option value="sets-reps">Sets × Reps</option>
-                        <option value="sets-time">Sets × Time</option>
-                        <option value="time-only">Time Only</option>
-                      </Select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input placeholder="Sets" value={newExerciseModal.form.sets} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, sets: (e.target as HTMLInputElement).value } })} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input placeholder={newExerciseModal.form.style === 'time-only' ? 'Time (s)' : 'Reps'} value={newExerciseModal.form.style === 'time-only' ? newExerciseModal.form.duration : newExerciseModal.form.reps} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, [m.form.style === 'time-only' ? 'duration' : 'reps']: (e.target as HTMLInputElement).value } })} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input placeholder="Rest" value={newExerciseModal.form.rest} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, rest: (e.target as HTMLInputElement).value } })} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Select value={newExerciseModal.form.groupType} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, groupType: (e.target as HTMLSelectElement).value } })}>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {newExerciseModal.exerciseGroups.map((group, groupIndex) => (
+                <div key={group.id}>
+                  {groupIndex > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-zinc-200"></div>
+                        <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Separator</span>
+                        <div className="flex-1 h-px bg-zinc-200"></div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mb-6">
+                  {/* Group Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 bg-zinc-100 rounded-full flex items-center justify-center text-xs font-medium text-zinc-600">
+                        {groupIndex + 1}
+                      </span>
+                      <span className="text-sm text-zinc-500">
+                        {group.groupType === 'none' ? 'Single exercise' : 
+                         group.groupType === 'superset' ? '2 exercises, no rest between' :
+                         group.groupType === 'giant' ? '3+ exercises, no rest between' :
+                         group.groupType === 'triset' ? '3 exercises, no rest between' :
+                         'Multiple exercises in sequence'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={group.groupType}
+                        onChange={(e) => {
+                          const newGroups = [...newExerciseModal.exerciseGroups];
+                          newGroups[groupIndex].groupType = e.target.value;
+                          setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                        }}
+                        className="w-32"
+                      >
                         <option value="none">Single</option>
                         <option value="superset">Superset</option>
                         <option value="giant">Giant</option>
                         <option value="triset">Triset</option>
                         <option value="circuit">Circuit</option>
                       </Select>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input placeholder="Notes" value={newExerciseModal.form.notes} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, notes: (e.target as HTMLInputElement).value } })} />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            
-            {/* Video preview - auto-populated from exercise selection */}
-            {newExerciseModal.form.videoUrl && (
-              <div className="mt-4">
-                <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium text-zinc-700">Video Preview:</span>
-                    {(() => {
-                      const videoUrl = newExerciseModal.form.videoUrl;
-                      const isYouTube = videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be');
-                      const isUpload = videoUrl?.startsWith('/uploads/') || videoUrl?.includes('/api/exercises/upload');
-                      
-                      if (isYouTube) {
-                        return (
-                          <a 
-                            href={videoUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-600 hover:bg-red-100 transition-colors"
-                            title="Watch on YouTube"
-                          >
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                            </svg>
-                            YouTube
-                          </a>
-                        );
-                      } else if (isUpload) {
-                        return (
-                          <a 
-                            href={videoUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-600 hover:bg-blue-100 transition-colors"
-                            title="Watch uploaded video"
-                          >
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5v14l11-7z"/>
-                            </svg>
-                            Video
-                          </a>
-                        );
-                      } else {
-                        return (
-                          <a 
-                            href={videoUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors"
-                            title="Watch video"
-                          >
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5v14l11-7z"/>
-                            </svg>
-                            Video
-                          </a>
-                        );
-                      }
-                    })()}
+                      {group.groupType !== 'none' && (
+                        <button
+                          onClick={() => {
+                            const newGroups = [...newExerciseModal.exerciseGroups];
+                            newGroups[groupIndex].exercises.push({
+                              id: generateId(),
+                              exerciseId: 0,
+                              style: 'sets-reps',
+                              sets: '',
+                              reps: '',
+                              duration: '',
+                              rest: '',
+                              tempo: '',
+                              videoUrl: '',
+                              notes: ''
+                            });
+                            setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                          }}
+                          className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                        >
+                          + Add linked exercise
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-zinc-500 truncate">{newExerciseModal.form.videoUrl}</p>
+
+                  {/* Exercises in Group */}
+                  <div className="space-y-4">
+                    {group.exercises.map((exercise: any, exerciseIndex: number) => (
+                      <div key={exercise.id} className="border border-zinc-200 rounded-lg bg-white p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-700">
+                            {exerciseIndex + 1}
+                          </span>
+                          <span className="text-sm font-semibold text-zinc-800">Exercise {exerciseIndex + 1}</span>
+                          {group.exercises.length > 1 && (
+                            <button
+                              onClick={() => {
+                                const newGroups = [...newExerciseModal.exerciseGroups];
+                                newGroups[groupIndex].exercises.splice(exerciseIndex, 1);
+                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                              }}
+                              className="ml-auto p-1 rounded hover:bg-red-100"
+                            >
+                              <TrashIcon className="w-4 h-4 text-red-500" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-700 mb-1">Exercise</label>
+                            <div className="relative">
+                              <Select
+                                value={exercise.exerciseId}
+                                onChange={(e) => {
+                                  const newGroups = [...newExerciseModal.exerciseGroups];
+                                  newGroups[groupIndex].exercises[exerciseIndex].exerciseId = parseInt(e.target.value);
+                                  const selectedExercise = allExercises.find(ex => ex.id === parseInt(e.target.value));
+                                  if (selectedExercise?.videoUrl) {
+                                    newGroups[groupIndex].exercises[exerciseIndex].videoUrl = selectedExercise.videoUrl;
+                                  }
+                                  setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                }}
+                              >
+                                <option value={0}>Select exercise</option>
+                                {allExercises.map(ex => (
+                                  <option key={ex.id} value={ex.id}>{ex.name}</option>
+                                ))}
+                              </Select>
+                              {(exercise.videoUrl || allExercises.find(ex => ex.id === exercise.exerciseId)?.videoUrl) && (
+                                <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                                  {(() => {
+                                    const videoUrl = exercise.videoUrl || allExercises.find(ex => ex.id === exercise.exerciseId)?.videoUrl;
+                                    const isYouTube = videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be');
+                                    
+                                    if (isYouTube) {
+                                      return (
+                                        <a
+                                          href={videoUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors cursor-pointer"
+                                        >
+                                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                          </svg>
+                                          YouTube
+                                        </a>
+                                      );
+                                    } else {
+                                      return (
+                                        <a
+                                          href={videoUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors cursor-pointer"
+                                        >
+                                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M8 5v14l11-7z"/>
+                                          </svg>
+                                          Video
+                                        </a>
+                                      );
+                                    }
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-700 mb-1">Style</label>
+                            <Select
+                              value={exercise.style}
+                              onChange={(e) => {
+                                const newGroups = [...newExerciseModal.exerciseGroups];
+                                newGroups[groupIndex].exercises[exerciseIndex].style = e.target.value;
+                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                              }}
+                            >
+                              <option value="sets-reps">Sets × Reps</option>
+                              <option value="sets-time">Sets × Time</option>
+                              <option value="time-only">Time Only</option>
+                            </Select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-4 gap-3 mb-4">
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-700 mb-1">Sets</label>
+                            <Input
+                              value={exercise.sets}
+                              onChange={(e) => {
+                                const newGroups = [...newExerciseModal.exerciseGroups];
+                                newGroups[groupIndex].exercises[exerciseIndex].sets = e.target.value;
+                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                              }}
+                              placeholder="3"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-700 mb-1">
+                              {exercise.style === 'sets-reps' ? 'Reps' : exercise.style === 'sets-time' ? 'Time (s)' : 'Duration (s)'}
+                            </label>
+                            <Input
+                              value={exercise.style === 'sets-reps' ? exercise.reps : exercise.duration}
+                              onChange={(e) => {
+                                const newGroups = [...newExerciseModal.exerciseGroups];
+                                if (exercise.style === 'sets-reps') {
+                                  newGroups[groupIndex].exercises[exerciseIndex].reps = e.target.value;
+                                } else {
+                                  newGroups[groupIndex].exercises[exerciseIndex].duration = e.target.value;
+                                }
+                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                              }}
+                              placeholder={exercise.style === 'sets-reps' ? '12' : '30'}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-700 mb-1">Rest between sets (S)</label>
+                            <Input
+                              value={exercise.rest}
+                              onChange={(e) => {
+                                const newGroups = [...newExerciseModal.exerciseGroups];
+                                newGroups[groupIndex].exercises[exerciseIndex].rest = e.target.value;
+                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                              }}
+                              placeholder="60"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-zinc-700 mb-1">Tempo</label>
+                            <Input
+                              value={exercise.tempo}
+                              onChange={(e) => {
+                                const newGroups = [...newExerciseModal.exerciseGroups];
+                                newGroups[groupIndex].exercises[exerciseIndex].tempo = e.target.value;
+                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                              }}
+                              placeholder="e.g. 2-1-2"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-1">Notes</label>
+                          <Textarea
+                            value={exercise.notes}
+                            onChange={(e) => {
+                              const newGroups = [...newExerciseModal.exerciseGroups];
+                              newGroups[groupIndex].exercises[exerciseIndex].notes = e.target.value;
+                              setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                            }}
+                            placeholder="Optional notes..."
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  </div>
                 </div>
-              </div>
-            )}
-            
-            {/* Add linked exercise button - only show for group types */}
-            {newExerciseModal.form.groupType !== 'none' && (
-              <div className="mt-4">
-                <button 
-                  type="button" 
-                  className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm hover:bg-zinc-50 transition-colors"
-                  onClick={() => {
-                    // Add a new linked exercise form
-                    const currentLinked = newExerciseModal.linkedExercises || [];
-                    const newLinkedExercise = {
+              ))}
+
+              {/* Add Another Group Button */}
+              <button
+                onClick={() => {
+                  const newGroups = [...newExerciseModal.exerciseGroups];
+                  newGroups.push({
+                    id: generateId(),
+                    groupType: 'none',
+                    exercises: [{
                       id: generateId(),
                       exerciseId: 0,
                       style: 'sets-reps',
@@ -847,187 +1044,34 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
                       reps: '',
                       duration: '',
                       rest: '',
+                      tempo: '',
                       videoUrl: '',
                       notes: ''
-                    };
-                    setNewExerciseModal(m => m && { 
-                      ...m, 
-                      linkedExercises: [...currentLinked, newLinkedExercise]
-                    });
-                  }}
-                >
-                  + Add linked exercise
-                </button>
-              </div>
-            )}
-            
-            {/* Linked exercises table */}
-            {newExerciseModal.linkedExercises && newExerciseModal.linkedExercises.length > 0 && (
-              <div className="mt-6">
-                <h4 className="text-md font-semibold mb-3 text-zinc-700">Linked Exercises:</h4>
-                <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
-                  <table className="w-full">
-                    <thead className="bg-zinc-50 border-b border-zinc-200">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Exercise</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Style</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Sets</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Reps/Time</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Rest (s)</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Notes</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {newExerciseModal.linkedExercises.map((linkedExercise, index) => (
-                        <tr key={linkedExercise.id} className="border-b border-zinc-100">
-                          <td className="px-4 py-3">
-                            <Select value={linkedExercise.exerciseId} onChange={(e) => {
-                              const selectedId = Number((e.target as HTMLSelectElement).value);
-                              const selectedExercise = allExercises.find(x => x.id === selectedId);
-                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
-                              updatedLinked[index] = {
-                                ...updatedLinked[index],
-                                exerciseId: selectedId,
-                                videoUrl: selectedExercise?.videoUrl || updatedLinked[index].videoUrl
-                              };
-                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                            }}>
-                              <option value={0}>Select exercise…</option>
-                              {allExercises.map(opt => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                            </Select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Select value={linkedExercise.style} onChange={(e) => {
-                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
-                              updatedLinked[index] = { ...updatedLinked[index], style: (e.target as HTMLSelectElement).value };
-                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                            }}>
-                              <option value="sets-reps">Sets × Reps</option>
-                              <option value="sets-time">Sets × Time</option>
-                              <option value="time-only">Time Only</option>
-                            </Select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Input placeholder="Sets" value={linkedExercise.sets} onChange={(e) => {
-                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
-                              updatedLinked[index] = { ...updatedLinked[index], sets: (e.target as HTMLInputElement).value };
-                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                            }} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <Input placeholder={linkedExercise.style === 'time-only' ? 'Time (s)' : 'Reps'} value={linkedExercise.style === 'time-only' ? linkedExercise.duration : linkedExercise.reps} onChange={(e) => {
-                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
-                              const field = linkedExercise.style === 'time-only' ? 'duration' : 'reps';
-                              updatedLinked[index] = { ...updatedLinked[index], [field]: (e.target as HTMLInputElement).value };
-                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                            }} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <Input placeholder="Rest" value={linkedExercise.rest} onChange={(e) => {
-                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
-                              updatedLinked[index] = { ...updatedLinked[index], rest: (e.target as HTMLInputElement).value };
-                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                            }} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <Input placeholder="Notes" value={linkedExercise.notes} onChange={(e) => {
-                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
-                              updatedLinked[index] = { ...updatedLinked[index], notes: (e.target as HTMLInputElement).value };
-                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                            }} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <button 
-                              type="button" 
-                              className="text-red-500 hover:text-red-700 text-sm"
-                              onClick={() => {
-                                const updatedLinked = newExerciseModal.linkedExercises?.filter((_, i) => i !== index) || [];
-                                setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
-                              }}
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+                    }]
+                  });
+                  setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                }}
+                className="w-full py-3 border-2 border-dashed border-zinc-300 rounded-lg text-zinc-600 hover:border-zinc-400 hover:text-zinc-700 transition-colors"
+              >
+                + Add another exercise group
+              </button>
             </div>
-            
-            {/* Sticky Footer */}
-            <div className="border-t border-zinc-200 px-6 py-4 bg-white">
-              <div className="flex justify-end gap-3">
-                <button 
-                  className="border border-zinc-300 rounded-lg px-4 py-2 hover:bg-zinc-50 transition-colors" 
-                  onClick={() => setNewExerciseModal(null)}
-                >
-                  Cancel
-                </button>
-                <button 
-                  className="bg-zinc-900 text-white rounded-lg px-4 py-2 hover:bg-zinc-800 transition-colors" 
-                  onClick={() => {
-                    if (!newExerciseModal) return;
-                    const { wi, di, editIndex, form } = newExerciseModal;
-                    const exerciseData = { 
-                      id: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].id : generateId(), 
-                      key: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].key : `${Date.now()}-${Math.random()}`, 
-                      exerciseId: Number(form.exerciseId||0), 
-                      style: form.style, 
-                      sets: form.sets, 
-                      reps: form.style==='time-only'?'':form.reps, 
-                      duration: form.style==='time-only'? form.duration : '', 
-                      rest: form.rest, 
-                      groupType: form.groupType, 
-                      videoUrl: form.videoUrl, 
-                      notes: form.notes 
-                    };
-                    
-                    if (editIndex !== undefined) {
-                      // Edit existing exercise
-                      setWeeks(prev => prev.map((w, i) => i === wi ? { 
-                        ...w, 
-                        days: w.days.map((d, j) => j === di ? { 
-                          ...d, 
-                          exercises: d.exercises.map((ex, k) => k === editIndex ? exerciseData : ex)
-                        } : d) 
-                      } : w));
-                    } else {
-                      // Add new exercise
-                      setWeeks(prev => prev.map((w, i) => i === wi ? { 
-                        ...w, 
-                        days: w.days.map((d, j) => j === di ? { 
-                          ...d, 
-                          exercises: [...d.exercises, exerciseData]
-                        } : d) 
-                      } : w));
-                    }
-                    setNewExerciseModal(null);
-                  }}
-                >
-                  Save Exercise
-                </button>
-              </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200">
+              <Button
+                onClick={() => setNewExerciseModal(null)}
+                className="bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSaveExercise}>
+                {newExerciseModal.editIndex !== undefined ? 'Update Exercise' : 'Add Exercise'}
+              </Button>
             </div>
           </div>
         </>
       )}
-      <div className="flex justify-start mt-4">
-        <Button className="bg-zinc-900 text-white hover:bg-zinc-800" onClick={addWeek}>+ Add week</Button>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-6 text-red-700">{error}</div>
-      )}
-      <div className="flex justify-end gap-3 mt-8">
-        <Button color="white" className="border border-zinc-200" onClick={() => router.push('/workout-programs')}>Cancel</Button>
-        <Button onClick={handleSave} disabled={saving} className="bg-zinc-900 text-white hover:bg-zinc-800">{saving ? 'Saving…' : 'Save Program'}</Button>
-      </div>
     </div>
   );
 }
-
-
