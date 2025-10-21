@@ -25,7 +25,8 @@
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "react-quill": "^2.0.0",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "puppeteer": "^21.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

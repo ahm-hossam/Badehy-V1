@@ -32,6 +32,7 @@ import financeRoute from './routes/finance';
 import mobileAuthRoute from './routes/mobile-auth';
 import mobileProgramsRoute from './routes/mobile-programs';
 import mobileNutritionRoute from './routes/mobile-nutrition';
+import pdfExportRoute from './routes/pdf-export';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -65,6 +66,8 @@ app.use('/api/profile', profileRoute);
 app.use('/api/checkins', checkinsRoute);
 app.use('/api/notes', notesRoute);
 app.use('/api/exercises', exercisesRoute);
+// PDF Export endpoints (must be before programs route)
+app.use('/api/programs', pdfExportRoute);
 app.use('/api/programs', programsRoute);
 app.use('/api/branding', brandingRoute);
 app.use('/api/templates', templatesRoute);

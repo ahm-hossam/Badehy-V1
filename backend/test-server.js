@@ -11,11 +11,10 @@ app.get('/', (req, res) => {
   res.send('Test server is running!');
 });
 
-app.post('/register/test', (req, res) => {
-  console.log('Test endpoint hit:', req.body);
-  res.json({ message: 'Test received', body: req.body });
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API is working', timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {
-  console.log(`Test server is running on port ${PORT}`);
-}); 
+  console.log(`Test server running on http://localhost:${PORT}`);
+});

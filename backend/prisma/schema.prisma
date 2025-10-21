@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Registered {
@@ -135,7 +135,7 @@ model Subscription {
   isCanceled                    Boolean                        @default(false)
   canceledAt                    DateTime?
   cancelReason                  String?
-  refundAmount                  Decimal?                       @db.Decimal(10, 2)
+  refundAmount                  Float?
   refundType                    String?
   renewalHistory                Json?
   createdAt                     DateTime                       @default(now())
@@ -213,7 +213,7 @@ model Service {
   trainerId   Int
   name        String
   description String?
-  priceEGP    Decimal         @db.Decimal(10, 2)
+  priceEGP    Float
   status      String          @default("active")
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -230,7 +230,7 @@ model ClientService {
   clientId      Int
   serviceId     Int
   serviceName   String
-  priceEGP      Decimal       @db.Decimal(10, 2)
+  priceEGP      Float
   assignedAt    DateTime      @default(now())
   startDate     DateTime?
   endDate       DateTime?
@@ -390,8 +390,8 @@ model Exercise {
   bodyPart         String?
   equipment        String?
   target           String?
-  secondaryMuscles String[]          @default([])
-  instructions     String[]          @default([])
+  secondaryMuscles String?          @default("[]")
+  instructions     String?          @default("[]")
   gifUrl           String?
   source           String?
   createdAt        DateTime          @default(now())
@@ -566,7 +566,7 @@ model FinancialRecord {
   category      String?
   clientId      Int?
   date          DateTime
-  amount        Decimal        @db.Decimal(12, 2)
+  amount        Float
   paymentMethod String?
   notes         String?
   createdAt     DateTime       @default(now())
