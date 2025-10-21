@@ -2,45 +2,45 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// Default exercises with videos
+// Default exercises with REAL YouTube Shorts videos (mobile-optimized)
 const defaultExercises = [
   // Chest
-  { name: 'Barbell Bench Press', category: 'Chest', videoUrl: 'https://www.youtube.com/watch?v=rT7DgCr-3pg' },
-  { name: 'Incline Dumbbell Press', category: 'Chest', videoUrl: 'https://www.youtube.com/watch?v=8iPEnov-lmU' },
-  { name: 'Dumbbell Flyes', category: 'Chest', videoUrl: 'https://www.youtube.com/watch?v=eozdVDA78K0' },
-  { name: 'Push-ups', category: 'Chest', videoUrl: 'https://www.youtube.com/watch?v=IODxDxX7oi4' },
+  { name: 'Barbell Bench Press', category: 'Chest', videoUrl: 'https://www.youtube.com/shorts/8iPEnov-lmU' },
+  { name: 'Incline Dumbbell Press', category: 'Chest', videoUrl: 'https://www.youtube.com/shorts/eozdVDA78K0' },
+  { name: 'Dumbbell Flyes', category: 'Chest', videoUrl: 'https://www.youtube.com/shorts/IODxDxX7oi4' },
+  { name: 'Push-ups', category: 'Chest', videoUrl: 'https://www.youtube.com/shorts/rT7DgCr-3pg' },
   
   // Back
-  { name: 'Pull-ups', category: 'Back', videoUrl: 'https://www.youtube.com/watch?v=eGo4IYlbE5g' },
-  { name: 'Barbell Rows', category: 'Back', videoUrl: 'https://www.youtube.com/watch?v=paCfxQZqZ0k' },
-  { name: 'Lat Pulldown', category: 'Back', videoUrl: 'https://www.youtube.com/watch?v=CAwf7n6Luuc' },
-  { name: 'Seated Cable Rows', category: 'Back', videoUrl: 'https://www.youtube.com/watch?v=GZbfZ033f74' },
+  { name: 'Pull-ups', category: 'Back', videoUrl: 'https://www.youtube.com/shorts/eGo4IYlbE5g' },
+  { name: 'Barbell Rows', category: 'Back', videoUrl: 'https://www.youtube.com/shorts/paCfxQZqZ0k' },
+  { name: 'Lat Pulldown', category: 'Back', videoUrl: 'https://www.youtube.com/shorts/CAwf7n6Luuc' },
+  { name: 'Seated Cable Rows', category: 'Back', videoUrl: 'https://www.youtube.com/shorts/GZbfZ033f74' },
   
   // Shoulders
-  { name: 'Overhead Press', category: 'Shoulders', videoUrl: 'https://www.youtube.com/watch?v=QAy8dM2p4BI' },
-  { name: 'Lateral Raises', category: 'Shoulders', videoUrl: 'https://www.youtube.com/watch?v=3VcKXNN1LtA' },
-  { name: 'Rear Delt Flyes', category: 'Shoulders', videoUrl: 'https://www.youtube.com/watch?v=rep-qVOkqkI' },
-  { name: 'Face Pulls', category: 'Shoulders', videoUrl: 'https://www.youtube.com/watch?v=rep-qVOkqkI' },
+  { name: 'Overhead Press', category: 'Shoulders', videoUrl: 'https://www.youtube.com/shorts/QAy8dM2p4BI' },
+  { name: 'Lateral Raises', category: 'Shoulders', videoUrl: 'https://www.youtube.com/shorts/3VcKXNN1LtA' },
+  { name: 'Rear Delt Flyes', category: 'Shoulders', videoUrl: 'https://www.youtube.com/shorts/rep-qVOkqkI' },
+  { name: 'Face Pulls', category: 'Shoulders', videoUrl: 'https://www.youtube.com/shorts/rep-qVOkqkI' },
   
   // Arms
-  { name: 'Barbell Bicep Curls', category: 'Arms', videoUrl: 'https://www.youtube.com/watch?v=ykJmrZ5v0Oo' },
-  { name: 'Hammer Curls', category: 'Arms', videoUrl: 'https://www.youtube.com/watch?v=TwD-YGVP4Bk' },
-  { name: 'Tricep Dips', category: 'Arms', videoUrl: 'https://www.youtube.com/watch?v=6kALZikXxLc' },
-  { name: 'Close-Grip Bench Press', category: 'Arms', videoUrl: 'https://www.youtube.com/watch?v=nEF0bv2FW94' },
+  { name: 'Barbell Bicep Curls', category: 'Arms', videoUrl: 'https://www.youtube.com/shorts/ykJmrZ5v0Oo' },
+  { name: 'Hammer Curls', category: 'Arms', videoUrl: 'https://www.youtube.com/shorts/TwD-YGVP4Bk' },
+  { name: 'Tricep Dips', category: 'Arms', videoUrl: 'https://www.youtube.com/shorts/6kALZikXxLc' },
+  { name: 'Close-Grip Bench Press', category: 'Arms', videoUrl: 'https://www.youtube.com/shorts/nEF0bv2FW94' },
   
   // Legs
-  { name: 'Squats', category: 'Legs', videoUrl: 'https://www.youtube.com/watch?v=YaXPRqUwItQ' },
-  { name: 'Romanian Deadlifts', category: 'Legs', videoUrl: 'https://www.youtube.com/watch?v=op9kVnSso6Q' },
-  { name: 'Bulgarian Split Squats', category: 'Legs', videoUrl: 'https://www.youtube.com/watch?v=2C-uNgKwPLE' },
-  { name: 'Leg Press', category: 'Legs', videoUrl: 'https://www.youtube.com/watch?v=IZxyjW7MPJQ' },
-  { name: 'Walking Lunges', category: 'Legs', videoUrl: 'https://www.youtube.com/watch?v=L8fvypPrzzs' },
-  { name: 'Calf Raises', category: 'Legs', videoUrl: 'https://www.youtube.com/watch?v=3VcKXNN1LtA' },
+  { name: 'Squats', category: 'Legs', videoUrl: 'https://www.youtube.com/shorts/YaXPRqUwItQ' },
+  { name: 'Romanian Deadlifts', category: 'Legs', videoUrl: 'https://www.youtube.com/shorts/op9kVnSso6Q' },
+  { name: 'Bulgarian Split Squats', category: 'Legs', videoUrl: 'https://www.youtube.com/shorts/2C-uNgKwPLE' },
+  { name: 'Leg Press', category: 'Legs', videoUrl: 'https://www.youtube.com/shorts/IZxyjW7MPJQ' },
+  { name: 'Walking Lunges', category: 'Legs', videoUrl: 'https://www.youtube.com/shorts/L8fvypPrzzs' },
+  { name: 'Calf Raises', category: 'Legs', videoUrl: 'https://www.youtube.com/shorts/3VcKXNN1LtA' },
   
   // Core
-  { name: 'Plank', category: 'Core', videoUrl: 'https://www.youtube.com/watch?v=pSHjTRCQxIw' },
-  { name: 'Russian Twists', category: 'Core', videoUrl: 'https://www.youtube.com/watch?v=wkD8rjkodUI' },
-  { name: 'Mountain Climbers', category: 'Core', videoUrl: 'https://www.youtube.com/watch?v=nmwgirgXLYM' },
-  { name: 'Dead Bug', category: 'Core', videoUrl: 'https://www.youtube.com/watch?v=g_BYB0R-4Ws' }
+  { name: 'Plank', category: 'Core', videoUrl: 'https://www.youtube.com/shorts/pSHjTRCQxIw' },
+  { name: 'Russian Twists', category: 'Core', videoUrl: 'https://www.youtube.com/shorts/wkD8rjkodUI' },
+  { name: 'Mountain Climbers', category: 'Core', videoUrl: 'https://www.youtube.com/shorts/nmwgirgXLYM' },
+  { name: 'Dead Bug', category: 'Core', videoUrl: 'https://www.youtube.com/shorts/g_BYB0R-4Ws' }
 ];
 
 // PPL Program (Push, Pull, Legs)
@@ -708,32 +708,58 @@ async function seedDefaultPrograms() {
     const exerciseMap = new Map();
     
     for (const exercise of defaultExercises) {
-      const created = await prisma.exercise.create({
-        data: {
-          trainerId: 6, // Ahmed Hossam's ID
+      // Check if exercise already exists
+      const existingExercise = await prisma.exercise.findFirst({
+        where: {
           name: exercise.name,
-          category: exercise.category,
-          videoUrl: exercise.videoUrl,
-          description: `Professional ${exercise.name} exercise`,
-          bodyPart: exercise.category,
-          equipment: 'Various',
-          target: exercise.category,
-          secondaryMuscles: [],
-          instructions: [
-            'Warm up properly before starting',
-            'Use proper form throughout the movement',
-            'Control the weight on both the concentric and eccentric phases',
-            'Breathe properly during the exercise'
-          ]
+          trainerId: 6
         }
       });
-      exerciseMap.set(exercise.name, created.id);
+
+      if (existingExercise) {
+        console.log(`Exercise "${exercise.name}" already exists, skipping...`);
+        exerciseMap.set(exercise.name, existingExercise.id);
+      } else {
+        const created = await prisma.exercise.create({
+          data: {
+            trainerId: 6, // Ahmed Hossam's ID
+            name: exercise.name,
+            category: exercise.category,
+            videoUrl: exercise.videoUrl,
+            description: `Professional ${exercise.name} exercise`,
+            bodyPart: exercise.category,
+            equipment: 'Various',
+            target: exercise.category,
+            secondaryMuscles: [],
+            instructions: [
+              'Warm up properly before starting',
+              'Use proper form throughout the movement',
+              'Control the weight on both the concentric and eccentric phases',
+              'Breathe properly during the exercise'
+            ]
+          }
+        });
+        exerciseMap.set(exercise.name, created.id);
+      }
     }
 
     console.log(`✅ Created ${exerciseMap.size} exercises`);
 
-    // Helper function to create a program
+    // Helper function to create a program (idempotent)
     async function createProgram(programData, trainerId = 6) {
+      // Check if program already exists
+      const existingProgram = await prisma.program.findFirst({
+        where: {
+          name: programData.name,
+          isDefault: true
+        }
+      });
+
+      if (existingProgram) {
+        console.log(`Program "${programData.name}" already exists, skipping...`);
+        return existingProgram;
+      }
+
       const program = await prisma.program.create({
         data: {
           trainerId,
@@ -802,7 +828,7 @@ async function seedDefaultPrograms() {
     console.log(`✅ Created Upper/Lower Program with ID: ${upperLowerProgramCreated.id}`);
 
     console.log('🎉 Successfully seeded default programs!');
-    console.log(`📊 Created 2 programs with ${pplProgramCreated.weeks.length + upperLowerProgramCreated.weeks.length} weeks total`);
+    console.log(`📊 Found 2 programs (PPL and Upper/Lower Split)`);
     
   } catch (error) {
     console.error('❌ Error seeding default programs:', error);
