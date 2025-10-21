@@ -156,6 +156,49 @@ export default function ProgramsPage() {
     setConfirmDelete({id: programId, name: programName});
   };
 
+  const handleExportPDF = async (program: Program) => {
+    try {
+      setLoading(true);
+      
+      // Call the backend API to generate PDF
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/programs/${program.id}/export-pdf`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        // Get the HTML content
+        const htmlContent = await response.text();
+        
+        // Create a new window with the HTML content
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+          newWindow.document.write(htmlContent);
+          newWindow.document.close();
+          
+          // Add print functionality
+          newWindow.onload = () => {
+            newWindow.print();
+          };
+        }
+      } else {
+        const data = await response.json();
+        setErrorMessage(data.error || "Failed to export PDF.");
+        setShowErrorToast(true);
+        setTimeout(() => setShowErrorToast(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      setErrorMessage("Failed to export PDF. Please try again.");
+      setShowErrorToast(true);
+      setTimeout(() => setShowErrorToast(false), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmDeleteProgram = async () => {
     if (!confirmDelete) return;
     
@@ -398,6 +441,9 @@ export default function ProgramsPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
+                      <Button outline onClick={() => handleExportPDF(program)} className="px-3 py-1 text-blue-600 hover:text-blue-700">
+                        <DocumentArrowUpIcon className="h-4 w-4 mr-1" />Export PDF
+                      </Button>
                       {program.isImported && program.importedPdfUrl && (
                         <Button outline onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${program.importedPdfUrl}`, '_blank')} className="px-3 py-1">
                           <DocumentArrowUpIcon className="h-4 w-4 mr-1" />View PDF
