@@ -461,6 +461,7 @@ model ProgramDay {
   weekId    Int
   dayNumber Int
   name      String?
+  dayType   String            @default("workout") // "workout" or "off"
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
   week      ProgramWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)

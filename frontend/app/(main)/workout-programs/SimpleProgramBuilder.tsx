@@ -600,7 +600,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
           days: week.days.map(day => ({
             name: day.name,
             dayType: day.dayType || 'workout',
-            exercises: day.exercises.map(ex => ({
+            exercises: day.exercises.filter(ex => ex.exerciseId && ex.exerciseId > 0).map(ex => ({
               exerciseId: ex.exerciseId,
               style: ex.style,
               sets: ex.sets || [],
@@ -639,6 +639,13 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
     <div className="max-w-5xl mx-auto py-8 px-4">
       <h1 className="text-2xl font-bold text-zinc-900 mb-1">{mode === 'edit' ? 'Edit Workout Program' : 'Create Workout Program'}</h1>
       <p className="text-zinc-500 mb-6">Define weeks, add days, then add exercises with sets×reps or time. Clean and simple.</p>
+
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-600 text-sm">{error}</p>
+        </div>
+      )}
 
       <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
         <div className="space-y-4">
@@ -921,12 +928,6 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
         </Button>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-600 text-sm">{error}</p>
-        </div>
-      )}
 
       {/* Save Button */}
       <div className="mt-6 flex justify-end gap-3">
@@ -1588,17 +1589,49 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                       <li key={exercise.id} className="text-sm text-zinc-900 flex items-start">
                                         <span className="text-zinc-400 mr-2 mt-0.5">•</span>
                                         <div className="flex-1 flex items-center gap-2">
-                                          {hasVideo && (
-                                            <button
-                                              onClick={() => window.open(getVideoUrl(exercise.videoUrl), '_blank')}
-                                              className="flex-shrink-0 w-5 h-5 bg-red-600 hover:bg-red-700 rounded flex items-center justify-center transition-colors"
-                                              title="Open video"
-                                            >
-                                              <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M8 5v10l8-5-8-5z"/>
-                                              </svg>
-                                            </button>
-                                          )}
+                                          {hasVideo && (() => {
+                                            const videoUrl = getVideoUrl(exercise.videoUrl);
+                                            const isYouTube = exercise.videoUrl.includes('youtube') || exercise.videoUrl.includes('youtu.be');
+                                            const isUpload = exercise.videoUrl.startsWith('/uploads/');
+                                            
+                                            if (isYouTube) {
+                                              return (
+                                                <button
+                                                  onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                                                  className="flex-shrink-0 w-5 h-5 bg-red-600 hover:bg-red-700 rounded flex items-center justify-center transition-colors"
+                                                  title="Open YouTube video"
+                                                >
+                                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                                  </svg>
+                                                </button>
+                                              );
+                                            } else if (isUpload) {
+                                              return (
+                                                <button
+                                                  onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                                                  className="flex-shrink-0 w-5 h-5 bg-blue-600 hover:bg-blue-700 rounded flex items-center justify-center transition-colors"
+                                                  title="Open uploaded video"
+                                                >
+                                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M8 5v10l8-5-8-5z"/>
+                                                  </svg>
+                                                </button>
+                                              );
+                                            } else {
+                                              return (
+                                                <button
+                                                  onClick={() => setVideoModal({ open: true, url: videoUrl })}
+                                                  className="flex-shrink-0 w-5 h-5 bg-gray-600 hover:bg-gray-700 rounded flex items-center justify-center transition-colors"
+                                                  title="Open video"
+                                                >
+                                                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path d="M8 5v10l8-5-8-5z"/>
+                                                  </svg>
+                                                </button>
+                                              );
+                                            }
+                                          })()}
                                           <span className="flex-1">{mainLine}</span>
                                         </div>
                                       </li>
