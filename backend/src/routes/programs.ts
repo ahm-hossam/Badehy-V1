@@ -45,7 +45,10 @@ router.get('/', async (req, res) => {
 
     const programs = await prisma.program.findMany({
       where: {
-        trainerId: Number(trainerId)
+        OR: [
+          { trainerId: Number(trainerId) },
+          { isDefault: true }
+        ]
       },
       include: {
         weeks: {
