@@ -922,7 +922,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
 
       {/* Add Week Button */}
       <div className="mt-6 flex justify-start">
-        <Button onClick={addWeek} className="px-6">
+        <Button onClick={addWeek} className="px-6 h-10">
           <PlusIcon className="w-4 h-4 mr-2" />
           Add Week
         </Button>
@@ -931,14 +931,15 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
 
       {/* Save Button */}
       <div className="mt-6 flex justify-end gap-3">
-        <button 
+        <Button 
           onClick={openPreview} 
-          className="px-6 py-2 flex items-center gap-2 bg-white border border-zinc-300 text-black hover:bg-zinc-50 rounded-md font-medium transition-colors"
+          outline
+          className="px-6 h-10"
         >
-          <EyeIcon className="w-4 h-4" />
+          <EyeIcon className="w-4 h-4 mr-2" />
           Preview Program
-        </button>
-        <Button onClick={handleSave} disabled={saving} className="px-8">
+        </Button>
+        <Button onClick={handleSave} disabled={saving} className="px-8 h-10">
           {saving ? 'Saving...' : 'Save Program'}
         </Button>
       </div>
