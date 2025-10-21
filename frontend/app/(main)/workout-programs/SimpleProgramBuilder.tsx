@@ -14,14 +14,14 @@ import { Bars3Icon, PencilIcon, ChevronDownIcon, ChevronRightIcon, TrashIcon, Pl
 import { Dropdown, DropdownButton, DropdownMenu, DropdownItem } from '@/components/dropdown';
 import { Dialog } from '@/components/dialog';
 
-type GroupType = 'none' | 'superset' | 'giant' | 'triset' | 'circuit';
+type GroupType = 'none' | 'superset' | 'giant' | 'triset' | 'circuit' | 'emom' | 'tabata' | 'rft' | 'amrap';
 
 type SimpleExercise = {
   id: number;
   key: string;
   exerciseId: number;
   name?: string;
-  style: 'sets-reps' | 'sets-time' | 'time-only';
+  style: 'sets-reps' | 'sets-time' | 'time-only' | 'distance' | 'calories';
   sets: string;
   reps: string;
   duration: string;
@@ -234,7 +234,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
     });
   }, []);
 
-  // Hydrate edit
+  // Hydrate edit or set default
   React.useEffect(() => {
     if (mode === 'edit' && initialData) {
       setProgramName(initialData.name || '');
@@ -242,8 +242,22 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       if (initialData.weeks) {
         setWeeks(initialData.weeks);
       }
+    } else if (mode === 'create' && weeks.length === 0) {
+      // Set default week with 1 day for create mode
+      const defaultWeekId = generateId();
+      setWeeks([{
+        id: defaultWeekId,
+        name: 'Week 1',
+        days: [{
+          id: generateId(),
+          name: 'Day 1',
+          exercises: []
+        }]
+      }]);
+      // Open the default week by default
+      setOpenWeeks(new Set([defaultWeekId]));
     }
-  }, [mode, initialData]);
+  }, [mode, initialData, weeks.length, generateId]);
 
   // dnd setup
   const sensors = useSensors(useSensor(PointerSensor));
@@ -796,19 +810,28 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                   )}
                   <div className="mb-6">
                   {/* Group Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 bg-zinc-100 rounded-full flex items-center justify-center text-xs font-medium text-zinc-600">
-                        {groupIndex + 1}
-                      </span>
-                      <span className="text-sm text-zinc-500">
-                        {group.groupType === 'none' ? 'Single exercise' : 
-                         group.groupType === 'superset' ? '2 exercises, no rest between' :
-                         group.groupType === 'giant' ? '3+ exercises, no rest between' :
-                         group.groupType === 'triset' ? '3 exercises, no rest between' :
-                         'Multiple exercises in sequence'}
-                      </span>
-                    </div>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 bg-zinc-100 rounded-full flex items-center justify-center text-xs font-medium text-zinc-600">
+                          {groupIndex + 1}
+                        </span>
+                        <div className="flex flex-col">
+                          <h5 className="text-sm font-semibold text-zinc-900">Workout Type</h5>
+                          <span className="text-sm text-zinc-500">
+                            {group.groupType === 'none' ? 'Single exercise' : 
+                             group.groupType === 'superset' ? '2 exercises, no rest between' :
+                             group.groupType === 'giant' ? '3+ exercises, no rest between' :
+                             group.groupType === 'triset' ? '3 exercises, no rest between' :
+                             group.groupType === 'circuit' ? 'Multiple exercises in sequence' :
+                             group.groupType === 'emom' ? 'Every minute on the minute' :
+                             group.groupType === 'tabata' ? '20 seconds work, 10 seconds rest' :
+                             group.groupType === 'rft' ? 'Rounds for time' :
+                             group.groupType === 'amrap' ? 'As many rounds as possible' :
+                             'Multiple exercises in sequence'}
+                          </span>
+                        </div>
+                      </div>
                     <div className="flex items-center gap-2">
                       <Select
                         value={group.groupType}
@@ -824,6 +847,10 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                         <option value="giant">Giant</option>
                         <option value="triset">Triset</option>
                         <option value="circuit">Circuit</option>
+                        <option value="emom">EMOM</option>
+                        <option value="tabata">TABATA</option>
+                        <option value="rft">RFT</option>
+                        <option value="amrap">AMRAP</option>
                       </Select>
                       {group.groupType !== 'none' && (
                         <button
@@ -843,11 +870,25 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                             });
                             setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
                           }}
-                          className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                          className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 whitespace-nowrap"
                         >
                           + Add linked exercise
                         </button>
                       )}
+                      {newExerciseModal.exerciseGroups.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const newGroups = [...newExerciseModal.exerciseGroups];
+                            newGroups.splice(groupIndex, 1);
+                            setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                          }}
+                          className="p-1 rounded hover:bg-red-100"
+                          title="Remove exercise group"
+                        >
+                          <TrashIcon className="w-4 h-4 text-red-500" />
+                        </button>
+                      )}
+                      </div>
                     </div>
                   </div>
 
@@ -868,6 +909,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                 setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
                               }}
                               className="ml-auto p-1 rounded hover:bg-red-100"
+                              title="Remove exercise"
                             >
                               <TrashIcon className="w-4 h-4 text-red-500" />
                             </button>
@@ -948,6 +990,8 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                               <option value="sets-reps">Sets × Reps</option>
                               <option value="sets-time">Sets × Time</option>
                               <option value="time-only">Time Only</option>
+                              <option value="distance">Distance</option>
+                              <option value="calories">Calories</option>
                             </Select>
                           </div>
                         </div>
@@ -967,7 +1011,11 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-zinc-700 mb-1">
-                              {exercise.style === 'sets-reps' ? 'Reps' : exercise.style === 'sets-time' ? 'Time (s)' : 'Duration (s)'}
+                              {exercise.style === 'sets-reps' ? 'Reps' : 
+                               exercise.style === 'sets-time' ? 'Time (s)' : 
+                               exercise.style === 'time-only' ? 'Duration (s)' :
+                               exercise.style === 'distance' ? 'Distance' :
+                               exercise.style === 'calories' ? 'Calories' : 'Duration (s)'}
                             </label>
                             <Input
                               value={exercise.style === 'sets-reps' ? exercise.reps : exercise.duration}
@@ -980,7 +1028,9 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                 }
                                 setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
                               }}
-                              placeholder={exercise.style === 'sets-reps' ? '12' : '30'}
+                              placeholder={exercise.style === 'sets-reps' ? '12' : 
+                                         exercise.style === 'distance' ? '5km' :
+                                         exercise.style === 'calories' ? '300' : '30'}
                             />
                           </div>
                           <div>
@@ -1059,12 +1109,12 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
 
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200">
-              <Button
+              <button
                 onClick={() => setNewExerciseModal(null)}
-                className="bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                className="px-3 py-1.5 text-sm font-medium bg-white text-zinc-900 border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2"
               >
                 Cancel
-              </Button>
+              </button>
               <Button onClick={handleSaveExercise}>
                 {newExerciseModal.editIndex !== undefined ? 'Update Exercise' : 'Add Exercise'}
               </Button>
