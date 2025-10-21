@@ -16,22 +16,30 @@ import { Dialog } from '@/components/dialog';
 
 type GroupType = 'none' | 'superset' | 'giant' | 'triset' | 'circuit' | 'emom' | 'tabata' | 'rft' | 'amrap';
 
+type ExerciseSet = {
+  id: number;
+  reps: string;
+  rest: string;
+  tempo: string;
+  rpe?: string; // Rate of Perceived Exertion
+};
+
 type SimpleExercise = {
   id: number;
   key: string;
   exerciseId: number;
   name?: string;
   style: 'sets-reps' | 'sets-time' | 'time-only' | 'distance' | 'calories';
-  sets: string;
-  reps: string;
+  sets: ExerciseSet[];
   duration: string;
-  rest: string;
-  tempo: string;
   videoUrl: string;
   notes: string;
   groupType: GroupType;
   groupId?: string;
   order: number;
+  dropset: boolean;
+  singleLeg: boolean;
+  failure: boolean;
 };
 
 type SimpleDay = {
@@ -57,6 +65,7 @@ const ExerciseRow = ({
   exerciseName, 
   styleText, 
   restText, 
+  tempoText, 
   groupText, 
   allExercises, 
   onEdit, 
@@ -69,6 +78,7 @@ const ExerciseRow = ({
   exerciseName: string;
   styleText: string;
   restText: string;
+  tempoText: string;
   groupText: string;
   allExercises: ExerciseOption[];
   onEdit: (form: any) => void;
@@ -90,7 +100,7 @@ const ExerciseRow = ({
   return (
     <div ref={setNodeRef} style={style} className="px-4 py-3 hover:bg-zinc-50">
       <div className="grid grid-cols-12 gap-4 items-center">
-        <div className="col-span-4">
+        <div className="col-span-3">
           <div className="flex items-center gap-2">
             <span className="font-medium text-zinc-900 truncate">{exerciseName}</span>
             {(exercise.videoUrl || allExercises.find(x => x.id === exercise.exerciseId)?.videoUrl) && (
@@ -152,7 +162,8 @@ const ExerciseRow = ({
           )}
         </div>
         <div className="col-span-2 text-sm text-zinc-700">{styleText}</div>
-        <div className="col-span-2 text-sm text-zinc-700">{restText}</div>
+        <div className="col-span-1 text-sm text-zinc-700">{restText}</div>
+        <div className="col-span-2 text-sm text-zinc-700">{tempoText}</div>
         <div className="col-span-2 text-sm text-zinc-700">{groupText}</div>
         <div className="col-span-2">
           <div className="flex items-center gap-1">
@@ -169,10 +180,7 @@ const ExerciseRow = ({
                 exerciseId: exercise.exerciseId, 
                 style: exercise.style, 
                 sets: exercise.sets, 
-                reps: exercise.reps, 
                 duration: exercise.duration, 
-                rest: exercise.rest, 
-                tempo: exercise.tempo, 
                 videoUrl: exercise.videoUrl, 
                 notes: exercise.notes 
               })}
@@ -391,18 +399,24 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       exerciseGroups: [{
         id: generateId(),
         groupType: 'none',
-        exercises: [{
-          id: generateId(),
-          exerciseId: 0,
-          style: 'sets-reps',
-          sets: '',
-          reps: '',
-          duration: '',
-          rest: '',
-          tempo: '',
-          videoUrl: '',
-          notes: ''
-        }]
+                      exercises: [{
+                        id: generateId(),
+                        exerciseId: 0,
+                        style: 'sets-reps',
+                        sets: [{
+                          id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                          reps: '',
+                          rest: '',
+                          tempo: '',
+                          rpe: ''
+                        }],
+                        duration: '',
+                        videoUrl: '',
+                        notes: '',
+                        dropset: false,
+                        singleLeg: false,
+                        failure: false
+                      }]
       }]
     });
   }, [generateId]);
@@ -429,15 +443,15 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
         key: `ex-${exercise.id}`,
         exerciseId: exercise.exerciseId,
         style: exercise.style,
-        sets: exercise.sets,
-        reps: exercise.reps,
+        sets: exercise.sets || [],
         duration: exercise.duration,
-        rest: exercise.rest,
-        tempo: exercise.tempo,
         videoUrl: exercise.videoUrl,
         notes: exercise.notes,
         groupType: group.groupType,
-        order: 0
+        order: 0,
+        dropset: exercise.dropset || false,
+        singleLeg: exercise.singleLeg || false,
+        failure: exercise.failure || false
       }))
     );
 
@@ -472,16 +486,16 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
             exercises: day.exercises.map(ex => ({
               exerciseId: ex.exerciseId,
               style: ex.style,
-              sets: ex.sets,
-              reps: ex.reps,
+              sets: ex.sets || [],
               duration: ex.duration,
-              rest: ex.rest,
-              tempo: ex.tempo,
               videoUrl: ex.videoUrl,
               notes: ex.notes,
               groupType: ex.groupType,
               groupId: ex.groupId,
-              order: ex.order
+              order: ex.order,
+              dropset: ex.dropset || false,
+              singleLeg: ex.singleLeg || false,
+              failure: ex.failure || false
             }))
           }))
         }))
@@ -510,14 +524,14 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       <p className="text-zinc-500 mb-6">Define weeks, add days, then add exercises with sets×reps or time. Clean and simple.</p>
 
       <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">Program name</label>
-            <Input value={programName} onChange={(e) => setProgramName((e.target as HTMLInputElement).value)} placeholder="e.g. 4-Week Hypertrophy" />
+            <Input value={programName} onChange={(e) => setProgramName((e.target as HTMLInputElement).value)} placeholder="e.g. 4-Week Hypertrophy" className="w-full" />
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">Description</label>
-            <Textarea value={programDescription} onChange={(e) => setProgramDescription((e.target as HTMLTextAreaElement).value)} placeholder="Optional" />
+            <Textarea value={programDescription} onChange={(e) => setProgramDescription((e.target as HTMLTextAreaElement).value)} placeholder="Optional" className="w-full" />
           </div>
         </div>
       </div>
@@ -670,9 +684,10 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                         {/* Table Header */}
                         <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-2">
                           <div className="grid grid-cols-12 gap-4 text-xs font-medium text-zinc-600 uppercase tracking-wide">
-                            <div className="col-span-4">Exercise</div>
+                            <div className="col-span-3">Exercise</div>
                             <div className="col-span-2">Sets × Reps</div>
-                            <div className="col-span-2">Rest</div>
+                            <div className="col-span-1">Rest</div>
+                            <div className="col-span-2">Tempo</div>
                             <div className="col-span-2">Group</div>
                             <div className="col-span-2">Actions</div>
                           </div>
@@ -684,12 +699,24 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                           {day.exercises.map((ex, ei) => {
                             const exerciseName = allExercises.find(x => x.id === ex.exerciseId)?.name || ex.name || 'Unknown Exercise';
                             const styleText = ex.style === 'sets-reps' 
-                              ? `${ex.sets || '?'} × ${ex.reps || '?'}`
+                              ? ex.sets.length > 0 
+                                ? `${ex.sets.length} × ${ex.sets.map(set => `${set.reps || '?'}`).join(', ')}`
+                                : 'No sets'
                               : ex.style === 'sets-time' 
-                              ? `${ex.sets || '?'} × ${ex.duration || '?'}s`
+                              ? ex.sets.length > 0
+                                ? `${ex.sets.length} × ${ex.sets.map(set => `${set.reps || '?'}s`).join(', ')}`
+                                : 'No sets'
                               : `${ex.duration || '?'}s`;
-                            const restText = ex.rest ? `${ex.rest}s` : '-';
-                            const groupText = ex.groupType !== 'none' ? ex.groupType.charAt(0).toUpperCase() + ex.groupType.slice(1) : '-';
+                            
+                            const modifierText = `${ex.dropset ? ' + Dropset' : ''}${ex.singleLeg ? ' + Single Leg' : ''}${ex.failure ? ' + Failure' : ''}`;
+                            const finalStyleText = styleText + modifierText;
+                            const restText = ex.sets.length > 0 
+                              ? ex.sets.map(set => `${set.rest || '?'}s`).join(', ')
+                              : '-';
+                            const tempoText = ex.sets.length > 0
+                              ? ex.sets.map(set => set.tempo || '-').join(', ')
+                              : '-';
+                            const groupText = ex.groupType === 'none' ? 'Single' : ex.groupType.charAt(0).toUpperCase() + ex.groupType.slice(1);
                             
                             return (
                               <ExerciseRow 
@@ -699,8 +726,9 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                 weekIndex={wi}
                                 dayIndex={di}
                                 exerciseName={exerciseName}
-                                styleText={styleText}
+                                styleText={finalStyleText}
                                 restText={restText}
+                                tempoText={tempoText}
                                 groupText={groupText}
                                 allExercises={allExercises}
                                 onEdit={(form) => {
@@ -711,18 +739,24 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                                     editIndex: ei,
                                     exerciseGroups: [{
                                       id: generateId(),
-                                      groupType: 'none',
+                                      groupType: ex.groupType || 'none',
                                       exercises: [{
                                         id: ex.id,
                                         exerciseId: ex.exerciseId,
                                         style: ex.style,
-                                        sets: ex.sets,
-                                        reps: ex.reps,
+                                        sets: ex.sets && ex.sets.length > 0 ? ex.sets : [{
+                                          id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                                          reps: '',
+                                          rest: '',
+                                          tempo: '',
+                                          rpe: ''
+                                        }],
                                         duration: ex.duration,
-                                        rest: ex.rest,
-                                        tempo: ex.tempo,
                                         videoUrl: ex.videoUrl,
-                                        notes: ex.notes
+                                        notes: ex.notes,
+                                        dropset: ex.dropset || false,
+                                        singleLeg: ex.singleLeg || false,
+                                        failure: ex.failure || false
                                       }]
                                     }]
                                   });
@@ -860,13 +894,19 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                               id: generateId(),
                               exerciseId: 0,
                               style: 'sets-reps',
-                              sets: '',
-                              reps: '',
+                              sets: [{
+                                id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                                reps: '',
+                                rest: '',
+                                tempo: '',
+                                rpe: ''
+                              }],
                               duration: '',
-                              rest: '',
-                              tempo: '',
                               videoUrl: '',
-                              notes: ''
+                              notes: '',
+                              dropset: false,
+                              singleLeg: false,
+                              failure: false
                             });
                             setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
                           }}
@@ -996,66 +1036,165 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-3 mb-4">
-                          <div>
-                            <label className="block text-sm font-medium text-zinc-700 mb-1">Sets</label>
-                            <Input
-                              value={exercise.sets}
-                              onChange={(e) => {
+                        {/* Per-Set Configuration Table */}
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block text-sm font-medium text-zinc-700">Sets Configuration</label>
+                            <button
+                              type="button"
+                              onClick={() => {
                                 const newGroups = [...newExerciseModal.exerciseGroups];
-                                newGroups[groupIndex].exercises[exerciseIndex].sets = e.target.value;
+                                const newSet = {
+                                  id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                                  reps: '',
+                                  rest: '',
+                                  tempo: '',
+                                  rpe: ''
+                                };
+                                newGroups[groupIndex].exercises[exerciseIndex].sets.push(newSet);
                                 setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
                               }}
-                              placeholder="3"
-                            />
+                              className="px-3 py-1 text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100"
+                            >
+                              + Add Set
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-zinc-700 mb-1">
-                              {exercise.style === 'sets-reps' ? 'Reps' : 
-                               exercise.style === 'sets-time' ? 'Time (s)' : 
-                               exercise.style === 'time-only' ? 'Duration (s)' :
-                               exercise.style === 'distance' ? 'Distance' :
-                               exercise.style === 'calories' ? 'Calories' : 'Duration (s)'}
+                          
+                          {exercise.sets.length > 0 ? (
+                            <div className="overflow-hidden border border-zinc-200 rounded-lg">
+                              {/* Table Header */}
+                              <div className="bg-zinc-50 border-b border-zinc-200 px-4 py-2">
+                                <div className="grid grid-cols-5 gap-4 text-xs font-medium text-zinc-600 uppercase tracking-wide">
+                                  <div>Set</div>
+                                  <div>{exercise.style === 'sets-reps' ? 'Reps' : 
+                                        exercise.style === 'sets-time' ? 'Time (s)' : 
+                                        exercise.style === 'time-only' ? 'Duration (s)' :
+                                        exercise.style === 'distance' ? 'Distance' :
+                                        exercise.style === 'calories' ? 'Calories' : 'Duration (s)'}</div>
+                                  <div>Rest (s)</div>
+                                  <div>Tempo</div>
+                                  <div>Actions</div>
+                                </div>
+                              </div>
+                              
+                              {/* Table Body */}
+                              <div className="divide-y divide-zinc-200">
+                                {exercise.sets.map((set: any, setIndex: number) => (
+                                  <div key={set.id} className="px-4 py-3">
+                                    <div className="grid grid-cols-5 gap-4 items-center">
+                                      <div className="text-sm font-medium text-zinc-700">
+                                        {setIndex + 1}
+                                      </div>
+                                      <div>
+                                        <Input
+                                          value={set.reps}
+                                          onChange={(e) => {
+                                            const newGroups = [...newExerciseModal.exerciseGroups];
+                                            newGroups[groupIndex].exercises[exerciseIndex].sets[setIndex].reps = e.target.value;
+                                            setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                          }}
+                                          placeholder={exercise.style === 'sets-reps' ? '12' : 
+                                                     exercise.style === 'distance' ? '5km' :
+                                                     exercise.style === 'calories' ? '300' : '30'}
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Input
+                                          value={set.rest}
+                                          onChange={(e) => {
+                                            const newGroups = [...newExerciseModal.exerciseGroups];
+                                            newGroups[groupIndex].exercises[exerciseIndex].sets[setIndex].rest = e.target.value;
+                                            setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                          }}
+                                          placeholder="60"
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Input
+                                          value={set.tempo}
+                                          onChange={(e) => {
+                                            const newGroups = [...newExerciseModal.exerciseGroups];
+                                            newGroups[groupIndex].exercises[exerciseIndex].sets[setIndex].tempo = e.target.value;
+                                            setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                          }}
+                                          placeholder="2-1-2"
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                      <div className="flex justify-center">
+                                        {exercise.sets.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const newGroups = [...newExerciseModal.exerciseGroups];
+                                              newGroups[groupIndex].exercises[exerciseIndex].sets.splice(setIndex, 1);
+                                              setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                            }}
+                                            className="p-1 rounded hover:bg-red-100"
+                                            title="Remove set"
+                                          >
+                                            <TrashIcon className="w-4 h-4 text-red-500" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-zinc-500 border-2 border-dashed border-zinc-300 rounded-lg">
+                              <p className="text-sm">No sets added yet</p>
+                              <p className="text-xs mt-1">Click "Add Set" to get started</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Exercise Flags */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-zinc-700 mb-2">Exercise Modifiers</label>
+                          <div className="flex flex-wrap gap-4">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={exercise.dropset || false}
+                                onChange={(e) => {
+                                  const newGroups = [...newExerciseModal.exerciseGroups];
+                                  newGroups[groupIndex].exercises[exerciseIndex].dropset = e.target.checked;
+                                  setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                }}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-zinc-700">Dropset (last set)</span>
                             </label>
-                            <Input
-                              value={exercise.style === 'sets-reps' ? exercise.reps : exercise.duration}
-                              onChange={(e) => {
-                                const newGroups = [...newExerciseModal.exerciseGroups];
-                                if (exercise.style === 'sets-reps') {
-                                  newGroups[groupIndex].exercises[exerciseIndex].reps = e.target.value;
-                                } else {
-                                  newGroups[groupIndex].exercises[exerciseIndex].duration = e.target.value;
-                                }
-                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
-                              }}
-                              placeholder={exercise.style === 'sets-reps' ? '12' : 
-                                         exercise.style === 'distance' ? '5km' :
-                                         exercise.style === 'calories' ? '300' : '30'}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-zinc-700 mb-1">Rest between sets (S)</label>
-                            <Input
-                              value={exercise.rest}
-                              onChange={(e) => {
-                                const newGroups = [...newExerciseModal.exerciseGroups];
-                                newGroups[groupIndex].exercises[exerciseIndex].rest = e.target.value;
-                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
-                              }}
-                              placeholder="60"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-zinc-700 mb-1">Tempo</label>
-                            <Input
-                              value={exercise.tempo}
-                              onChange={(e) => {
-                                const newGroups = [...newExerciseModal.exerciseGroups];
-                                newGroups[groupIndex].exercises[exerciseIndex].tempo = e.target.value;
-                                setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
-                              }}
-                              placeholder="e.g. 2-1-2"
-                            />
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={exercise.singleLeg || false}
+                                onChange={(e) => {
+                                  const newGroups = [...newExerciseModal.exerciseGroups];
+                                  newGroups[groupIndex].exercises[exerciseIndex].singleLeg = e.target.checked;
+                                  setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                }}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-zinc-700">Single Leg</span>
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={exercise.failure || false}
+                                onChange={(e) => {
+                                  const newGroups = [...newExerciseModal.exerciseGroups];
+                                  newGroups[groupIndex].exercises[exerciseIndex].failure = e.target.checked;
+                                  setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
+                                }}
+                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-zinc-700">To Failure</span>
+                            </label>
                           </div>
                         </div>
 
@@ -1086,18 +1225,24 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                   newGroups.push({
                     id: generateId(),
                     groupType: 'none',
-                    exercises: [{
-                      id: generateId(),
-                      exerciseId: 0,
-                      style: 'sets-reps',
-                      sets: '',
-                      reps: '',
-                      duration: '',
-                      rest: '',
-                      tempo: '',
-                      videoUrl: '',
-                      notes: ''
-                    }]
+                      exercises: [{
+                        id: generateId(),
+                        exerciseId: 0,
+                        style: 'sets-reps',
+                        sets: [{
+                          id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                          reps: '',
+                          rest: '',
+                          tempo: '',
+                          rpe: ''
+                        }],
+                        duration: '',
+                        videoUrl: '',
+                        notes: '',
+                        dropset: false,
+                        singleLeg: false,
+                        failure: false
+                      }]
                   });
                   setNewExerciseModal({ ...newExerciseModal, exerciseGroups: newGroups });
                 }}
