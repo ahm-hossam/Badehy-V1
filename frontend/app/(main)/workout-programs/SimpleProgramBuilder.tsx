@@ -230,7 +230,48 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
 
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [isClosing, setIsClosing] = React.useState(false);
+  const [isOpening, setIsOpening] = React.useState(false);
   const router = useRouter();
+
+  // Handle opening animation
+  React.useEffect(() => {
+    if (newExerciseModal?.open) {
+      setIsOpening(true);
+      // Trigger animation after a small delay
+      setTimeout(() => {
+        setIsOpening(false);
+      }, 50);
+    }
+  }, [newExerciseModal?.open]);
+
+  // Handle closing animation
+  const closeModal = React.useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setNewExerciseModal(null);
+      setIsClosing(false);
+    }, 300); // Match animation duration
+  }, []);
+
+  // Track scroll position to prevent jumping to top
+  const scrollPositionRef = React.useRef(0);
+  
+  React.useEffect(() => {
+    const handleScroll = () => {
+      scrollPositionRef.current = window.scrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Restore scroll position after state updates using useLayoutEffect
+  React.useLayoutEffect(() => {
+    if (scrollPositionRef.current > 0) {
+      window.scrollTo(0, scrollPositionRef.current);
+    }
+  }, [weeks, newExerciseModal, openWeeks]);
 
   // Load exercises
   React.useEffect(() => {
@@ -329,11 +370,25 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
   }
 
   const addWeek = useCallback(() => {
-    setWeeks(prev => [...prev, { id: generateId(), name: `Week ${prev.length + 1}`, days: [] }]);
+    const currentScroll = window.scrollY;
+    setWeeks(prev => [...prev, { 
+      id: generateId(), 
+      name: `Week ${prev.length + 1}`, 
+      days: [{
+        id: generateId(),
+        name: 'Day 1',
+        exercises: []
+      }]
+    }]);
+    // Restore scroll position after state update
+    setTimeout(() => window.scrollTo(0, currentScroll), 0);
   }, [generateId]);
 
   const addDay = useCallback((wi: number) => {
+    const currentScroll = window.scrollY;
     setWeeks(prev => prev.map((w, i) => i === wi ? { ...w, days: [...w.days, { id: generateId(), name: `Day ${w.days.length + 1}`, exercises: [] }] } : w));
+    // Restore scroll position after state update
+    setTimeout(() => window.scrollTo(0, currentScroll), 0);
   }, [generateId]);
 
   const duplicateWeek = useCallback((wi: number) => {
@@ -434,6 +489,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
   const handleSaveExercise = useCallback(() => {
     if (!newExerciseModal) return;
     
+    const currentScroll = window.scrollY;
     const { wi, di, editIndex, exerciseGroups } = newExerciseModal;
     
     // Flatten all exercises from all groups
@@ -465,8 +521,10 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       } : d)
     } : w));
 
-    setNewExerciseModal(null);
-  }, [newExerciseModal]);
+    closeModal();
+    // Restore scroll position after state update
+    setTimeout(() => window.scrollTo(0, currentScroll), 0);
+  }, [newExerciseModal, closeModal]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -808,19 +866,23 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setNewExerciseModal(null)}
+            className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ${
+              isClosing ? 'opacity-0' : 'opacity-100'
+            }`}
+            onClick={closeModal}
           />
           
           {/* Side Panel */}
-          <div className="fixed right-0 top-0 h-full w-[800px] bg-white shadow-xl z-50 flex flex-col">
+          <div className={`fixed right-0 top-0 h-full w-[800px] bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out ${
+            isClosing ? 'translate-x-full' : isOpening ? 'translate-x-full' : 'translate-x-0'
+          }`}>
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-zinc-200">
               <h3 className="text-lg font-semibold text-zinc-900">
                 {newExerciseModal.editIndex !== undefined ? 'Edit Exercise' : 'Add Exercise'}
               </h3>
               <button
-                onClick={() => setNewExerciseModal(null)}
+                onClick={closeModal}
                 className="p-2 rounded-lg hover:bg-zinc-100"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1255,7 +1317,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
             {/* Footer */}
             <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200">
               <button
-                onClick={() => setNewExerciseModal(null)}
+                onClick={closeModal}
                 className="px-3 py-1.5 text-sm font-medium bg-white text-zinc-900 border border-zinc-300 rounded-md hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2"
               >
                 Cancel
