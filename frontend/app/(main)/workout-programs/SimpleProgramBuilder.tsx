@@ -349,7 +349,7 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
     });
   };
 
-  const [newExerciseModal, setNewExerciseModal] = React.useState<{ open: boolean; wi: number; di: number; editIndex?: number; form: any } | null>(null);
+  const [newExerciseModal, setNewExerciseModal] = React.useState<{ open: boolean; wi: number; di: number; editIndex?: number; form: any; linkedExercises?: any[] } | null>(null);
   const addExercise = (weekIdx: number, dayIdx: number) => {
     setNewExerciseModal({ open: true, wi: weekIdx, di: dayIdx, form: { exerciseId: 0, style: 'sets-reps', sets: '', reps: '', duration: '', groupType: 'none', rest: '', videoSource: 'youtube', videoUrl: '', notes: '' } });
   };
@@ -676,142 +676,344 @@ export default function SimpleProgramBuilder({ mode, initialData }: { mode: 'cre
         </SortableContext>
       </DndContext>
       {newExerciseModal?.open && (
-        <Dialog open onClose={() => setNewExerciseModal(null)}>
-          <div className="p-4 w-[680px] max-w-full">
-            <h3 className="text-lg font-semibold mb-3">{newExerciseModal.editIndex !== undefined ? 'Edit exercise' : 'Add exercise'}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-              {/* Row 1: Exercise + Style */}
-              <div className="md:col-span-8">
-                <Select value={newExerciseModal.form.exerciseId} onChange={(e) => {
-                  const selectedId = Number((e.target as HTMLSelectElement).value);
-                  const selectedExercise = allExercises.find(x => x.id === selectedId);
-                  setNewExerciseModal(m => m && { 
-                    ...m, 
-                    form: { 
-                      ...m.form, 
-                      exerciseId: selectedId,
-                      videoUrl: selectedExercise?.videoUrl || m.form.videoUrl
-                    } 
-                  });
-                }}>
-                  <option value={0}>Select exercise…</option>
-                  {allExercises.map(opt => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
-                </Select>
-              </div>
-              <div className="md:col-span-4">
-                <Select value={newExerciseModal.form.style} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, style: (e.target as HTMLSelectElement).value } })}>
-                  <option value="sets-reps">Sets × Reps</option>
-                  <option value="sets-time">Sets × Time</option>
-                  <option value="time-only">Time Only</option>
-                </Select>
-              </div>
-              {/* Row 2: Sets/Reps(or Time) + Rest */}
-              <div className="md:col-span-3">
-                <Input placeholder="Sets" value={newExerciseModal.form.sets} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, sets: (e.target as HTMLInputElement).value } })} />
-              </div>
-              <div className="md:col-span-3">
-                <Input placeholder={newExerciseModal.form.style === 'time-only' ? 'Time (s)' : 'Reps'} value={newExerciseModal.form.style === 'time-only' ? newExerciseModal.form.duration : newExerciseModal.form.reps} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, [m.form.style === 'time-only' ? 'duration' : 'reps']: (e.target as HTMLInputElement).value } })} />
-              </div>
-              <div className="md:col-span-3">
-                <Input placeholder="Rest between sets (s)" value={newExerciseModal.form.rest} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, rest: (e.target as HTMLInputElement).value } })} />
-              </div>
-              {/* Row 3: Workout style/group */}
-              <div className="md:col-span-3">
-                <Select value={newExerciseModal.form.groupType} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, groupType: (e.target as HTMLSelectElement).value } })}>
-                  <option value="none">No group</option>
-                  <option value="superset">Superset</option>
-                  <option value="giant">Giant</option>
-                  <option value="triset">Triset</option>
-                  <option value="circuit">Circuit</option>
-                </Select>
-              </div>
-              <div className="md:col-span-12">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
-                  <div className="md:col-span-3">
-                    <Select value={newExerciseModal.form.videoSource || 'youtube'} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoSource: (e.target as HTMLSelectElement).value } })}>
-                      <option value="youtube">YouTube/Vimeo URL</option>
-                      <option value="upload">Upload video</option>
-                    </Select>
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setNewExerciseModal(null)}
+          />
+          
+          {/* Side Panel */}
+          <div className="fixed top-0 right-0 h-full w-[800px] max-w-full bg-white shadow-2xl z-50 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200">
+              <h3 className="text-xl font-semibold">{newExerciseModal.editIndex !== undefined ? 'Edit exercise' : 'Add exercise'}</h3>
+              <button 
+                onClick={() => setNewExerciseModal(null)}
+                className="text-zinc-400 hover:text-zinc-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+            {/* Main Exercise Table */}
+            <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-zinc-50 border-b border-zinc-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Exercise</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Style</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Sets</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Reps/Time</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Rest (s)</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Group</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-zinc-100">
+                    <td className="px-4 py-3">
+                      <Select value={newExerciseModal.form.exerciseId} onChange={(e) => {
+                        const selectedId = Number((e.target as HTMLSelectElement).value);
+                        const selectedExercise = allExercises.find(x => x.id === selectedId);
+                        setNewExerciseModal(m => m && { 
+                          ...m, 
+                          form: { 
+                            ...m.form, 
+                            exerciseId: selectedId,
+                            videoUrl: selectedExercise?.videoUrl || m.form.videoUrl
+                          } 
+                        });
+                      }}>
+                        <option value={0}>Select exercise…</option>
+                        {allExercises.map(opt => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Select value={newExerciseModal.form.style} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, style: (e.target as HTMLSelectElement).value } })}>
+                        <option value="sets-reps">Sets × Reps</option>
+                        <option value="sets-time">Sets × Time</option>
+                        <option value="time-only">Time Only</option>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input placeholder="Sets" value={newExerciseModal.form.sets} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, sets: (e.target as HTMLInputElement).value } })} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input placeholder={newExerciseModal.form.style === 'time-only' ? 'Time (s)' : 'Reps'} value={newExerciseModal.form.style === 'time-only' ? newExerciseModal.form.duration : newExerciseModal.form.reps} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, [m.form.style === 'time-only' ? 'duration' : 'reps']: (e.target as HTMLInputElement).value } })} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input placeholder="Rest" value={newExerciseModal.form.rest} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, rest: (e.target as HTMLInputElement).value } })} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Select value={newExerciseModal.form.groupType} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, groupType: (e.target as HTMLSelectElement).value } })}>
+                        <option value="none">Single</option>
+                        <option value="superset">Superset</option>
+                        <option value="giant">Giant</option>
+                        <option value="triset">Triset</option>
+                        <option value="circuit">Circuit</option>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input placeholder="Notes" value={newExerciseModal.form.notes} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, notes: (e.target as HTMLInputElement).value } })} />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Video preview - auto-populated from exercise selection */}
+            {newExerciseModal.form.videoUrl && (
+              <div className="mt-4">
+                <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-zinc-700">Video Preview:</span>
+                    {(() => {
+                      const videoUrl = newExerciseModal.form.videoUrl;
+                      const isYouTube = videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be');
+                      const isUpload = videoUrl?.startsWith('/uploads/') || videoUrl?.includes('/api/exercises/upload');
+                      
+                      if (isYouTube) {
+                        return (
+                          <a 
+                            href={videoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs text-red-600 hover:bg-red-100 transition-colors"
+                            title="Watch on YouTube"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                            </svg>
+                            YouTube
+                          </a>
+                        );
+                      } else if (isUpload) {
+                        return (
+                          <a 
+                            href={videoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs text-blue-600 hover:bg-blue-100 transition-colors"
+                            title="Watch uploaded video"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            Video
+                          </a>
+                        );
+                      } else {
+                        return (
+                          <a 
+                            href={videoUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600 hover:bg-gray-100 transition-colors"
+                            title="Watch video"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            Video
+                          </a>
+                        );
+                      }
+                    })()}
                   </div>
-                  {newExerciseModal.form.videoSource !== 'upload' ? (
-                    <div className="md:col-span-9">
-                      <Input placeholder="Video URL (YouTube/Vimeo/S3)" value={newExerciseModal.form.videoUrl} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoUrl: (e.target as HTMLInputElement).value } })} />
-                    </div>
-                  ) : (
-                    <div className="md:col-span-9">
-                      <div className="flex gap-2">
-                        <Input placeholder="No file chosen" value={newExerciseModal.form.videoFileName || ''} readOnly />
-                        <button type="button" className="border border-zinc-200 rounded-lg px-3 py-2" onClick={async () => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'video/*';
-                          input.onchange = async () => {
-                            if (!input.files || input.files.length === 0) return;
-                            const file = input.files[0];
-                            setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoFileName: file.name } });
-                            const form = new FormData();
-                            const user = getStoredUser();
-                            form.append('video', file);
-                            form.append('trainerId', String(user?.id || ''));
-                            form.append('name', 'Exercise video');
-                            const res = await fetch('/api/exercises/upload', { method: 'POST', body: form });
-                            const data = await res.json().catch(() => ({}));
-                            if (res.ok && data?.videoUrl) setNewExerciseModal(m => m && { ...m, form: { ...m.form, videoUrl: data.videoUrl } });
-                          };
-                          input.click();
-                        }}>Choose file</button>
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-xs text-zinc-500 truncate">{newExerciseModal.form.videoUrl}</p>
                 </div>
               </div>
-              <div className="md:col-span-12">
-                <Input placeholder="Notes (optional)" value={newExerciseModal.form.notes} onChange={(e) => setNewExerciseModal(m => m && { ...m, form: { ...m.form, notes: (e.target as HTMLInputElement).value } })} />
+            )}
+            
+            {/* Add linked exercise button - only show for group types */}
+            {newExerciseModal.form.groupType !== 'none' && (
+              <div className="mt-4">
+                <button 
+                  type="button" 
+                  className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm hover:bg-zinc-50 transition-colors"
+                  onClick={() => {
+                    // Add a new linked exercise form
+                    const currentLinked = newExerciseModal.linkedExercises || [];
+                    const newLinkedExercise = {
+                      id: generateId(),
+                      exerciseId: 0,
+                      style: 'sets-reps',
+                      sets: '',
+                      reps: '',
+                      duration: '',
+                      rest: '',
+                      videoUrl: '',
+                      notes: ''
+                    };
+                    setNewExerciseModal(m => m && { 
+                      ...m, 
+                      linkedExercises: [...currentLinked, newLinkedExercise]
+                    });
+                  }}
+                >
+                  + Add linked exercise
+                </button>
+              </div>
+            )}
+            
+            {/* Linked exercises table */}
+            {newExerciseModal.linkedExercises && newExerciseModal.linkedExercises.length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-md font-semibold mb-3 text-zinc-700">Linked Exercises:</h4>
+                <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-zinc-50 border-b border-zinc-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Exercise</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Style</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Sets</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Reps/Time</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Rest (s)</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Notes</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-zinc-700">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {newExerciseModal.linkedExercises.map((linkedExercise, index) => (
+                        <tr key={linkedExercise.id} className="border-b border-zinc-100">
+                          <td className="px-4 py-3">
+                            <Select value={linkedExercise.exerciseId} onChange={(e) => {
+                              const selectedId = Number((e.target as HTMLSelectElement).value);
+                              const selectedExercise = allExercises.find(x => x.id === selectedId);
+                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
+                              updatedLinked[index] = {
+                                ...updatedLinked[index],
+                                exerciseId: selectedId,
+                                videoUrl: selectedExercise?.videoUrl || updatedLinked[index].videoUrl
+                              };
+                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                            }}>
+                              <option value={0}>Select exercise…</option>
+                              {allExercises.map(opt => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+                            </Select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Select value={linkedExercise.style} onChange={(e) => {
+                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
+                              updatedLinked[index] = { ...updatedLinked[index], style: (e.target as HTMLSelectElement).value };
+                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                            }}>
+                              <option value="sets-reps">Sets × Reps</option>
+                              <option value="sets-time">Sets × Time</option>
+                              <option value="time-only">Time Only</option>
+                            </Select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Input placeholder="Sets" value={linkedExercise.sets} onChange={(e) => {
+                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
+                              updatedLinked[index] = { ...updatedLinked[index], sets: (e.target as HTMLInputElement).value };
+                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                            }} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <Input placeholder={linkedExercise.style === 'time-only' ? 'Time (s)' : 'Reps'} value={linkedExercise.style === 'time-only' ? linkedExercise.duration : linkedExercise.reps} onChange={(e) => {
+                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
+                              const field = linkedExercise.style === 'time-only' ? 'duration' : 'reps';
+                              updatedLinked[index] = { ...updatedLinked[index], [field]: (e.target as HTMLInputElement).value };
+                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                            }} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <Input placeholder="Rest" value={linkedExercise.rest} onChange={(e) => {
+                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
+                              updatedLinked[index] = { ...updatedLinked[index], rest: (e.target as HTMLInputElement).value };
+                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                            }} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <Input placeholder="Notes" value={linkedExercise.notes} onChange={(e) => {
+                              const updatedLinked = [...(newExerciseModal.linkedExercises || [])];
+                              updatedLinked[index] = { ...updatedLinked[index], notes: (e.target as HTMLInputElement).value };
+                              setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                            }} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <button 
+                              type="button" 
+                              className="text-red-500 hover:text-red-700 text-sm"
+                              onClick={() => {
+                                const updatedLinked = newExerciseModal.linkedExercises?.filter((_, i) => i !== index) || [];
+                                setNewExerciseModal(m => m && { ...m, linkedExercises: updatedLinked });
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            </div>
+            
+            {/* Sticky Footer */}
+            <div className="border-t border-zinc-200 px-6 py-4 bg-white">
+              <div className="flex justify-end gap-3">
+                <button 
+                  className="border border-zinc-300 rounded-lg px-4 py-2 hover:bg-zinc-50 transition-colors" 
+                  onClick={() => setNewExerciseModal(null)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="bg-zinc-900 text-white rounded-lg px-4 py-2 hover:bg-zinc-800 transition-colors" 
+                  onClick={() => {
+                    if (!newExerciseModal) return;
+                    const { wi, di, editIndex, form } = newExerciseModal;
+                    const exerciseData = { 
+                      id: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].id : generateId(), 
+                      key: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].key : `${Date.now()}-${Math.random()}`, 
+                      exerciseId: Number(form.exerciseId||0), 
+                      style: form.style, 
+                      sets: form.sets, 
+                      reps: form.style==='time-only'?'':form.reps, 
+                      duration: form.style==='time-only'? form.duration : '', 
+                      rest: form.rest, 
+                      groupType: form.groupType, 
+                      videoUrl: form.videoUrl, 
+                      notes: form.notes 
+                    };
+                    
+                    if (editIndex !== undefined) {
+                      // Edit existing exercise
+                      setWeeks(prev => prev.map((w, i) => i === wi ? { 
+                        ...w, 
+                        days: w.days.map((d, j) => j === di ? { 
+                          ...d, 
+                          exercises: d.exercises.map((ex, k) => k === editIndex ? exerciseData : ex)
+                        } : d) 
+                      } : w));
+                    } else {
+                      // Add new exercise
+                      setWeeks(prev => prev.map((w, i) => i === wi ? { 
+                        ...w, 
+                        days: w.days.map((d, j) => j === di ? { 
+                          ...d, 
+                          exercises: [...d.exercises, exerciseData]
+                        } : d) 
+                      } : w));
+                    }
+                    setNewExerciseModal(null);
+                  }}
+                >
+                  Save Exercise
+                </button>
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button className="border border-zinc-200 rounded-lg px-3 py-2" onClick={() => setNewExerciseModal(null)}>Cancel</button>
-              <button className="bg-zinc-900 text-white rounded-lg px-3 py-2" onClick={() => {
-                if (!newExerciseModal) return;
-                const { wi, di, editIndex, form } = newExerciseModal;
-                const exerciseData = { 
-                  id: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].id : generateId(), 
-                  key: editIndex !== undefined ? weeks[wi].days[di].exercises[editIndex].key : `${Date.now()}-${Math.random()}`, 
-                  exerciseId: Number(form.exerciseId||0), 
-                  style: form.style, 
-                  sets: form.sets, 
-                  reps: form.style==='time-only'?'':form.reps, 
-                  duration: form.style==='time-only'? form.duration : '', 
-                  rest: form.rest, 
-                  groupType: form.groupType, 
-                  videoUrl: form.videoUrl, 
-                  notes: form.notes 
-                };
-                
-                if (editIndex !== undefined) {
-                  // Edit existing exercise
-                  setWeeks(prev => prev.map((w, i) => i === wi ? { 
-                    ...w, 
-                    days: w.days.map((d, j) => j === di ? { 
-                      ...d, 
-                      exercises: d.exercises.map((ex, k) => k === editIndex ? exerciseData : ex)
-                    } : d) 
-                  } : w));
-                } else {
-                  // Add new exercise
-                  setWeeks(prev => prev.map((w, i) => i === wi ? { 
-                    ...w, 
-                    days: w.days.map((d, j) => j === di ? { 
-                      ...d, 
-                      exercises: [...d.exercises, exerciseData]
-                    } : d) 
-                  } : w));
-                }
-                setNewExerciseModal(null);
-              }}>Save</button>
-            </div>
           </div>
-        </Dialog>
+        </>
       )}
       <div className="flex justify-start mt-4">
         <Button className="bg-zinc-900 text-white hover:bg-zinc-800" onClick={addWeek}>+ Add week</Button>
