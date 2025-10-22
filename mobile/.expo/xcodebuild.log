@@ -685,32 +685,6 @@ GatherProvisioningInputs
 
 CreateBuildDescription
 
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x c++ -c /dev/null
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x objective-c -c /dev/null
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x c -c /dev/null
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x objective-c++ -c /dev/null
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x c -c /dev/null
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -V
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/BadehyMobile/Images.xcassets
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -x assembler-with-cpp -c /dev/null
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/actool --version --output-format xml1
-
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
-
-Build description signature: bc7598b801ecf6dc95bbe931225a5cd9
-Build description path: /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/XCBuildData/bc7598b801ecf6dc95bbe931225a5cd9.xcbuilddata
 ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-26257891a6c027eb51374368541b8346.sdkstatcache
     cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
     /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.0-23A339-26257891a6c027eb51374368541b8346.sdkstatcache
@@ -1233,10 +1207,6 @@ PhaseScriptExecution [CP-User]\ [Hermes]\ Replace\ Hermes\ for\ the\ right\ conf
     /bin/sh -c /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/hermes-engine.build/Script-46EB2E0001A120.sh
 Node found at: /opt/homebrew/Cellar/node/24.10.0/bin/node
 No previous build detected, but Debug Configuration. No need to replace Hermes engine
-
-ProcessInfoPlistFile /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/React-Core/RCTI18nStrings.bundle/Info.plist /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/React-Core/ResourceBundle-RCTI18nStrings-React-Core-Info.plist (in target 'React-Core-RCTI18nStrings' from project 'Pods')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods
-    builtin-infoPlistUtility /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/React-Core/ResourceBundle-RCTI18nStrings-React-Core-Info.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/React-Core/RCTI18nStrings.bundle/Info.plist
 
 warning: Run script build phase '[CP-User] [RN]Check rncore' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'React-Fabric' from project 'Pods')
 PhaseScriptExecution [CP-User]\ [RN]Check\ rncore /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/React-Fabric.build/Script-46EB2E0001A100.sh (in target 'React-Fabric' from project 'Pods')
@@ -1774,14 +1744,6 @@ PhaseScriptExecution [CP-User]\ [RN]Check\ rncore /Users/ahmed.hossam/Library/De
     export variant\=normal
     /bin/sh -c /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/React-Fabric.build/Script-46EB2E0001A100.sh
 Checking whether Codegen has run...
-
-ProcessInfoPlistFile /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/EXConstants/EXConstants.bundle/Info.plist /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/EXConstants/ResourceBundle-EXConstants-EXConstants-Info.plist (in target 'EXConstants-EXConstants' from project 'Pods')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods
-    builtin-infoPlistUtility /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/EXConstants/ResourceBundle-EXConstants-EXConstants-Info.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/EXConstants/EXConstants.bundle/Info.plist
-
-ProcessInfoPlistFile /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/EXConstants/ExpoConstants_privacy.bundle/Info.plist /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/EXConstants/ResourceBundle-ExpoConstants_privacy-EXConstants-Info.plist (in target 'EXConstants-ExpoConstants_privacy' from project 'Pods')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods
-    builtin-infoPlistUtility /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/EXConstants/ResourceBundle-ExpoConstants_privacy-EXConstants-Info.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/EXConstants/ExpoConstants_privacy.bundle/Info.plist
 
 warning: Run script build phase '[CP-User] Generate app.config for prebuilt Constants.manifest' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'EXConstants' from project 'Pods')
 PhaseScriptExecution [CP-User]\ Generate\ app.config\ for\ prebuilt\ Constants.manifest /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/EXConstants.build/Script-46EB2E0001A0E0.sh (in target 'EXConstants' from project 'Pods')
@@ -2322,18 +2284,9 @@ PhaseScriptExecution [CP-User]\ Generate\ app.config\ for\ prebuilt\ Constants.m
     /bin/sh -c /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/EXConstants.build/Script-46EB2E0001A0E0.sh
 Node found at: /opt/homebrew/Cellar/node/24.10.0/bin/node
 
-/Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Pods.xcodeproj: warning: The iOS Simulator deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.0.99. (in target 'RNCAsyncStorage-RNCAsyncStorage_resources' from project 'Pods')
-ProcessInfoPlistFile /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/RNCAsyncStorage/RNCAsyncStorage_resources.bundle/Info.plist /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/RNCAsyncStorage/ResourceBundle-RNCAsyncStorage_resources-RNCAsyncStorage-Info.plist (in target 'RNCAsyncStorage-RNCAsyncStorage_resources' from project 'Pods')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods
-    builtin-infoPlistUtility /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/RNCAsyncStorage/ResourceBundle-RNCAsyncStorage_resources-RNCAsyncStorage-Info.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/RNCAsyncStorage/RNCAsyncStorage_resources.bundle/Info.plist
-
-ProcessInfoPlistFile /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/ExpoFileSystem/ExpoFileSystem_privacy.bundle/Info.plist /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/ExpoFileSystem/ResourceBundle-ExpoFileSystem_privacy-ExpoFileSystem-Info.plist (in target 'ExpoFileSystem-ExpoFileSystem_privacy' from project 'Pods')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods
-    builtin-infoPlistUtility /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Target\ Support\ Files/ExpoFileSystem/ResourceBundle-ExpoFileSystem_privacy-ExpoFileSystem-Info.plist -producttype com.apple.product-type.bundle -expandbuildsettings -format binary -platform iphonesimulator -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/ExpoFileSystem/ExpoFileSystem_privacy.bundle/Info.plist
-
-note: Run script build phase '[Expo] Configure project' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'BadehyMobile' from project 'BadehyMobile')
 note: Run script build phase 'Bundle React Native code and images' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'BadehyMobile' from project 'BadehyMobile')
-PhaseScriptExecution [Expo]\ Configure\ project /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Script-20349F69AD9616B71DD68202.sh (in target 'BadehyMobile' from project 'BadehyMobile')
+note: Run script build phase '[Expo] Configure project' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'BadehyMobile' from project 'BadehyMobile')
+PhaseScriptExecution [Expo]\ Configure\ project /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Script-170F3B1CED41FC44AF0EF858.sh (in target 'BadehyMobile' from project 'BadehyMobile')
     cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
     export ACTION\=build
     export AD_HOC_CODE_SIGNING_ALLOWED\=YES
@@ -2925,7 +2878,7 @@ PhaseScriptExecution [Expo]\ Configure\ project /Users/ahmed.hossam/Library/Deve
     export __IS_NOT_SIMULATOR_simulator\=NO
     export arch\=undefined_arch
     export variant\=normal
-    /bin/sh -c /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Script-20349F69AD9616B71DD68202.sh
+    /bin/sh -c /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Script-170F3B1CED41FC44AF0EF858.sh
 Node found at: /opt/homebrew/Cellar/node/24.10.0/bin/node
 
 SwiftDriver BadehyMobile normal arm64 com.apple.xcode.tools.swift.compiler (in target 'BadehyMobile' from project 'BadehyMobile')
@@ -3584,28 +3537,14 @@ PhaseScriptExecution [CP]\ Copy\ Pods\ Resources /Users/ahmed.hossam/Library/Dev
 Transfer starting: 124 files
 EXConstants.bundle/app.config
 
-sent 8954 bytes  received 42 bytes  1763921 bytes/sec
+sent 8954 bytes  received 42 bytes  2194146 bytes/sec
 total size is 59141  speedup is 6.57
 
 ExtractAppIntentsMetadata (in target 'BadehyMobile' from project 'BadehyMobile')
     cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
     /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name BadehyMobile --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.0.sdk --xcode-version 17A400 --platform-family iOS --deployment-target 13.4 --bundle-identifier com.anonymous.badehy-mobile --output /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app --target-triple arm64-apple-ios13.4-simulator --binary-file /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/BadehyMobile --dependency-file /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Objects-normal/arm64/BadehyMobile_dependency_info.dat --stringsdata-file /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Objects-normal/arm64/BadehyMobile.SwiftFileList --metadata-file-list /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/BadehyMobile.DependencyMetadataFileList --static-metadata-file-list /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/BadehyMobile.DependencyStaticMetadataFileList --swift-const-vals-list /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/Objects-normal/arm64/BadehyMobile.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
-2025-10-22 11:31:05.665 appintentsmetadataprocessor[57780:10585436] Starting appintentsmetadataprocessor export
-2025-10-22 11:31:05.675 appintentsmetadataprocessor[57780:10585436] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
-
-CopySwiftLibs /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app (in target 'BadehyMobile' from project 'BadehyMobile')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
-    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/BadehyMobile.debug.dylib --scan-folder /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/Frameworks --scan-folder /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/PlugIns --scan-folder /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/SystemExtensions --scan-folder /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
-
-GenerateDSYMFile /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app.dSYM /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/BadehyMobile.debug.dylib (in target 'BadehyMobile' from project 'BadehyMobile')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
-    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/BadehyMobile.debug.dylib -o /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app.dSYM
-
-AppIntentsSSUTraining (in target 'BadehyMobile' from project 'BadehyMobile')
-    cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
-    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/Info.plist --temp-dir-path /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/ssu --bundle-id com.anonymous.badehy-mobile --product-path /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app --extracted-metadata-path /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/Metadata.appintents --metadata-file-list /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Intermediates.noindex/BadehyMobile.build/Debug-iphonesimulator/BadehyMobile.build/BadehyMobile.DependencyMetadataFileList --archive-ssu-assets
-2025-10-22 11:31:05.696 appintentsnltrainingprocessor[57782:10585446] Parsing options for appintentsnltrainingprocessor
-2025-10-22 11:31:05.697 appintentsnltrainingprocessor[57782:10585446] No AppShortcuts found - Skipping.
+2025-10-22 11:43:37.462 appintentsmetadataprocessor[69509:10628097] Starting appintentsmetadataprocessor export
+2025-10-22 11:43:37.469 appintentsmetadataprocessor[69509:10628097] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
 
 CodeSign /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app/BadehyMobile.debug.dylib (in target 'BadehyMobile' from project 'BadehyMobile')
     cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
@@ -3635,5 +3574,6 @@ Validate /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hh
     cd /Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios
     builtin-validationUtility /Users/ahmed.hossam/Library/Developer/Xcode/DerivedData/BadehyMobile-hhphnabovhcliwbcnidnufaivzzy/Build/Products/Debug-iphonesimulator/BadehyMobile.app -shallow-bundle -infoplist-subpath Info.plist
 
+/Users/ahmed.hossam/Documents/Badehy-V1/mobile/ios/Pods/Pods.xcodeproj: warning: The iOS Simulator deployment target 'IPHONEOS_DEPLOYMENT_TARGET' is set to 9.0, but the range of supported deployment target versions is 12.0 to 26.0.99. (in target 'RNCAsyncStorage-RNCAsyncStorage_resources' from project 'Pods')
 ** BUILD SUCCEEDED **
 
