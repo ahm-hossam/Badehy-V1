@@ -341,7 +341,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
           if ((current.gender == null || String(current.gender).trim() === '') && candidateGender) {
             updates.gender = String(candidateGender);
           }
-          if ((current.age == null || Number.isNaN(Number(current.age))) && candidateAge !== undefined) {
+          if ((current.age == null || current.age === undefined || Number.isNaN(Number(current.age))) && candidateAge !== undefined) {
             updates.age = candidateAge;
           }
           if ((current.source == null || String(current.source).trim() === '') && candidateSource) {

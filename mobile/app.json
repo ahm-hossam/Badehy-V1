@@ -5,11 +5,14 @@
     "scheme": "badehy",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/logo.png",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.anonymous.badehy-mobile"
     },
-    "android": {},
+    "android": {
+      "package": "com.badehy.mobile"
+    },
     "web": {
       "bundler": "metro"
     },
@@ -17,6 +20,9 @@
       "eas": {
         "projectId": "local"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

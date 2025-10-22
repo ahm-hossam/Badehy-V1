@@ -676,7 +676,7 @@ router.post('/generate-automated', async (req, res) => {
             category: 'Workout',
             taskType: 'automatic',
             status: 'open',
-            title: { contains: 'Assign', mode: 'insensitive' },
+            title: { contains: 'Assign' },
           },
         });
         if (!existingTask) {
@@ -717,7 +717,7 @@ router.post('/generate-automated', async (req, res) => {
             category: 'Nutrition',
             taskType: 'automatic',
             status: 'open',
-            title: { contains: 'Assign', mode: 'insensitive' },
+            title: { contains: 'Assign' },
           },
         });
         if (!existingTask) {

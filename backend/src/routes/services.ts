@@ -47,7 +47,7 @@ router.post('/', async (req: Request, res: Response) => {
         trainerId: Number(trainerId),
         name: String(name),
         description: description ? String(description) : null,
-        priceEGP: String(Number(priceEGP).toFixed(2)),
+        priceEGP: Number(priceEGP),
         status: String(status),
       },
     });
@@ -144,7 +144,7 @@ router.post('/:id/assign', async (req: Request, res: Response) => {
         clientId: Number(clientId),
         serviceId,
         serviceName: service.name,
-        priceEGP: String(Number((priceOverrideEGP ?? service.priceEGP)).toFixed(2)),
+        priceEGP: Number(priceOverrideEGP ?? service.priceEGP),
         startDate: startDate ? new Date(startDate) : null,
         endDate: endDate ? new Date(endDate) : null,
         notes: notes ? String(notes) : null,

@@ -90,15 +90,6 @@ export default function ProgramsPage() {
   const searchParams = useSearchParams();
   const [showCreatedToast, setShowCreatedToast] = useState(false);
   
-  // Import program state
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [importData, setImportData] = useState({
-    programName: '',
-    programDuration: '',
-    durationUnit: 'weeks'
-  });
 
   useEffect(() => {
     const storedUser = getStoredUser();
@@ -246,70 +237,6 @@ export default function ProgramsPage() {
     router.push('/workout-programs/create');
   };
 
-  const handleImportProgram = () => {
-    setShowImportModal(true);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file);
-      // Auto-fill program name from filename
-      const fileName = file.name.replace('.pdf', '');
-      setImportData(prev => ({ ...prev, programName: fileName }));
-    } else {
-      setErrorMessage('Please select a valid PDF file');
-      setShowErrorToast(true);
-    }
-  };
-
-  const handleImportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile || !user) return;
-
-    console.log('User object:', user);
-    console.log('User ID being sent:', user.id);
-
-    setImportLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('pdf', selectedFile);
-      formData.append('trainerId', user.id.toString());
-      formData.append('programName', importData.programName);
-      formData.append('programDuration', importData.programDuration);
-      formData.append('durationUnit', importData.durationUnit);
-
-      console.log('FormData contents:');
-      for (let [key, value] of formData.entries()) {
-        console.log(key, value);
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/programs/import`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (response.ok) {
-        setShowImportModal(false);
-        setSelectedFile(null);
-        setImportData({ programName: '', programDuration: '', durationUnit: 'weeks' });
-        setShowCreatedToast(true);
-        fetchPrograms(user.id);
-      } else {
-        const error = await response.json();
-        console.error('Import failed:', error);
-        setErrorMessage(error.error || 'Failed to import program');
-        setShowErrorToast(true);
-      }
-    } catch (error) {
-      console.error('Error importing program:', error);
-      setErrorMessage('Failed to import program');
-      setShowErrorToast(true);
-    } finally {
-      setImportLoading(false);
-    }
-  };
-
   if (loading && programs.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -344,10 +271,6 @@ export default function ProgramsPage() {
             />
           </div>
           <div className="flex gap-2">
-            <Button outline onClick={handleImportProgram} className="px-4">
-              <DocumentArrowUpIcon className="h-5 w-5 mr-2" />
-              Import Program
-            </Button>
             <Button onClick={handleCreateProgram} className="px-4">
               <PlusIcon className="h-5 w-5 mr-2" />
               Create Program
@@ -474,98 +397,6 @@ export default function ProgramsPage() {
           )}
         </div>
 
-        {/* Import Program Modal */}
-        <Dialog open={showImportModal} onClose={() => setShowImportModal(false)}>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Import Program</h2>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <form onSubmit={handleImportSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Program PDF
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileSelect}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  required
-                />
-                {selectedFile && (
-                  <p className="mt-1 text-sm text-gray-600">Selected: {selectedFile.name}</p>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Program Name
-                </label>
-                <Input
-                  type="text"
-                  value={importData.programName}
-                  onChange={(e) => setImportData(prev => ({ ...prev, programName: e.target.value }))}
-                  placeholder="Enter program name"
-                  required
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration
-                  </label>
-                  <Input
-                    type="number"
-                    value={importData.programDuration}
-                    onChange={(e) => setImportData(prev => ({ ...prev, programDuration: e.target.value }))}
-                    placeholder="Enter duration"
-                    min="1"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Duration Unit
-                  </label>
-                  <Select
-                    value={importData.durationUnit}
-                    onChange={(e) => setImportData(prev => ({ ...prev, durationUnit: e.target.value }))}
-                  >
-                    <option value="days">Days</option>
-                    <option value="weeks">Weeks</option>
-                    <option value="months">Months</option>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3 mt-6">
-                <Button
-                  type="button"
-                  outline
-                  onClick={() => setShowImportModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!selectedFile || importLoading}
-                >
-                  {importLoading ? 'Importing...' : 'Import Program'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </Dialog>
 
         {/* Delete Confirmation Dialog */}
         {confirmDelete && (

@@ -52,8 +52,8 @@ model TrainerClient {
   source                String?
   level                 String?
   registrationDate      DateTime?
-  injuriesHealthNotes   String[]
-  goals                 String[]
+  injuriesHealthNotes   String?  // JSON string array
+  goals                 String?  // JSON string array
   goal                  String?
   workoutPlace          String?
   height                Int?
@@ -86,6 +86,7 @@ model TrainerClient {
   selectedForm          CheckInForm?                @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
   trainer               Registered                  @relation(fields: [trainerId], references: [id])
   labels                Label[]                     @relation("ClientLabels")
+  workoutSessions       WorkoutSession[]
   // Back relation for ClientAuth one-to-one credentials
   clientAuth            ClientAuth?
 
@@ -467,6 +468,7 @@ model ProgramDay {
   updatedAt DateTime          @updatedAt
   week      ProgramWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)
   exercises ProgramExercise[]
+  workoutSessions WorkoutSession[]
 
   @@index([weekId])
 }
@@ -492,6 +494,7 @@ model ProgramExercise {
   updatedAt  DateTime   @updatedAt
   day        ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
   exercise   Exercise   @relation(fields: [exerciseId], references: [id])
+  exerciseCompletions ExerciseCompletion[]
 
   @@index([dayId])
   @@index([exerciseId])
@@ -630,6 +633,7 @@ model ClientProgramAssignment {
   client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
   program        Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
   trainer        Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  workoutSessions WorkoutSession[]
 
   @@index([trainerId])
   @@index([clientId])
@@ -728,4 +732,50 @@ model ClientAuth {
 
   @@index([email])
   @@index([phone])
+}
+
+// Workout session tracking
+model WorkoutSession {
+  id             Int           @id @default(autoincrement())
+  clientId       Int
+  assignmentId   Int
+  dayId          Int
+  startedAt      DateTime      @default(now())
+  pausedAt       DateTime?
+  resumedAt      DateTime?
+  completedAt    DateTime?
+  status         String        @default("active") // active, paused, completed
+  totalDuration  Int?          // total duration in seconds
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignment     ClientProgramAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  day            ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exerciseCompletions ExerciseCompletion[]
+
+  @@index([clientId])
+  @@index([assignmentId])
+  @@index([dayId])
+  @@index([status])
+}
+
+// Individual exercise completion tracking
+model ExerciseCompletion {
+  id             Int           @id @default(autoincrement())
+  sessionId      Int
+  exerciseId     Int
+  completedAt    DateTime      @default(now())
+  setsCompleted  Int           @default(0)
+  repsCompleted  Int?          // total reps across all sets
+  weightUsed     Float?         // average weight used
+  notes          String?
+  duration       Int?           // time spent on this exercise in seconds
+
+  session        WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise       ProgramExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([exerciseId])
 }

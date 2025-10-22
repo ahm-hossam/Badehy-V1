@@ -131,11 +131,11 @@ router.post('/', async (req: Request, res: Response) => {
           registrationDate: client.registrationDate ? new Date(client.registrationDate) : null,
           selectedFormId: client.selectedFormId ? Number(client.selectedFormId) : null,
           injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes)
-            ? client.injuriesHealthNotes
+            ? JSON.stringify(client.injuriesHealthNotes)
             : typeof client.injuriesHealthNotes === 'string'
-              ? client.injuriesHealthNotes.split(',').map((s: string) => s.trim()).filter(Boolean)
-              : [],
-          goals: Array.isArray(client.goals) ? client.goals : [],
+              ? client.injuriesHealthNotes
+              : null,
+          goals: Array.isArray(client.goals) ? JSON.stringify(client.goals) : null,
           // --- Added fields for full profile support ---
           goal: Array.isArray(client.goal) ? client.goal.join(',') : client.goal,
           workoutPlace: Array.isArray(client.workoutPlace) ? client.workoutPlace.join(',') : client.workoutPlace,
@@ -256,6 +256,22 @@ router.post('/', async (req: Request, res: Response) => {
                 : resolvedPriceBefore - Number(subscription.discountValue || 0)))
         : resolvedPriceBefore
 
+      // Calculate endDate based on startDate and duration
+      const startDate = new Date(subscription.startDate);
+      const durationValue = Number(subscription.durationValue);
+      const durationUnit = String(subscription.durationUnit).toLowerCase();
+      
+      let endDate = new Date(startDate);
+      if (durationUnit === 'day' || durationUnit === 'days') {
+        endDate.setDate(endDate.getDate() + durationValue);
+      } else if (durationUnit === 'week' || durationUnit === 'weeks') {
+        endDate.setDate(endDate.getDate() + (durationValue * 7));
+      } else if (durationUnit === 'month' || durationUnit === 'months') {
+        endDate.setMonth(endDate.getMonth() + durationValue);
+      } else if (durationUnit === 'year' || durationUnit === 'years') {
+        endDate.setFullYear(endDate.getFullYear() + durationValue);
+      }
+
       const createdSubscription = await tx.subscription.create({
         data: {
           clientId: createdClient.id,
@@ -263,7 +279,7 @@ router.post('/', async (req: Request, res: Response) => {
           startDate: new Date(subscription.startDate),
           durationValue: Number(subscription.durationValue),
           durationUnit: String(subscription.durationUnit),
-          endDate: new Date(subscription.endDate),
+          endDate: endDate,
           paymentStatus: String(subscription.paymentStatus),
           paymentMethod: subscription.paymentMethod ? String(subscription.paymentMethod) : null,
           priceBeforeDisc: resolvedPriceBefore,

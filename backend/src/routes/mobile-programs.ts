@@ -32,9 +32,32 @@ router.get('/programs/active', authMiddleware, async (req: any, res) => {
                 days: {
                   include: {
                     exercises: {
-                      include: { exercise: true },
+                      include: { 
+                        exercise: true,
+                        exerciseCompletions: {
+                          where: {
+                            session: {
+                              clientId
+                            }
+                          },
+                          orderBy: {
+                            completedAt: 'desc'
+                          },
+                          take: 1
+                        }
+                      },
                       orderBy: { order: 'asc' },
                     },
+                    workoutSessions: {
+                      where: {
+                        clientId,
+                        status: { in: ['active', 'paused', 'completed'] }
+                      },
+                      orderBy: {
+                        startedAt: 'desc'
+                      },
+                      take: 1
+                    }
                   },
                   orderBy: { dayNumber: 'asc' },
                 },

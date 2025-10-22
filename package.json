@@ -4,6 +4,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "dayjs": "^1.11.13",
+    "expo": "^54.0.18",
     "react-date-range": "^2.0.1"
   },
   "devDependencies": {
