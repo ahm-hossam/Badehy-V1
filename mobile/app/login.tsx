@@ -6,7 +6,7 @@ const API = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('client@example.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
