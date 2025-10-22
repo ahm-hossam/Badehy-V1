@@ -10,7 +10,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.anonymous.badehy-mobile"
     },
-    "android": {},
+    "android": {
+      "package": "com.badehy.mobile"
+    },
     "web": {
       "bundler": "metro"
     },
@@ -18,6 +20,9 @@
       "eas": {
         "projectId": "local"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

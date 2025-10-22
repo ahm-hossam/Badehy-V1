@@ -1,125 +1,190 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
 
-// Add logging middleware
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`, req.body);
-  next();
-});
-
+// Simple test endpoint
 app.get('/', (req, res) => {
-  res.send('Simple server is running!');
+  res.send('Badehy backend is running!');
 });
 
-app.post('/register/test', (req, res) => {
-  console.log('=== TEST ENDPOINT ===');
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
-  console.log('Body type:', typeof req.body);
-  console.log('Body keys:', Object.keys(req.body));
-  res.json({ 
-    message: 'Test received', 
-    body: req.body,
-    bodyKeys: Object.keys(req.body),
-    contentType: req.headers['content-type']
-  });
-});
-
-app.post('/register', (req, res) => {
-  console.log('=== REGISTRATION ENDPOINT ===');
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
-  console.log('Body type:', typeof req.body);
-  console.log('Body keys:', Object.keys(req.body));
+// Test workout endpoints
+app.get('/mobile/programs/active', (req, res) => {
+  // Check for auth token
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
   
-  const { fullName, email, phoneNumber, countryCode, countryName, password, confirmPassword } = req.body;
+  res.json({ assignment: null });
+});
 
-  console.log('Extracted fields:', {
-    fullName: fullName,
-    email: email,
-    phoneNumber: phoneNumber,
-    countryCode: countryCode,
-    countryName: countryName,
-    password: password ? '***' : 'MISSING',
-    confirmPassword: confirmPassword ? '***' : 'MISSING'
+app.get('/mobile/sessions/active', (req, res) => {
+  // Check for auth token
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  res.json({ session: null });
+});
+
+// Mobile client endpoints
+app.get('/mobile/me', (req, res) => {
+  // Check for auth token
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  res.json({ 
+    client: {
+      id: 1,
+      fullName: 'Test Client',
+      email: 'test@example.com',
+      phone: '+1234567890'
+    },
+    subscription: {
+      expired: false,
+      status: 'active'
+    }
   });
+});
 
-  // Validate required fields with proper string checks
-  if (!fullName || fullName.trim() === '') {
-    console.log('Missing fullName');
-    return res.status(400).json({ error: 'Full name is required.' });
+app.get('/mobile/nutrition/active', (req, res) => {
+  // Check for auth token
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
+  
+  res.json({ assignment: null });
+});
 
-  if (!email || email.trim() === '') {
-    console.log('Missing email');
-    return res.status(400).json({ error: 'Email is required.' });
+app.get('/mobile/forms/main', (req, res) => {
+  // Check for auth token
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
+  
+  res.json({ 
+    form: null,
+    completed: true,
+    preFillData: {}
+  });
+});
 
-  if (!phoneNumber || phoneNumber.trim() === '') {
-    console.log('Missing phoneNumber');
-    return res.status(400).json({ error: 'Phone number is required.' });
-  }
+// Program assignment endpoints for dashboard
+app.get('/api/programs', (req, res) => {
+  res.json([]);
+});
 
-  if (!countryCode || countryCode.trim() === '') {
-    console.log('Missing countryCode');
-    return res.status(400).json({ error: 'Country code is required.' });
-  }
+app.get('/api/client-program-assignments/client/:clientId', (req, res) => {
+  res.json([]);
+});
 
-  if (!countryName || countryName.trim() === '') {
-    console.log('Missing countryName');
-    return res.status(400).json({ error: 'Country name is required.' });
-  }
+app.post('/api/client-program-assignments', (req, res) => {
+  res.json({ 
+    id: 1, 
+    message: 'Program assigned successfully',
+    assignment: {
+      id: 1,
+      clientId: req.body.clientId,
+      programId: req.body.programId,
+      startDate: req.body.startDate,
+      endDate: req.body.endDate,
+      isActive: true,
+      status: 'active'
+    }
+  });
+});
 
-  if (!password || password.trim() === '') {
-    console.log('Missing password');
-    return res.status(400).json({ error: 'Password is required.' });
-  }
+// Labels endpoint for dashboard
+app.get('/api/labels', (req, res) => {
+  const { trainerId } = req.query;
+  res.json([]);
+});
 
-  if (!confirmPassword || confirmPassword.trim() === '') {
-    console.log('Missing confirmPassword');
-    return res.status(400).json({ error: 'Please confirm your password.' });
-  }
+// Check-in forms endpoint for dashboard
+app.get('/api/checkins', (req, res) => {
+  const { trainerId } = req.query;
+  res.json([]);
+});
 
-  console.log('All required fields present, proceeding with validation...');
+// Team members endpoint for dashboard
+app.get('/api/team-members', (req, res) => {
+  const { trainerId } = req.query;
+  res.json([]);
+});
 
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    console.log('Email validation failed:', email);
-    return res.status(400).json({ error: 'Please enter a valid email address.' });
-  }
+// Notes endpoint for dashboard
+app.get('/api/notes', (req, res) => {
+  res.json([]);
+});
 
-  console.log('Email validation passed');
+app.post('/api/notes', (req, res) => {
+  res.json({ 
+    id: 1, 
+    message: 'Note created successfully',
+    note: {
+      id: 1,
+      content: req.body.content || 'New note',
+      createdAt: new Date().toISOString()
+    }
+  });
+});
 
-  // Validate password length
-  if (password.length < 8) {
-    console.log('Password too short:', password.length);
-    return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
-  }
+// Clients endpoint for dashboard
+app.get('/api/clients', (req, res) => {
+  res.json([]);
+});
 
-  console.log('Password length validation passed');
+app.post('/api/clients', (req, res) => {
+  res.json({ 
+    id: 1, 
+    message: 'Client created successfully',
+    client: {
+      id: 1,
+      fullName: req.body.fullName || 'New Client',
+      email: req.body.email || 'client@example.com',
+      phone: req.body.phone || '+1234567890'
+    }
+  });
+});
 
-  // Validate password match
-  if (password !== confirmPassword) {
-    console.log('Password mismatch');
-    return res.status(400).json({ error: 'Passwords do not match.' });
-  }
+// Packages endpoint for dashboard
+app.get('/api/packages', (req, res) => {
+  const { trainerId } = req.query;
+  res.json([]);
+});
 
-  console.log('Password match validation passed');
+app.post('/api/packages', (req, res) => {
+  res.json({ 
+    id: 1, 
+    message: 'Package created successfully',
+    package: {
+      id: 1,
+      name: req.body.name || 'New Package',
+      price: req.body.price || 0
+    }
+  });
+});
 
-  // For now, just return success without database
-  console.log('All validations passed - would create user in database');
-  return res.status(201).json({ message: 'Registration successful! Please login.' });
+// Transaction images endpoint for dashboard
+app.post('/api/transaction-images/subscription', (req, res) => {
+  res.json({ 
+    id: 1, 
+    message: 'Transaction image uploaded successfully'
+  });
 });
 
 app.listen(PORT, () => {
-  console.log(`Simple server is running on port ${PORT}`);
-}).on('error', (err) => {
-  console.error('Server failed to start:', err);
-}); 
+  console.log(`Server is running on port ${PORT}`);
+});

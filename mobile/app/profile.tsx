@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
-const API = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:4000';
+const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 
 export default function ProfileScreen() {
   const router = useRouter();

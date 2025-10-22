@@ -33,6 +33,7 @@ import mobileAuthRoute from './routes/mobile-auth';
 import mobileProgramsRoute from './routes/mobile-programs';
 import mobileNutritionRoute from './routes/mobile-nutrition';
 import mobileFormsRoute from './routes/mobile-forms';
+import mobileWorkoutSessionsRoute from './routes/mobile-workout-sessions';
 import pdfExportRoute from './routes/pdf-export';
 
 // Always load .env from the project root
@@ -90,6 +91,7 @@ app.use('/mobile', mobileAuthRoute);
 app.use('/mobile', mobileProgramsRoute);
 app.use('/mobile', mobileNutritionRoute);
 app.use('/mobile/forms', mobileFormsRoute);
+app.use('/mobile', mobileWorkoutSessionsRoute);
 
 app.get('/', (req, res) => {
   res.send('Badehy backend is running!');
