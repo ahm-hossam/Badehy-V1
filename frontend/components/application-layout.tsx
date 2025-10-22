@@ -405,7 +405,7 @@ export function ApplicationLayout({
           <SidebarHeader>
             <Dropdown>
               <DropdownButton as={SidebarItem}>
-                <img src="/logo.svg" alt="Logo" className="h-10 w-auto" />
+                <img src="/logo.png" alt="Logo" className="h-10 w-auto" />
                 <ChevronDownIcon />
               </DropdownButton>
               <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
