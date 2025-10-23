@@ -71,12 +71,25 @@ export default function DayDetailScreen() {
   }, [fetchDayData]);
 
   useEffect(() => {
-    if (activeSession && activeSession.status === 'active') {
-      if (timerRef.current) clearInterval(timerRef.current);
-      const startTime = new Date(activeSession.startedAt).getTime();
-      timerRef.current = setInterval(() => {
-        setSessionTimer(Math.floor((Date.now() - startTime) / 1000));
-      }, 1000);
+    if (activeSession) {
+      if (activeSession.status === 'active') {
+        if (timerRef.current) clearInterval(timerRef.current);
+        const startTime = new Date(activeSession.startedAt).getTime();
+        const pausedTime = activeSession.pausedAt ? new Date(activeSession.pausedAt).getTime() - startTime : 0;
+        const resumedTime = activeSession.resumedAt ? new Date(activeSession.resumedAt).getTime() : 0;
+        
+        timerRef.current = setInterval(() => {
+          const now = Date.now();
+          const baseTime = resumedTime > 0 ? resumedTime : startTime;
+          const elapsed = Math.floor((now - baseTime) / 1000) + Math.floor(pausedTime / 1000);
+          setSessionTimer(elapsed);
+        }, 1000);
+      } else if (activeSession.status === 'paused') {
+        // Calculate total elapsed time when paused
+        const startTime = new Date(activeSession.startedAt).getTime();
+        const pausedTime = activeSession.pausedAt ? new Date(activeSession.pausedAt).getTime() - startTime : 0;
+        setSessionTimer(Math.floor(pausedTime / 1000));
+      }
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
       setSessionTimer(0);
@@ -223,7 +236,7 @@ export default function DayDetailScreen() {
       .join(":");
   };
 
-  const formatSets = (sets: any) => {
+  const formatSets = (sets: any, exercise: any) => {
     if (!sets) return 'No sets defined';
     
     try {
@@ -231,13 +244,18 @@ export default function DayDetailScreen() {
       if (!Array.isArray(setsArray) || setsArray.length === 0) return 'No sets defined';
       
       return setsArray.map((set: any, index: number) => {
-        const reps = set.reps || 'N/A';
+        let reps = set.reps || 'N/A';
         const rest = set.rest ? `${set.rest}s` : '';
         const tempo = set.tempo || '';
         const modifiers = [];
-        if (set.dropset) modifiers.push('Dropset');
-        if (set.singleLeg) modifiers.push('Single Leg');
-        if (set.failure) modifiers.push('To Failure');
+        
+        // Apply exercise-level flags
+        if (exercise.dropset) modifiers.push('Dropset');
+        if (exercise.singleLeg) modifiers.push('Single Leg');
+        if (exercise.failure) {
+          modifiers.push('To Failure');
+          reps = 'Failure'; // Replace reps with "Failure" when failure flag is set
+        }
 
         return `${index + 1}. ${reps} reps${rest ? ` | Rest: ${rest}` : ''}${tempo ? ` | Tempo: ${tempo}` : ''}${modifiers.length > 0 ? ` | ${modifiers.join(', ')}` : ''}`;
       }).join('\n');
@@ -298,8 +316,8 @@ export default function DayDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+      <View style={[styles.header, { paddingTop: 8 }]}>
+        <Pressable onPress={() => router.push('/(tabs)/workout')} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </Pressable>
         <View style={styles.headerContent}>
@@ -320,98 +338,202 @@ export default function DayDetailScreen() {
             {/* Session Controls */}
             {isCurrentDayActive && (
               <View style={styles.sessionControls}>
-                <View style={styles.sessionTimerContainer}>
-                  <Ionicons name="time-outline" size={24} color="#4F46E5" />
-                  <Text style={styles.sessionTimerText}>{formatTime(sessionTimer)}</Text>
+                {/* Timer Display */}
+                <View style={styles.timerSection}>
+                  <View style={styles.timerIconContainer}>
+                    <Ionicons name="time" size={24} color="#4F46E5" />
+                  </View>
+                  <View style={styles.timerTextContainer}>
+                    <Text style={styles.timerLabel}>Workout Time</Text>
+                    <Text style={styles.timerValue}>{formatTime(sessionTimer)}</Text>
+                  </View>
                 </View>
-                <Pressable 
-                  style={styles.sessionActionButton} 
-                  onPress={handlePauseResumeWorkout}
-                >
-                  <Ionicons 
-                    name={activeSession.status === 'active' ? 'pause' : 'play'} 
-                    size={20} 
-                    color="#fff" 
-                  />
-                  <Text style={styles.sessionActionButtonText}>
-                    {activeSession.status === 'active' ? 'Pause' : 'Resume'}
-                  </Text>
-                </Pressable>
-                <Pressable 
-                  style={[styles.sessionActionButton, styles.completeSessionButton]} 
-                  onPress={handleCompleteWorkout}
-                >
-                  <Ionicons name="checkmark" size={20} color="#fff" />
-                  <Text style={styles.sessionActionButtonText}>Complete</Text>
-                </Pressable>
+
+                {/* Action Buttons */}
+                <View style={styles.actionButtonsContainer}>
+                  <Pressable 
+                    style={[styles.actionButton, styles.pauseButton]} 
+                    onPress={handlePauseResumeWorkout}
+                  >
+                    <Ionicons 
+                      name={activeSession.status === 'active' ? 'pause' : 'play'} 
+                      size={20} 
+                      color="#FFFFFF" 
+                    />
+                    <Text style={styles.actionButtonText}>
+                      {activeSession.status === 'active' ? 'Pause' : 'Resume'}
+                    </Text>
+                  </Pressable>
+                  
+                  <Pressable 
+                    style={[styles.actionButton, styles.completeButton]} 
+                    onPress={handleCompleteWorkout}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    <Text style={styles.actionButtonText}>Complete</Text>
+                  </Pressable>
+                </View>
               </View>
             )}
 
-            {/* Exercises */}
-            {dayData.exercises?.map((exercise: any, index: number) => {
-              const videoUrl = getExerciseVideoUrl(exercise);
-              const isExerciseCompleted = activeSession?.exerciseCompletions?.some((ec: any) => ec.exerciseId === exercise.id);
-              const groupType = exercise.groupType || 'single';
-              const groupColor = getGroupTypeColor(groupType);
+            {/* Exercises - Grouped by Superset */}
+            {(() => {
+              const exercises = dayData.exercises || [];
+              const groupedExercises: any[] = [];
+              const processedIds = new Set<number>();
 
-              return (
-                <View key={exercise.id} style={styles.exerciseCard}>
-                  {/* Exercise Header */}
-                  <View style={styles.exerciseHeader}>
-                    <View style={styles.exerciseTitleContainer}>
-                      <Text style={styles.exerciseTitle}>{exercise.exercise?.name}</Text>
-                      {videoUrl && (
-                        <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
-                          <Ionicons name="videocam-outline" size={24} color="#4F46E5" />
-                        </Pressable>
+              // Group exercises by superset
+              exercises.forEach((exercise: any) => {
+                if (processedIds.has(exercise.id)) return;
+
+                if (exercise.groupType && exercise.groupType !== 'single' && exercise.groupType !== 'none') {
+                  // Find all exercises in the same group
+                  const groupExercises = exercises.filter((e: any) => 
+                    e.groupId === exercise.groupId && e.groupType === exercise.groupType
+                  );
+                  
+                  groupExercises.forEach(e => processedIds.add(e.id));
+                  groupedExercises.push({
+                    type: 'group',
+                    groupType: exercise.groupType,
+                    groupId: exercise.groupId,
+                    exercises: groupExercises
+                  });
+                } else {
+                  processedIds.add(exercise.id);
+                  groupedExercises.push({
+                    type: 'single',
+                    exercise: exercise
+                  });
+                }
+              });
+
+              return groupedExercises.map((item, index) => {
+                if (item.type === 'group') {
+                  const groupColor = getGroupTypeColor(item.groupType);
+                  return (
+                    <View key={`group-${item.groupId}`} style={styles.supersetGroup}>
+                      {/* Superset Header */}
+                      <View style={styles.supersetHeader}>
+                        <View style={styles.supersetBadge}>
+                          <Text style={styles.supersetBadgeText}>
+                            {item.groupType.toUpperCase()}
+                          </Text>
+                        </View>
+                        <Text style={styles.supersetTitle}>
+                          {item.exercises.length} Linked Exercises
+                        </Text>
+                      </View>
+
+                      {/* Superset Exercises */}
+                      {item.exercises.map((exercise: any, exerciseIndex: number) => {
+                        const videoUrl = getExerciseVideoUrl(exercise);
+                        const groupType = exercise.groupType || 'single';
+
+                        return (
+                          <View key={exercise.id} style={[
+                            styles.exerciseCard,
+                            styles.supersetExerciseCard,
+                            exerciseIndex === item.exercises.length - 1 && styles.lastSupersetExercise
+                          ]}>
+                            {/* Exercise Header with Title and Video */}
+                            <View style={styles.exerciseHeader}>
+                              <Text style={styles.exerciseTitle}>{exercise.exercise?.name}</Text>
+                              {videoUrl && (
+                                <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
+                                  <Ionicons name="play" size={20} color="#FFFFFF" />
+                                </Pressable>
+                              )}
+                            </View>
+
+                            {/* Description */}
+                            {exercise.exercise?.description && (
+                              <Text style={styles.exerciseDescription}>{exercise.exercise.description}</Text>
+                            )}
+
+                            {/* Sets - Full Width */}
+                            <View style={styles.setsItem}>
+                              <Text style={styles.infoLabel}>Sets & Reps</Text>
+                              <View style={styles.setsDetails}>
+                                {formatSets(exercise.sets, exercise).split('\n').map((set: string, idx: number) => (
+                                  <Text key={idx} style={styles.setItem}>
+                                    {set}
+                                  </Text>
+                                ))}
+                              </View>
+                            </View>
+
+                            {/* Notes */}
+                            {exercise.notes && (
+                              <View style={styles.notesSection}>
+                                <Text style={styles.notesTitle}>Notes</Text>
+                                <Text style={styles.notesText}>{exercise.notes}</Text>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  );
+                } else {
+                  // Single exercise
+                  const exercise = item.exercise;
+                  const videoUrl = getExerciseVideoUrl(exercise);
+                  const groupType = exercise.groupType || 'single';
+                  const groupColor = getGroupTypeColor(groupType);
+
+                  return (
+                    <View key={exercise.id} style={styles.exerciseCard}>
+                      {/* Exercise Header with Title and Video */}
+                      <View style={styles.exerciseHeader}>
+                        <Text style={styles.exerciseTitle}>{exercise.exercise?.name}</Text>
+                        {videoUrl && (
+                          <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
+                            <Ionicons name="play" size={20} color="#FFFFFF" />
+                          </Pressable>
+                        )}
+                      </View>
+
+                      {/* Description */}
+                      {exercise.exercise?.description && (
+                        <Text style={styles.exerciseDescription}>{exercise.exercise.description}</Text>
+                      )}
+
+                      {/* Exercise Info Grid */}
+                      <View style={styles.infoGrid}>
+                        {/* Type */}
+                        <View style={styles.infoItem}>
+                          <Text style={styles.infoLabel}>Type</Text>
+                          <Text style={[styles.infoValue, { color: groupColor }]}>
+                            {groupType === 'single' || groupType === 'none' ? 'Single' : groupType.charAt(0).toUpperCase() + groupType.slice(1)}
+                          </Text>
+                        </View>
+
+                        {/* Sets - Full Width */}
+                        <View style={styles.setsItem}>
+                          <Text style={styles.infoLabel}>Sets & Reps</Text>
+                          <View style={styles.setsDetails}>
+                            {formatSets(exercise.sets, exercise).split('\n').map((set: string, idx: number) => (
+                              <Text key={idx} style={styles.setItem}>
+                                {set}
+                              </Text>
+                            ))}
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Notes */}
+                      {exercise.notes && (
+                        <View style={styles.notesSection}>
+                          <Text style={styles.notesTitle}>Notes</Text>
+                          <Text style={styles.notesText}>{exercise.notes}</Text>
+                        </View>
                       )}
                     </View>
-                    {groupType !== 'single' && groupType !== 'none' && (
-                      <View style={[styles.groupTypeBadge, { backgroundColor: groupColor }]}>
-                        <Text style={styles.groupTypeText}>{groupType.toUpperCase()}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Exercise Description */}
-                  {exercise.exercise?.description && (
-                    <Text style={styles.exerciseDescription}>{exercise.exercise.description}</Text>
-                  )}
-
-                  {/* Sets & Reps */}
-                  <View style={styles.setsContainer}>
-                    <Text style={styles.setsTitle}>Sets & Reps:</Text>
-                    <Text style={styles.setsText}>{formatSets(exercise.sets)}</Text>
-                  </View>
-
-                  {/* Notes */}
-                  {exercise.notes && (
-                    <View style={styles.notesContainer}>
-                      <Text style={styles.notesTitle}>Notes:</Text>
-                      <Text style={styles.notesText}>{exercise.notes}</Text>
-                    </View>
-                  )}
-
-                  {/* Exercise Actions */}
-                  {isCurrentDayActive && !isExerciseCompleted && (
-                    <Pressable 
-                      style={styles.completeExerciseButton}
-                      onPress={() => handleCompleteExercise(exercise.id)}
-                    >
-                      <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-                      <Text style={styles.completeExerciseButtonText}>Mark as Complete</Text>
-                    </Pressable>
-                  )}
-                  
-                  {isExerciseCompleted && (
-                    <View style={styles.completedExerciseBadge}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                      <Text style={styles.completedExerciseText}>Completed</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
+                  );
+                }
+              });
+            })()}
 
             {/* Start Workout Button */}
             {!isCurrentDayActive && (
@@ -436,10 +558,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 6,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
   },
   backButton: {
     padding: 8,
@@ -461,6 +588,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 20,
+    paddingTop: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -514,95 +642,243 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   sessionControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#E0E7FF',
-    borderRadius: 15,
-    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  sessionTimerContainer: {
+  timerSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  sessionTimerText: {
-    fontSize: 20,
+  timerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F0F4FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  timerTextContainer: {
+    flex: 1,
+  },
+  timerLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+  timerValue: {
+    fontSize: 24,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#111827',
   },
-  sessionActionButton: {
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4F46E5',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    gap: 6,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  sessionActionButtonText: {
+  pauseButton: {
+    backgroundColor: '#6B7280',
+  },
+  completeButton: {
+    backgroundColor: '#10B981',
+  },
+  actionButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
-  completeSessionButton: {
-    backgroundColor: '#10B981',
+  supersetGroup: {
+    marginBottom: 20,
+  },
+  supersetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  supersetBadge: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  supersetBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  supersetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  supersetExerciseCard: {
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4F46E5',
+  },
+  lastSupersetExercise: {
+    marginBottom: 0,
   },
   exerciseCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 15,
+    borderRadius: 16,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   exerciseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  exerciseTitleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   exerciseTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
     flex: 1,
-    marginRight: 10,
+    marginRight: 12,
   },
   videoButton: {
-    padding: 4,
-  },
-  groupTypeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    marginLeft: 10,
-  },
-  groupTypeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   exerciseDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 16,
+    marginTop: 2,
+  },
+  infoGrid: {
+    flexDirection: 'column',
+    marginBottom: 16,
+    gap: 16,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  setsItem: {
+    flex: 1,
+  },
+  setsDetails: {
+    marginTop: 6,
+  },
+  infoLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  setItem: {
     fontSize: 15,
-    color: '#4B5563',
-    marginBottom: 12,
-    lineHeight: 22,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  linkedSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4F46E5',
+  },
+  linkedTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  linkedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  linkedBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4F46E5',
+    marginRight: 8,
+  },
+  linkedText: {
+    fontSize: 14,
+    color: '#6B7280',
+    flex: 1,
+  },
+  notesSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#F59E0B',
+  },
+  notesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  notesText: {
+    fontSize: 14,
+    color: '#92400E',
+    lineHeight: 20,
   },
   setsContainer: {
     marginBottom: 12,
@@ -638,9 +914,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     marginTop: 8,
     gap: 8,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   completeExerciseButtonText: {
     color: '#FFFFFF',
@@ -668,15 +950,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 15,
-    marginTop: 20,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: 18,
+    borderRadius: 16,
+    marginTop: 24,
+    gap: 12,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   startWorkoutButtonText: {
     color: '#FFFFFF',

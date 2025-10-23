@@ -107,6 +107,47 @@ export default function WorkoutTab() {
     return { status: 'not-started', text: 'Not Started', color: '#6B7280' };
   };
 
+  const getWeekStatus = (week: any) => {
+    if (!week.days || week.days.length === 0) return { isCompleted: false, completedDays: 0, totalDays: 0 };
+    
+    const totalDays = week.days.length;
+    const completedDays = week.days.filter((day: any) => {
+      if (day.dayType === 'off') return true; // Rest days are considered "completed"
+      
+      // Check if there's a completed workout session for this day
+      const session = day.workoutSessions?.[0];
+      return session && session.status === 'completed';
+    }).length;
+    
+    return {
+      isCompleted: completedDays === totalDays,
+      completedDays,
+      totalDays
+    };
+  };
+
+  const formatWorkoutDuration = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
+  const getWorkoutDuration = (day: any) => {
+    const session = day.workoutSessions?.[0];
+    if (session && session.status === 'completed' && session.totalDuration) {
+      return formatWorkoutDuration(session.totalDuration);
+    }
+    return null;
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
@@ -177,23 +218,31 @@ export default function WorkoutTab() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.weekTabsContainer}
             >
-              {assignment.program.weeks.map((week: any, index: number) => (
-                <Pressable
-                  key={week.id}
-                  style={[
-                    styles.weekTab,
-                    selectedWeek === index && styles.activeWeekTab
-                  ]}
-                  onPress={() => setSelectedWeek(index)}
-                >
-                  <Text style={[
-                    styles.weekTabText,
-                    selectedWeek === index && styles.activeWeekTabText
-                  ]}>
-                    {week.name || `Week ${week.weekNumber}`}
-                  </Text>
-                </Pressable>
-              ))}
+              {assignment.program.weeks.map((week: any, index: number) => {
+                const weekStatus = getWeekStatus(week);
+                return (
+                  <Pressable
+                    key={week.id}
+                    style={[
+                      styles.weekTab,
+                      selectedWeek === index && styles.activeWeekTab
+                    ]}
+                    onPress={() => setSelectedWeek(index)}
+                  >
+                    <View style={styles.weekTabContent}>
+                      {weekStatus.isCompleted && (
+                        <Ionicons name="checkmark-circle" size={16} color="#10B981" style={styles.weekSuccessIcon} />
+                      )}
+                      <Text style={[
+                        styles.weekTabText,
+                        selectedWeek === index && styles.activeWeekTabText
+                      ]}>
+                        {week.name || `Week ${week.weekNumber}`}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
 
             {/* Days List */}
@@ -206,6 +255,7 @@ export default function WorkoutTab() {
                 const dayStatus = getDayStatus(day);
                 const isOffDay = day.dayType === 'off';
                 const exerciseCount = day.exercises?.length || 0;
+                const workoutDuration = getWorkoutDuration(day);
 
                 return (
                   <Pressable
@@ -213,7 +263,6 @@ export default function WorkoutTab() {
                     style={[
                       styles.dayCard,
                       isOffDay && styles.offDayCard,
-                      dayStatus.status === 'completed' && styles.completedDayCard,
                     ]}
                     onPress={() => !isOffDay && handleDayPress(day)}
                     disabled={isOffDay}
@@ -224,9 +273,16 @@ export default function WorkoutTab() {
                           {day.name || `Day ${day.dayNumber}`}
                         </Text>
                         {!isOffDay ? (
-                          <Text style={styles.dayCardSubtitle}>
-                            {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''}
-                          </Text>
+                          <View style={styles.dayCardSubtitleContainer}>
+                            <Text style={styles.dayCardSubtitle}>
+                              {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''}
+                            </Text>
+                            {workoutDuration && (
+                              <Text style={styles.workoutDuration}>
+                                Completed in {workoutDuration}
+                              </Text>
+                            )}
+                          </View>
                         ) : (
                           <Text style={styles.restDaySubtitle}>
                             Rest Day
@@ -234,9 +290,6 @@ export default function WorkoutTab() {
                         )}
                       </View>
                       <View style={styles.dayCardRight}>
-                        {dayStatus.status === 'completed' && (
-                          <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                        )}
                         {!isOffDay && (
                           <View style={[styles.statusBadge, { backgroundColor: dayStatus.color }]}>
                             <Text style={styles.statusBadgeText}>{dayStatus.text}</Text>
@@ -417,6 +470,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#4F46E5',
     borderColor: '#4F46E5',
   },
+  weekTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weekSuccessIcon: {
+    marginRight: 6,
+  },
   weekTabText: {
     fontSize: 16,
     fontWeight: '600',
@@ -452,10 +513,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderColor: '#FCD34D',
   },
-  completedDayCard: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
-  },
   dayCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -473,9 +530,17 @@ const styles = StyleSheet.create({
   offDayCardTitle: {
     color: '#92400E',
   },
+  dayCardSubtitleContainer: {
+    marginTop: 2,
+  },
   dayCardSubtitle: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  workoutDuration: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '500',
     marginTop: 2,
   },
   restDaySubtitle: {
