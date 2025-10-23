@@ -107,7 +107,7 @@ export default function CheckinsTab() {
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: 8 }]}>
         <Text style={styles.headerTitle}>Check-ins</Text>
         <Text style={styles.headerSubtitle}>Track your progress and updates</Text>
       </View>
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 6,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
@@ -309,6 +309,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 20,
+    paddingTop: 6,
   },
   errorCard: {
     backgroundColor: '#FEF2F2',

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [client, setClient] = useState<any>(null);
   const [err, setErr] = useState('');
   const [subscription, setSubscription] = useState<any>(null);
@@ -39,12 +41,14 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.headerArea}>
-        <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={10}>
-          <Text style={styles.backIcon}>←</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={styles.headerRow}>
+          <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={10}>
+            <Text style={styles.backIcon}>←</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
         <Text style={styles.headerSubtitle}>Manage your account</Text>
       </View>
 
@@ -71,12 +75,13 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#fff' },
-  headerArea: { paddingHorizontal: 16, paddingTop: 48, paddingBottom: 16, alignItems: 'flex-start' },
-  backButton: { position: 'absolute', left: 16, top: 12, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  headerArea: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, alignItems: 'flex-start' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  backButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
   backIcon: { fontSize: 22, color: '#111827' },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: '#0f172a', textAlign: 'left' },
-  headerSubtitle: { marginTop: 6, fontSize: 14, color: '#64748b', textAlign: 'left' },
-  card: { marginTop: 16, marginHorizontal: 16, backgroundColor: '#fff', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: '#0f172a', textAlign: 'left', flex: 1 },
+  headerSubtitle: { fontSize: 14, color: '#64748b', textAlign: 'left' },
+  card: { marginTop: 8, marginHorizontal: 16, backgroundColor: '#fff', borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
   label: { color: '#6b7280' },
   value: { color: '#111827', fontWeight: '500' },

@@ -7,7 +7,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 
 function createTokens(payload: object) {
-  const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '30m' });
+  const accessToken = jwt.sign(payload, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '24h' });
   const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET || 'dev-refresh', { expiresIn: '30d' });
   return { accessToken, refreshToken };
 }
@@ -155,6 +155,28 @@ router.post('/auth/change-password', authMiddleware, async (req: any, res) => {
   } catch (e) {
     console.error('change-password error', e);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Refresh access token using refresh token
+router.post('/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'dev-refresh') as any;
+    const client = await prisma.trainerClient.findUnique({ where: { id: decoded.clientId } });
+    if (!client) {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    const { accessToken, refreshToken: newRefreshToken } = createTokens({ clientId: client.id });
+    return res.json({ accessToken, refreshToken: newRefreshToken });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    return res.status(401).json({ error: 'Invalid refresh token' });
   }
 });
 
