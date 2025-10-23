@@ -410,17 +410,31 @@ model Ingredient {
   name             String
   category         String            // Protein, Carbs, Fats, Vegetables, Fruits, etc.
   description      String?
-  // Nutritional info per 100g
-  calories         Float             @default(0)
-  protein          Float             @default(0)
-  carbs            Float             @default(0)
-  fats             Float             @default(0)
+  
+  // Cooking state - which nutritional values to use
+  cookingState      String            @default("before_cook") // "before_cook" or "after_cook"
+  
+  // Nutritional info per 100g - Before Cook
+  caloriesBefore   Float             @default(0)
+  proteinBefore    Float             @default(0)
+  carbsBefore      Float             @default(0)
+  fatsBefore       Float             @default(0)
+  
+  // Nutritional info per 100g - After Cook
+  caloriesAfter    Float             @default(0)
+  proteinAfter     Float             @default(0)
+  carbsAfter       Float             @default(0)
+  fatsAfter        Float             @default(0)
+  
+  // Common nutritional info (not affected by cooking)
   fiber            Float             @default(0)
   sugar            Float             @default(0)
   sodium           Float             @default(0)
+  
   // Unit information
   unitType         String            @default("grams") // grams, cups, pieces, etc.
   servingSize      Float             @default(100) // default 100g
+  
   // Additional info
   costPerUnit      Float?            // optional cost tracking
   allergens        String?           @default("[]") // JSON array of allergens
