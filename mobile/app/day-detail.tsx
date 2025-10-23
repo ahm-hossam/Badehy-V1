@@ -8,7 +8,8 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
-  Dimensions
+  Dimensions,
+  Modal
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,11 @@ export default function DayDetailScreen() {
   const [activeSession, setActiveSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sessionTimer, setSessionTimer] = useState(0);
+  const [notesModal, setNotesModal] = useState<{visible: boolean, notes: string, exerciseName: string}>({
+    visible: false,
+    notes: '',
+    exerciseName: ''
+  });
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchDayData = useCallback(async () => {
@@ -237,11 +243,11 @@ export default function DayDetailScreen() {
   };
 
   const formatSets = (sets: any, exercise: any) => {
-    if (!sets) return 'No sets defined';
+    if (!sets) return [];
     
     try {
       const setsArray = Array.isArray(sets) ? sets : JSON.parse(sets);
-      if (!Array.isArray(setsArray) || setsArray.length === 0) return 'No sets defined';
+      if (!Array.isArray(setsArray) || setsArray.length === 0) return [];
       
       return setsArray.map((set: any, index: number) => {
         let reps = set.reps || 'N/A';
@@ -257,10 +263,16 @@ export default function DayDetailScreen() {
           reps = 'Failure'; // Replace reps with "Failure" when failure flag is set
         }
 
-        return `${index + 1}. ${reps} reps${rest ? ` | Rest: ${rest}` : ''}${tempo ? ` | Tempo: ${tempo}` : ''}${modifiers.length > 0 ? ` | ${modifiers.join(', ')}` : ''}`;
-      }).join('\n');
+        return {
+          setNumber: index + 1,
+          reps: reps,
+          rest: rest,
+          tempo: tempo,
+          modifiers: modifiers
+        };
+      });
     } catch {
-      return 'Invalid sets data';
+      return [];
     }
   };
 
@@ -283,6 +295,22 @@ export default function DayDetailScreen() {
       `Video URL: ${videoUrl}\n\nNote: Full video playback requires a development build.`,
       [{ text: "OK" }]
     );
+  };
+
+  const openNotesModal = (notes: string, exerciseName: string) => {
+    setNotesModal({
+      visible: true,
+      notes,
+      exerciseName
+    });
+  };
+
+  const closeNotesModal = () => {
+    setNotesModal({
+      visible: false,
+      notes: '',
+      exerciseName: ''
+    });
   };
 
   if (loading) {
@@ -436,14 +464,24 @@ export default function DayDetailScreen() {
                             styles.supersetExerciseCard,
                             exerciseIndex === item.exercises.length - 1 && styles.lastSupersetExercise
                           ]}>
-                            {/* Exercise Header with Title and Video */}
+                            {/* Exercise Header with Title and Actions */}
                             <View style={styles.exerciseHeader}>
                               <Text style={styles.exerciseTitle}>{exercise.exercise?.name}</Text>
-                              {videoUrl && (
-                                <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
-                                  <Ionicons name="play" size={20} color="#FFFFFF" />
-                                </Pressable>
-                              )}
+                              <View style={styles.exerciseActions}>
+                                {exercise.notes && (
+                                  <Pressable 
+                                    onPress={() => openNotesModal(exercise.notes, exercise.exercise?.name)} 
+                                    style={styles.notesButton}
+                                  >
+                                    <Ionicons name="document-text-outline" size={20} color="#6B7280" />
+                                  </Pressable>
+                                )}
+                                {videoUrl && (
+                                  <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
+                                    <Ionicons name="play" size={20} color="#FFFFFF" />
+                                  </Pressable>
+                                )}
+                              </View>
                             </View>
 
                             {/* Description */}
@@ -451,25 +489,51 @@ export default function DayDetailScreen() {
                               <Text style={styles.exerciseDescription}>{exercise.exercise.description}</Text>
                             )}
 
-                            {/* Sets - Full Width */}
-                            <View style={styles.setsItem}>
-                              <Text style={styles.infoLabel}>Sets & Reps</Text>
-                              <View style={styles.setsDetails}>
-                                {formatSets(exercise.sets, exercise).split('\n').map((set: string, idx: number) => (
-                                  <Text key={idx} style={styles.setItem}>
-                                    {set}
-                                  </Text>
-                                ))}
+                            {/* Sets - Card Layout */}
+                            <View style={styles.setsSection}>
+                              <Text style={styles.setsSectionTitle}>Sets & Reps</Text>
+                              <View style={styles.setsContainer}>
+                                {(() => {
+                                  const sets = formatSets(exercise.sets, exercise);
+                                  console.log('Sets data:', sets);
+                                  if (sets.length === 0) {
+                                    return <Text style={{color: 'red'}}>No sets data found</Text>;
+                                  }
+                                  return sets.map((set: any, idx: number) => (
+                                  <View key={idx} style={styles.setCard}>
+                                    <View style={styles.setHeader}>
+                                      <Text style={styles.setNumber}>Set {set.setNumber}</Text>
+                                      <Text style={styles.setReps}>{set.reps} reps</Text>
+                                    </View>
+                                    <View style={styles.setDetails}>
+                                      {set.rest && (
+                                        <View style={styles.setDetailItem}>
+                                          <Ionicons name="time-outline" size={14} color="#6B7280" />
+                                          <Text style={styles.setDetailText}>Rest {set.rest}</Text>
+                                        </View>
+                                      )}
+                                      {set.tempo && set.tempo !== '0' && (
+                                        <View style={styles.setDetailItem}>
+                                          <Ionicons name="speedometer-outline" size={14} color="#6B7280" />
+                                          <Text style={styles.setDetailText}>Tempo {set.tempo}</Text>
+                                        </View>
+                                      )}
+                                    </View>
+                                    {set.modifiers.length > 0 && (
+                                      <View style={styles.modifiersContainer}>
+                                        {set.modifiers.map((modifier: string, modIdx: number) => (
+                                          <View key={modIdx} style={styles.modifierBadge}>
+                                            <Text style={styles.modifierText}>{modifier}</Text>
+                                          </View>
+                                        ))}
+                                      </View>
+                                    )}
+                                  </View>
+                                ));
+                                })()}
                               </View>
                             </View>
 
-                            {/* Notes */}
-                            {exercise.notes && (
-                              <View style={styles.notesSection}>
-                                <Text style={styles.notesTitle}>Notes</Text>
-                                <Text style={styles.notesText}>{exercise.notes}</Text>
-                              </View>
-                            )}
                           </View>
                         );
                       })}
@@ -484,14 +548,24 @@ export default function DayDetailScreen() {
 
                   return (
                     <View key={exercise.id} style={styles.exerciseCard}>
-                      {/* Exercise Header with Title and Video */}
+                      {/* Exercise Header with Title and Actions */}
                       <View style={styles.exerciseHeader}>
                         <Text style={styles.exerciseTitle}>{exercise.exercise?.name}</Text>
-                        {videoUrl && (
-                          <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
-                            <Ionicons name="play" size={20} color="#FFFFFF" />
-                          </Pressable>
-                        )}
+                        <View style={styles.exerciseActions}>
+                          {exercise.notes && (
+                            <Pressable 
+                              onPress={() => openNotesModal(exercise.notes, exercise.exercise?.name)} 
+                              style={styles.notesButton}
+                            >
+                              <Ionicons name="document-text-outline" size={20} color="#6B7280" />
+                            </Pressable>
+                          )}
+                          {videoUrl && (
+                            <Pressable onPress={() => openVideoModal(videoUrl)} style={styles.videoButton}>
+                              <Ionicons name="play" size={20} color="#FFFFFF" />
+                            </Pressable>
+                          )}
+                        </View>
                       </View>
 
                       {/* Description */}
@@ -509,26 +583,52 @@ export default function DayDetailScreen() {
                           </Text>
                         </View>
 
-                        {/* Sets - Full Width */}
-                        <View style={styles.setsItem}>
-                          <Text style={styles.infoLabel}>Sets & Reps</Text>
-                          <View style={styles.setsDetails}>
-                            {formatSets(exercise.sets, exercise).split('\n').map((set: string, idx: number) => (
-                              <Text key={idx} style={styles.setItem}>
-                                {set}
-                              </Text>
-                            ))}
+                        {/* Sets - Card Layout */}
+                        <View style={styles.setsSection}>
+                          <Text style={styles.setsSectionTitle}>Sets & Reps</Text>
+                          <View style={styles.setsContainer}>
+                            {(() => {
+                              const sets = formatSets(exercise.sets, exercise);
+                              console.log('Single exercise sets data:', sets);
+                              if (sets.length === 0) {
+                                return <Text style={{color: 'red'}}>No sets data found</Text>;
+                              }
+                              return sets.map((set: any, idx: number) => (
+                              <View key={idx} style={styles.setCard}>
+                                <View style={styles.setHeader}>
+                                  <Text style={styles.setNumber}>Set {set.setNumber}</Text>
+                                  <Text style={styles.setReps}>{set.reps} reps</Text>
+                                </View>
+                                <View style={styles.setDetails}>
+                                  {set.rest && (
+                                    <View style={styles.setDetailItem}>
+                                      <Ionicons name="time-outline" size={14} color="#6B7280" />
+                                      <Text style={styles.setDetailText}>Rest {set.rest}</Text>
+                                    </View>
+                                  )}
+                                  {set.tempo && set.tempo !== '0' && (
+                                    <View style={styles.setDetailItem}>
+                                      <Ionicons name="speedometer-outline" size={14} color="#6B7280" />
+                                      <Text style={styles.setDetailText}>Tempo {set.tempo}</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                {set.modifiers.length > 0 && (
+                                  <View style={styles.modifiersContainer}>
+                                    {set.modifiers.map((modifier: string, modIdx: number) => (
+                                      <View key={modIdx} style={styles.modifierBadge}>
+                                        <Text style={styles.modifierText}>{modifier}</Text>
+                                      </View>
+                                    ))}
+                                  </View>
+                                )}
+                              </View>
+                            ));
+                            })()}
                           </View>
                         </View>
                       </View>
 
-                      {/* Notes */}
-                      {exercise.notes && (
-                        <View style={styles.notesSection}>
-                          <Text style={styles.notesTitle}>Notes</Text>
-                          <Text style={styles.notesText}>{exercise.notes}</Text>
-                        </View>
-                      )}
                     </View>
                   );
                 }
@@ -543,11 +643,34 @@ export default function DayDetailScreen() {
               </Pressable>
             )}
           </>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
+            )}
+          </ScrollView>
+
+          {/* Notes Modal */}
+          <Modal
+            visible={notesModal.visible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={closeNotesModal}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.notesModal}>
+                <View style={styles.notesModalHeader}>
+                  <Text style={styles.notesModalTitle}>Notes</Text>
+                  <Text style={styles.notesModalExercise}>{notesModal.exerciseName}</Text>
+                  <Pressable onPress={closeNotesModal} style={styles.notesModalCloseButton}>
+                    <Ionicons name="close" size={24} color="#6B7280" />
+                  </Pressable>
+                </View>
+                <ScrollView style={styles.notesModalContent}>
+                  <Text style={styles.notesModalText}>{notesModal.notes}</Text>
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+        </SafeAreaView>
+      );
+    }
 
 const styles = StyleSheet.create({
   container: {
@@ -775,6 +898,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
+  exerciseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notesButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
   videoButton: {
     width: 40,
     height: 40,
@@ -805,11 +943,119 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  setsItem: {
-    flex: 1,
+  setsSection: {
+    marginTop: 16,
   },
-  setsDetails: {
-    marginTop: 6,
+  setsSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  setsContainer: {
+    gap: 4,
+  },
+  setCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 4,
+  },
+  setHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  setNumber: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  setReps: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  setDetails: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 4,
+  },
+  setDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  setDetailText: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  modifiersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  modifierBadge: {
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  modifierText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#4F46E5',
+  },
+  // Notes Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  notesModal: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    minHeight: '40%',
+  },
+  notesModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  notesModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  notesModalExercise: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  notesModalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  notesModalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  notesModalText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#374151',
   },
   infoLabel: {
     fontSize: 12,
@@ -822,13 +1068,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-  },
-  setItem: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 4,
-    lineHeight: 20,
   },
   linkedSection: {
     marginBottom: 16,
