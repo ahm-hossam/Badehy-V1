@@ -204,6 +204,51 @@ function WorkoutProgramsCollapsible({ pathname }: { pathname: string }) {
   );
 }
 
+function NutritionCollapsible({ pathname }: { pathname: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5 group"
+      >
+        <HeartIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5 group-hover:fill-zinc-950" />
+        <span className="flex-1">Nutrition Programs</span>
+        <span className="ml-auto transition-transform duration-200 ease-in-out">
+          <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      <div 
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          isOpen ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className="pl-8 flex flex-col gap-0.5 mt-1">
+          <SidebarItem
+            href="/nutrition-programs/ingredients"
+            current={pathname === '/nutrition-programs/ingredients'}
+          >
+            <SidebarLabel>Ingredients</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem
+            href="/nutrition-programs/meals"
+            current={pathname === '/nutrition-programs/meals'}
+          >
+            <SidebarLabel>Meals</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem
+            href="/nutrition-programs"
+            current={pathname === '/nutrition-programs'}
+          >
+            <SidebarLabel>Programs</SidebarLabel>
+          </SidebarItem>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BrandingCollapsible({ pathname }: { pathname: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -458,11 +503,8 @@ export function ApplicationLayout({
               </SidebarItem>
               {/* Workout Programs collapsible section */}
               <WorkoutProgramsCollapsible pathname={pathname} />
-              {/* Nutrition Programs section */}
-              <SidebarItem href="/nutrition-programs" current={pathname.startsWith('/nutrition-programs')}>
-                <HeartIcon />
-                <SidebarLabel>Nutrition Programs</SidebarLabel>
-              </SidebarItem>
+              {/* Nutrition Programs collapsible section */}
+              <NutritionCollapsible pathname={pathname} />
               {/* Branding & Templates collapsible section */}
               <BrandingCollapsible pathname={pathname} />
               {/* Reports collapsible section */}
