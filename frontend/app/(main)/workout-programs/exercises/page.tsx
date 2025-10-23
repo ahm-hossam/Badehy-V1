@@ -5,9 +5,23 @@ import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
 import { Dialog } from '@/components/dialog';
+import { Heading } from '@/components/heading';
+import { Text } from '@/components/text';
 import { getStoredUser } from '@/lib/auth';
 import { PlusIcon, PencilIcon, TrashIcon, PlayIcon, LinkIcon, PhotoIcon, MagnifyingGlassIcon, BookOpenIcon } from '@heroicons/react/20/solid';
 
+// Helper function to extract YouTube video ID
+const getYouTubeVideoId = (url: string): string | null => {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+};
 
 interface Exercise {
   id: number;
@@ -67,7 +81,17 @@ export default function ExercisesPage() {
   const fetchExercises = async (trainerId: number) => {
     try {
       console.log('Fetching custom exercises for trainerId:', trainerId);
-      const response = await fetch(`/api/exercises?trainerId=${trainerId}`);
+      // Use the frontend API route which proxies to backend
+      const fullUrl = `/api/exercises?trainerId=${trainerId}&_t=${Date.now()}`;
+      console.log('Full API URL:', fullUrl);
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      console.log('Response status:', response.status, 'Response ok:', response.ok);
       
       if (response.ok) {
         const data = await response.json();
@@ -312,22 +336,20 @@ export default function ExercisesPage() {
 
   if (loading) {
     return (
-      <div className="py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Loading exercises...</p>
-          </div>
+      <div className="space-y-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading exercises...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Exercises</h1>
           <p className="text-sm text-gray-600 mt-1">
             Manage your custom exercise library
@@ -357,27 +379,30 @@ export default function ExercisesPage() {
             </Button>
           </div>
         </div>
+      </div>
 
-
-
-        {/* Exercises Table */}
+      {/* Exercises Table */}
         <div className="bg-white shadow-sm rounded-lg border border-gray-200">
           {!Array.isArray(filteredExercises) || filteredExercises.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="text-gray-400 mb-4">
-                <PlayIcon className="w-12 h-12 mx-auto" />
+            <div className="text-center py-12">
+              <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <PlayIcon className="w-8 h-8 text-gray-400" />
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No exercises found</h3>
-              <p className="text-gray-600 mb-4">
+              <Heading level={3} className="text-gray-900 mb-2">
+                {searchTerm ? 'No exercises found' : 'No exercises yet'}
+              </Heading>
+              <Text className="text-gray-600 mb-6">
                 {searchTerm
-                  ? 'Try adjusting your search.'
+                  ? 'Try adjusting your search criteria.'
                   : 'Create your first exercise to start building workout programs.'
                 }
-              </p>
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <PlusIcon className="w-5 h-5 mr-2" />
-                Create Exercise
-              </Button>
+              </Text>
+              {!searchTerm && (
+                <Button onClick={() => setShowCreateDialog(true)}>
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Add Your First Exercise
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-hidden">
@@ -817,22 +842,6 @@ export default function ExercisesPage() {
             )}
           </div>
         </Dialog>
-
-      </div>
     </div>
   );
 }
-
-// Helper function to extract YouTube video ID
-const getYouTubeVideoId = (url: string): string | null => {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) return match[1];
-  }
-  return null;
-};
- 
