@@ -156,9 +156,9 @@ export default function HomeScreen() {
   const workoutProgress = getWorkoutProgress();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Fixed Header */}
-      <View style={[styles.fixedHeader, { paddingTop: insets.top + 12, paddingHorizontal: 16 }]}>
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
+      <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={{ height: 45, overflow: 'hidden' }}>
             <Image source={logoSource} style={styles.logo} />
@@ -184,7 +184,7 @@ export default function HomeScreen() {
 
       {/* Content */}
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 80 }]}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
@@ -352,7 +352,7 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -361,12 +361,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  fixedHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -415,6 +412,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingBottom: 20,
+    paddingTop: 20,
   },
   welcomeSection: {
     marginBottom: 24,
