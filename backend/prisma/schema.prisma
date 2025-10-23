@@ -28,6 +28,7 @@ model Registered {
   clientAssignments          ClientTeamAssignment[]
   exercises                  Exercise[]
   financialRecords           FinancialRecord[]
+  ingredients                Ingredient[]
   labels                     Label[]
   leads                      Lead[]
   nutritionPrograms          NutritionProgram[]
@@ -401,6 +402,37 @@ model Exercise {
   programExercises ProgramExercise[]
 
   @@index([trainerId])
+}
+
+model Ingredient {
+  id               Int               @id @default(autoincrement())
+  trainerId        Int
+  name             String
+  category         String            // Protein, Carbs, Fats, Vegetables, Fruits, etc.
+  description      String?
+  // Nutritional info per 100g
+  calories         Float             @default(0)
+  protein          Float             @default(0)
+  carbs            Float             @default(0)
+  fats             Float             @default(0)
+  fiber            Float             @default(0)
+  sugar            Float             @default(0)
+  sodium           Float             @default(0)
+  // Unit information
+  unitType         String            @default("grams") // grams, cups, pieces, etc.
+  servingSize      Float             @default(100) // default 100g
+  // Additional info
+  costPerUnit      Float?            // optional cost tracking
+  allergens        String?           @default("[]") // JSON array of allergens
+  imageUrl         String?
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  trainer          Registered        @relation(fields: [trainerId], references: [id])
+
+  @@index([trainerId])
+  @@index([category])
+  @@index([name])
 }
 
 model Program {
