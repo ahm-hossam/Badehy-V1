@@ -1349,21 +1349,21 @@ export default function NutritionProgramBuilder() {
               
               <div className="space-y-6">
                 {/* Action Button */}
-                <div className="relative">
-                  <Button
+                <div className="relative flex justify-end">
+                  <button
                     onClick={() => setShowMealTypeDropdown(!showMealTypeDropdown)}
                     data-dropdown-trigger
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    className="border-2 border-dashed border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 font-normal px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                   >
                     <PlusIcon className="w-4 h-4 mr-2" />
                     Add Meal
                     <ChevronDownIcon className="w-4 h-4 ml-2" />
-                  </Button>
+                  </button>
                   
                   {showMealTypeDropdown && (
                     <div 
                       data-dropdown-content
-                      className="absolute top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-10"
+                      className="absolute top-full right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 min-w-[200px]"
                     >
                       <button
                         onClick={() => {
@@ -1371,9 +1371,9 @@ export default function NutritionProgramBuilder() {
                           setShowNewMealAccordion(false);
                           setShowMealTypeDropdown(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-zinc-700 hover:bg-zinc-50 flex items-center gap-3 border-b border-zinc-100"
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 border-b border-zinc-100"
                       >
-                        <PlusIcon className="w-4 h-4" />
+                        <PlusIcon className="w-3 h-3" />
                         Add Existing Meal
                       </button>
                       <button
@@ -1382,9 +1382,9 @@ export default function NutritionProgramBuilder() {
                           setShowExistingMealAccordion(false);
                           setShowMealTypeDropdown(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-zinc-700 hover:bg-zinc-50 flex items-center gap-3"
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
                       >
-                        <PlusIcon className="w-4 h-4" />
+                        <PlusIcon className="w-3 h-3" />
                         Create New Meal
                       </button>
                     </div>
