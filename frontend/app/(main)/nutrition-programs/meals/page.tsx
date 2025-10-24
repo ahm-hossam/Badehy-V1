@@ -17,7 +17,8 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  DocumentDuplicateIcon
 } from '@heroicons/react/24/outline';
 
 interface MealIngredient {
@@ -197,6 +198,46 @@ export default function MealsPage() {
     } catch (error) {
       console.error('Error deleting meal:', error);
       setError('Failed to delete meal');
+    }
+  };
+
+  const handleDuplicateMeal = async (meal: Meal) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const url = `${apiUrl}/api/meals/${meal.id}/duplicate?trainerId=${trainerId}`;
+      
+      console.log('Duplicate URL:', url);
+      console.log('Duplicating meal:', meal);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const duplicatedMeal = await response.json();
+        setMeals([duplicatedMeal, ...meals]);
+        setError('');
+      } else {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        
+        if (errorText.includes('<!DOCTYPE') || errorText.includes('<html')) {
+          setError(`Server returned HTML instead of JSON. This usually means the API URL is incorrect or the server is not running. Status: ${response.status}`);
+        } else {
+          try {
+            const errorData = JSON.parse(errorText);
+            setError(errorData.error || 'Failed to duplicate meal');
+          } catch {
+            setError(`Server error: ${response.status} - ${errorText}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error duplicating meal:', error);
+      setError('Failed to duplicate meal');
     }
   };
 
@@ -383,12 +424,21 @@ export default function MealsPage() {
                           setShowCreatePanel(true);
                         }}
                         className="text-blue-600 hover:text-blue-800"
+                        title="Edit meal"
                       >
                         <PencilIcon className="w-4 h-4" />
                       </button>
                       <button
+                        onClick={() => handleDuplicateMeal(meal)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Duplicate meal"
+                      >
+                        <DocumentDuplicateIcon className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => setDeleteConfirm(meal)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
+                        title="Delete meal"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>

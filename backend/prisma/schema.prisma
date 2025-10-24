@@ -483,13 +483,27 @@ model NutritionProgram {
   pdfUrl            String?
   isImported        Boolean                     @default(false)
   importedPdfUrl    String?
-  programDuration   Int?
-  durationUnit      String?
+  programDuration   Int?                        // Number of weeks
+  durationUnit      String?                     @default("weeks")
+  repeatCount       Int?                        @default(1) // How many times to repeat the program
+  
+  // Goal settings
+  targetCalories    Float?                      // Daily calorie target
+  targetProtein     Float?                      // Daily protein target (grams)
+  targetCarbs       Float?                      // Daily carbs target (grams)
+  targetFats        Float?                      // Daily fats target (grams)
+  proteinPercentage Float?                     // Protein percentage (if using %)
+  carbsPercentage   Float?                      // Carbs percentage (if using %)
+  fatsPercentage    Float?                      // Fats percentage (if using %)
+  usePercentages    Boolean                     @default(false) // Whether to use % or grams
+  
+  isActive          Boolean                     @default(true)
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
   clientAssignments ClientNutritionAssignment[]
   trainer           Registered                  @relation(fields: [trainerId], references: [id])
   meals             NutritionProgramMeal[]
+  weeks             NutritionProgramWeek[]
 
   @@index([trainerId])
 }
@@ -546,21 +560,70 @@ model MealIngredient {
   @@index([ingredientId])
 }
 
+model NutritionProgramWeek {
+  id                Int                         @id @default(autoincrement())
+  nutritionProgramId Int
+  weekNumber        Int                         // Week number (1, 2, 3, etc.)
+  name              String?                     // Optional week name
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  
+  // Relations
+  nutritionProgram  NutritionProgram            @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+  days              NutritionProgramDay[]
+  meals             NutritionProgramMeal[]
+
+  @@unique([nutritionProgramId, weekNumber])
+  @@index([nutritionProgramId])
+}
+
+model NutritionProgramDay {
+  id                Int                         @id @default(autoincrement())
+  nutritionProgramWeekId Int
+  dayOfWeek        Int                         // 1-7 (Monday-Sunday)
+  name              String?                     // Optional day name
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  
+  // Relations
+  nutritionProgramWeek NutritionProgramWeek     @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
+  meals             NutritionProgramMeal[]
+
+  @@unique([nutritionProgramWeekId, dayOfWeek])
+  @@index([nutritionProgramWeekId])
+}
+
 model NutritionProgramMeal {
   id                Int             @id @default(autoincrement())
   nutritionProgramId Int
+  nutritionProgramWeekId Int?       // Optional: specific week
+  nutritionProgramDayId Int?        // Optional: specific day
   mealId            Int
-  dayOfWeek         Int?            // 1-7 (Monday-Sunday)
-  mealType          String?         // Breakfast, Lunch, Dinner, Snack
+  mealType          String          // Breakfast, Lunch, Dinner, Snack
   order             Int?            // order within the day
+  
+  // Cheat meal settings
+  isCheatMeal       Boolean         @default(false)
+  cheatDescription  String?         // Description for cheat meal
+  cheatImageUrl     String?         // Image for cheat meal
+  
+  // Custom modifications (without affecting original meal)
+  customQuantity    Float?          // Custom quantity multiplier
+  customNotes       String?          // Custom notes for this meal
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
   
   // Relations
   nutritionProgram  NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+  nutritionProgramWeek NutritionProgramWeek? @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
+  nutritionProgramDay NutritionProgramDay? @relation(fields: [nutritionProgramDayId], references: [id], onDelete: Cascade)
   meal              Meal            @relation(fields: [mealId], references: [id], onDelete: Cascade)
 
-  @@unique([nutritionProgramId, mealId, dayOfWeek, mealType])
   @@index([nutritionProgramId])
   @@index([mealId])
+  @@index([nutritionProgramWeekId])
+  @@index([nutritionProgramDayId])
 }
 
 model ProgramWeek {
