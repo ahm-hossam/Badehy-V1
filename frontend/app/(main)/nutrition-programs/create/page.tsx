@@ -511,13 +511,25 @@ export default function NutritionProgramBuilder() {
   };
 
   const openMealSelector = (weekId: number, dayId: number, dayOfWeek: number) => {
+    console.log('openMealSelector called with:', { weekId, dayId, dayOfWeek });
+    console.log('Current program:', program);
+    console.log('Program weeks:', program.weeks);
+    
     // Find the actual day object
     const week = program.weeks!.find(w => w.weekNumber === weekId);
+    console.log('Found week:', week);
+    console.log('Week days:', week?.days);
+    
     const day = week?.days?.find(d => d.id === dayId);
+    console.log('Found day:', day);
+    console.log('Day meals:', day?.meals);
+    console.log('Day meals length:', day?.meals?.length);
+    
     setSelectedDay(day || null);
     
     // Initialize selectedMealsForDay with existing meals from the day
-    if (day?.meals) {
+    if (day?.meals && day.meals.length > 0) {
+      console.log('Processing existing meals...');
       const existingMeals = day.meals.map(meal => ({
         meal: meal.meal!,
         mealType: meal.mealType,
@@ -527,8 +539,10 @@ export default function NutritionProgramBuilder() {
           unit: mi.unit
         }))
       }));
+      console.log('Mapped existing meals:', existingMeals);
       setSelectedMealsForDay(existingMeals);
     } else {
+      console.log('No meals found for day - setting empty array');
       setSelectedMealsForDay([]);
     }
     
@@ -641,6 +655,10 @@ export default function NutritionProgramBuilder() {
   const saveMealsToDay = () => {
     if (!selectedDay) return;
 
+    console.log('saveMealsToDay called');
+    console.log('selectedDay:', selectedDay);
+    console.log('selectedMealsForDay:', selectedMealsForDay);
+
     const newMeals: NutritionProgramMeal[] = selectedMealsForDay.map((mealEntry, index) => ({
       mealId: mealEntry.meal.id,
       mealType: mealEntry.mealType,
@@ -648,6 +666,8 @@ export default function NutritionProgramBuilder() {
       customQuantity: 1,
       meal: mealEntry.meal
     }));
+
+    console.log('newMeals to save:', newMeals);
 
     setProgram(prev => ({
       ...prev,
@@ -659,7 +679,7 @@ export default function NutritionProgramBuilder() {
                 day.id === selectedDay.id
                   ? {
                       ...day,
-                      meals: [...(day.meals || []), ...newMeals]
+                      meals: newMeals // Replace meals instead of appending
                     }
                   : day
               )
@@ -1418,10 +1438,7 @@ export default function NutritionProgramBuilder() {
                                     <div className="py-1">
                                       <button
                                         onClick={() => {
-                                          const weekObj = program.weeks!.find(w => w.weekNumber === week.weekNumber);
-                                          const dayObj = weekObj?.days?.find((d: any) => d.id === day.id);
-                                          setSelectedDay(dayObj || null);
-                                          setShowSidePanel(true);
+                                          openMealSelector(week.weekNumber, day.id, day.dayOfWeek);
                                           setOpenDayDropdown(null);
                                         }}
                                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
@@ -2911,6 +2928,11 @@ export default function NutritionProgramBuilder() {
                 )}
 
                 {/* Empty State */}
+                {(() => {
+                  console.log('Side panel rendering - selectedMealsForDay:', selectedMealsForDay);
+                  console.log('selectedMealsForDay.length:', selectedMealsForDay.length);
+                  return null;
+                })()}
                 {selectedMealsForDay.length === 0 && (
                   <div className="text-center py-12 text-zinc-500">
                     <svg className="mx-auto h-12 w-12 text-zinc-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
