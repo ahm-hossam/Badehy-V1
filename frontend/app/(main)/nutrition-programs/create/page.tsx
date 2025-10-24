@@ -1,6 +1,65 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+// Add CSS animations
+const sidePanelStyles = `
+  @keyframes slideInFromRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideOutToRight {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  
+  .slide-in-right {
+    animation: slideInFromRight 0.3s ease-out;
+  }
+  
+  .slide-out-right {
+    animation: slideOutToRight 0.3s ease-out;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  .fade-out {
+    animation: fadeOut 0.3s ease-out;
+  }
+`;
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
@@ -108,6 +167,7 @@ export default function NutritionProgramBuilder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSidePanel, setShowSidePanel] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [selectedDay, setSelectedDay] = useState<NutritionProgramDay | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [selectedMealFromDropdown, setSelectedMealFromDropdown] = useState<Meal | null>(null);
@@ -446,7 +506,17 @@ export default function NutritionProgramBuilder() {
     const week = program.weeks!.find(w => w.weekNumber === weekId);
     const day = week?.days?.find(d => d.id === dayId);
     setSelectedDay(day || null);
+    setIsClosing(false);
     setShowSidePanel(true);
+  };
+
+  const closeSidePanel = () => {
+    setIsClosing(true);
+    // Wait for animation to complete before actually closing
+    setTimeout(() => {
+      cancelMealSelection();
+      setIsClosing(false);
+    }, 300); // Match animation duration
   };
 
   const addMealToDay = (meal: Meal, mealType: string) => {
@@ -578,6 +648,13 @@ export default function NutritionProgramBuilder() {
     setMealAddedMessage(null);
     setShowSidePanel(false);
     setSelectedDay(null);
+    setSelectedMeal(null);
+    setEditingMealIndex(null);
+    setShowExistingMealAccordion(false);
+    setShowNewMealAccordion(false);
+    setShowMealTypeDropdown(false);
+    setShowSaveMealDropdown(false);
+    setIsClosing(false);
   };
 
   const removeMealFromDay = (weekNumber: number, dayOfWeek: number, mealIndex: number) => {
@@ -793,7 +870,11 @@ export default function NutritionProgramBuilder() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Inject CSS animations */}
+      <style dangerouslySetInnerHTML={{ __html: sidePanelStyles }} />
+      
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -1384,26 +1465,23 @@ export default function NutritionProgramBuilder() {
         <>
           {/* Backdrop */}
           <div 
-            className="fixed top-0 left-0 right-0 bg-black/50 z-40 transition-opacity duration-300"
+            className={`fixed top-0 left-0 right-0 bg-black/50 z-40 ${isClosing ? 'fade-out' : 'fade-in'}`}
             style={{ height: '100vh' }}
-            onClick={() => {
-              setShowSidePanel(false);
-              setSelectedMeal(null);
-            }}
+            onClick={closeSidePanel}
           />
           
           {/* Side Panel */}
-          <div className="fixed top-0 right-0 w-[800px] bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out" style={{ height: '100vh' }}>
+          <div 
+            className={`fixed top-0 right-0 w-[800px] bg-white shadow-xl z-50 flex flex-col ${isClosing ? 'slide-out-right' : 'slide-in-right'}`}
+            style={{ height: '100vh' }}
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-zinc-200">
               <h3 className="text-lg font-semibold text-zinc-900">
                 {selectedMeal ? 'Edit Meal' : 'Select Meal'}
               </h3>
               <button
-                onClick={() => {
-                  setShowSidePanel(false);
-                  setSelectedMeal(null);
-                }}
+                onClick={closeSidePanel}
                 className="p-2 text-zinc-400 hover:text-zinc-600 rounded-lg transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1663,7 +1741,7 @@ export default function NutritionProgramBuilder() {
             <div className="flex-1 overflow-y-auto p-6">
               {/* Success Message */}
               {mealAddedMessage && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg fade-in">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1689,7 +1767,7 @@ export default function NutritionProgramBuilder() {
                   {showMealTypeDropdown && (
                     <div 
                       data-dropdown-content
-                      className="absolute top-full right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 min-w-[200px]"
+                      className="absolute top-full right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 min-w-[200px] fade-in"
                     >
                       <button
                         onClick={() => {
@@ -1737,7 +1815,7 @@ export default function NutritionProgramBuilder() {
 
                 {/* Add Existing Meal Accordion */}
                 {showExistingMealAccordion && (
-                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
                     <div className="p-6">
                       <div className="space-y-6">
                         {/* Only show dropdown when not editing an existing meal */}
@@ -1881,7 +1959,7 @@ export default function NutritionProgramBuilder() {
 
                 {/* Create New Meal Accordion */}
                 {showNewMealAccordion && (
-                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
                     <div className="p-6">
                       <div className="space-y-6">
                         <div>
@@ -2151,7 +2229,7 @@ export default function NutritionProgramBuilder() {
                         
                         {/* Dropdown Menu */}
                         {showSaveMealDropdown && (
-                          <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-zinc-200 rounded-lg shadow-lg z-10" data-dropdown-content>
+                          <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 fade-in" data-dropdown-content>
                           <button
                             onClick={async () => {
                               // Save to meals list AND add to day
@@ -2318,7 +2396,7 @@ export default function NutritionProgramBuilder() {
 
                 {/* Selected Meals Section */}
                 {selectedMealsForDay.length > 0 && (
-                  <div>
+                  <div className="fade-in">
                     <Text className="text-sm font-medium text-zinc-900 mb-4">
                       Meals for this Day ({selectedMealsForDay.length})
                     </Text>
@@ -2409,7 +2487,7 @@ export default function NutritionProgramBuilder() {
             {/* Footer Actions */}
             <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200">
               <button
-                onClick={cancelMealSelection}
+                onClick={closeSidePanel}
                 className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
               >
                 Cancel
@@ -2445,5 +2523,6 @@ export default function NutritionProgramBuilder() {
         </Button>
       </div>
     </div>
+    </>
   );
 } 
