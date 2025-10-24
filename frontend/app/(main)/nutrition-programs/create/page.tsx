@@ -113,6 +113,9 @@ export default function NutritionProgramBuilder() {
   const [isCreatingNewMeal, setIsCreatingNewMeal] = useState(false);
   const [selectedMealsForDay, setSelectedMealsForDay] = useState<Array<{ meal: Meal; mealType: string; customIngredients?: Array<{ ingredientId: number; quantity: number; unit: string }> }>>([]);
   const [editingMealIndex, setEditingMealIndex] = useState<number | null>(null);
+  const [mealAddedMessage, setMealAddedMessage] = useState<string | null>(null);
+  const [showExistingMealAccordion, setShowExistingMealAccordion] = useState(false);
+  const [showNewMealAccordion, setShowNewMealAccordion] = useState(false);
   const [newMealForm, setNewMealForm] = useState({
     name: '',
     description: '',
@@ -378,8 +381,37 @@ export default function NutritionProgramBuilder() {
   };
 
   const addMealToDay = (meal: Meal, mealType: string) => {
+    // Recalculate nutritional values based on current ingredient quantities
+    const recalculatedMeal = {
+      ...meal,
+      totalCalories: 0,
+      totalProtein: 0,
+      totalCarbs: 0,
+      totalFats: 0
+    };
+
+    if (meal.mealIngredients) {
+      meal.mealIngredients.forEach((ingredient: any) => {
+        const ing = ingredient.ingredient;
+        if (ing) {
+          const caloriesPerUnit = ing.caloriesAfter || ing.caloriesBefore || 0;
+          const proteinPerUnit = ing.proteinAfter || ing.proteinBefore || 0;
+          const carbsPerUnit = ing.carbsAfter || ing.carbsBefore || 0;
+          const fatsPerUnit = ing.fatsAfter || ing.fatsBefore || 0;
+          const servingSize = ing.servingSize || 1;
+          
+          const multiplier = ingredient.quantity / servingSize;
+          
+          recalculatedMeal.totalCalories += caloriesPerUnit * multiplier;
+          recalculatedMeal.totalProtein += proteinPerUnit * multiplier;
+          recalculatedMeal.totalCarbs += carbsPerUnit * multiplier;
+          recalculatedMeal.totalFats += fatsPerUnit * multiplier;
+        }
+      });
+    }
+
     const newMealEntry = {
-      meal,
+      meal: recalculatedMeal,
       mealType,
       customIngredients: meal.mealIngredients?.map((mi: any) => ({
         ingredientId: mi.ingredientId,
@@ -390,10 +422,22 @@ export default function NutritionProgramBuilder() {
     
     setSelectedMealsForDay(prev => [...prev, newMealEntry]);
     setSelectedMealFromDropdown(null);
+    // Show success message
+    setMealAddedMessage(`${recalculatedMeal.name} added to day!`);
+    setTimeout(() => setMealAddedMessage(null), 2000);
+    // Don't close the side panel - let trainer add more meals
   };
 
   const removeMealFromList = (index: number) => {
     setSelectedMealsForDay(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const editMealInList = (index: number) => {
+    const mealEntry = selectedMealsForDay[index];
+    setSelectedMealFromDropdown(mealEntry.meal);
+    setEditingMealIndex(index);
+    setShowExistingMealAccordion(true);
+    setShowNewMealAccordion(false);
   };
 
   const updateMealIngredient = (mealIndex: number, ingredientIndex: number, field: string, value: any) => {
@@ -451,6 +495,7 @@ export default function NutritionProgramBuilder() {
     setSelectedMealsForDay([]);
     setSelectedMealFromDropdown(null);
     setIsCreatingNewMeal(false);
+    setMealAddedMessage(null);
     setShowSidePanel(false);
     setSelectedDay(null);
   };
@@ -1288,169 +1333,438 @@ export default function NutritionProgramBuilder() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
+              {/* Success Message */}
+              {mealAddedMessage && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-sm text-green-700">{mealAddedMessage}</span>
+                  </div>
+                </div>
+              )}
+              
               <div className="space-y-6">
-                {/* Meal Selection */}
-                <div className="space-y-6">
-                  {/* Select Existing Meal */}
-                  <div>
-                    <h5 className="text-sm font-medium text-zinc-700 mb-3">Select Existing Meal:</h5>
-                    <Select 
-                      className="mb-4"
-                      value={selectedMealFromDropdown?.id || ''}
-                      onChange={(e) => {
-                        const mealId = parseInt(e.target.value);
-                        const meal = availableMeals.find(m => m.id === mealId);
-                        setSelectedMealFromDropdown(meal || null);
-                      }}
-                    >
-                      <option value="">Choose a meal...</option>
-                      {availableMeals.map((meal) => (
-                        <option key={meal.id} value={meal.id}>{meal.name}</option>
-                      ))}
-                    </Select>
-                    
-                    {/* Selected Meal Details */}
-                    {selectedMealFromDropdown && (
-                      <div className="border rounded-lg p-4 bg-zinc-50">
-                        <div className="flex items-start gap-4">
-                          {selectedMealFromDropdown.imageUrl && (
-                            <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${selectedMealFromDropdown.imageUrl}`}
-                              alt={selectedMealFromDropdown.name}
-                              className="w-16 h-16 rounded-lg object-cover"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <h4 className="text-lg font-semibold text-zinc-900">{selectedMealFromDropdown.name}</h4>
-                            <p className="text-sm text-zinc-500 mt-1">{selectedMealFromDropdown.description}</p>
-                            <div className="flex items-center gap-4 mt-2 text-sm text-zinc-600">
-                              <span>{selectedMealFromDropdown.totalCalories} cal</span>
-                              <span>{selectedMealFromDropdown.totalProtein}gP</span>
-                              <span>{selectedMealFromDropdown.totalCarbs}gC</span>
-                              <span>{selectedMealFromDropdown.totalFats}gF</span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h6 className="text-sm font-medium text-zinc-700 mb-1">Meal Type:</h6>
-                              <span className="text-sm text-zinc-600 bg-zinc-100 px-2 py-1 rounded">
-                                {selectedMealFromDropdown.category || 'Not specified'}
-                              </span>
-                            </div>
-                            <Button
-                              onClick={() => addMealToDay(selectedMealFromDropdown, selectedMealFromDropdown.category || 'Meal')}
-                              className="text-sm"
-                            >
-                              Add to Day
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      setShowExistingMealAccordion(!showExistingMealAccordion);
+                      setShowNewMealAccordion(false);
+                    }}
+                    className={`flex-1 ${showExistingMealAccordion ? 'bg-zinc-100 text-zinc-700 border-zinc-300' : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50'}`}
+                  >
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Add Existing Meal
+                    {showExistingMealAccordion && <ChevronDownIcon className="w-4 h-4 ml-2" />}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowNewMealAccordion(!showNewMealAccordion);
+                      setShowExistingMealAccordion(false);
+                    }}
+                    className={`flex-1 ${showNewMealAccordion ? 'bg-green-700' : 'bg-green-600 hover:bg-green-700'}`}
+                  >
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Create New Meal
+                    {showNewMealAccordion && <ChevronDownIcon className="w-4 h-4 ml-2" />}
+                  </Button>
+                </div>
 
-                  {/* Add New Meal */}
-                  <div>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1 h-px bg-zinc-200"></div>
-                      <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide">OR</span>
-                      <div className="flex-1 h-px bg-zinc-200"></div>
-                    </div>
-                    
-                    <Button
-                      onClick={() => {
-                        setIsCreatingNewMeal(true);
-                        setNewMealForm({
-                          name: '',
-                          description: '',
-                          category: '',
-                          ingredients: []
-                        });
-                      }}
-                      className="w-full"
-                    >
-                      <PlusIcon className="w-4 h-4 mr-2" />
-                      Create New Meal
-                    </Button>
-                  </div>
-
-                  {/* Create New Meal Form */}
-                  {isCreatingNewMeal && (
-                    <div className="border rounded-lg p-4 bg-zinc-50">
-                      <div className="flex items-center justify-between mb-4">
-                        <h6 className="text-sm font-medium text-zinc-700">Create New Meal</h6>
-                        <button
-                          onClick={() => setIsCreatingNewMeal(false)}
-                          className="text-zinc-400 hover:text-zinc-600"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                      
-                      <div className="space-y-4">
+                {/* Add Existing Meal Accordion */}
+                {showExistingMealAccordion && (
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
+                    <div className="p-6">
+                      <div className="space-y-6">
                         <div>
-                          <label className="block text-xs font-medium text-zinc-700 mb-1">Meal Name</label>
-                          <Input
-                            value={newMealForm.name}
-                            onChange={(e) => setNewMealForm(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="Enter meal name"
-                            className="text-sm"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-zinc-700 mb-1">Description</label>
-                          <Textarea
-                            value={newMealForm.description}
-                            onChange={(e) => setNewMealForm(prev => ({ ...prev, description: e.target.value }))}
-                            placeholder="Enter meal description"
-                            className="text-sm"
-                            rows={2}
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-xs font-medium text-zinc-700 mb-1">Category</label>
-                          <Select
-                            value={newMealForm.category}
-                            onChange={(e) => setNewMealForm(prev => ({ ...prev, category: e.target.value }))}
-                            className="text-sm"
+                          <Text className="text-sm font-medium text-zinc-900 mb-3">Select Existing Meal</Text>
+                          <Select 
+                            value={selectedMealFromDropdown?.id || ''}
+                            onChange={(e) => {
+                              const mealId = parseInt(e.target.value);
+                              const meal = availableMeals.find(m => m.id === mealId);
+                              setSelectedMealFromDropdown(meal || null);
+                            }}
+                            className="w-full"
                           >
-                            <option value="">Select category</option>
-                            <option value="Breakfast">Breakfast</option>
-                            <option value="Lunch">Lunch</option>
-                            <option value="Dinner">Dinner</option>
-                            <option value="Snack">Snack</option>
+                            <option value="">Choose a meal from your library...</option>
+                            {availableMeals.map((meal) => (
+                              <option key={meal.id} value={meal.id}>{meal.name}</option>
+                            ))}
                           </Select>
                         </div>
                         
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => {
-                              // TODO: Save new meal and add to day
-                              console.log('Save new meal:', newMealForm);
-                              setIsCreatingNewMeal(false);
-                            }}
-                            className="flex-1"
-                          >
-                            Save & Add to Day
-                          </Button>
-                          <Button
-                            onClick={() => setIsCreatingNewMeal(false)}
-                            className="flex-1 bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
-                          >
-                            Cancel
-                          </Button>
+                        {selectedMealFromDropdown && (
+                          <div className="border border-zinc-100 rounded-lg p-4 bg-zinc-50/50">
+                            <div className="flex items-start gap-4 mb-4">
+                              {selectedMealFromDropdown.imageUrl && (
+                                <img
+                                  src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${selectedMealFromDropdown.imageUrl}`}
+                                  alt={selectedMealFromDropdown.name}
+                                  className="w-14 h-14 rounded-lg object-cover border border-zinc-200"
+                                />
+                              )}
+                              <div className="flex-1">
+                                <Text className="text-base font-semibold text-zinc-900">{selectedMealFromDropdown.name}</Text>
+                                <Text className="text-sm text-zinc-500 mt-1">{selectedMealFromDropdown.description}</Text>
+                                <div className="flex items-center gap-3 mt-2">
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(selectedMealFromDropdown.totalCalories || 0)} cal
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(selectedMealFromDropdown.totalProtein || 0)}gP
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(selectedMealFromDropdown.totalCarbs || 0)}gC
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(selectedMealFromDropdown.totalFats || 0)}gF
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Ingredients */}
+                            {selectedMealFromDropdown.mealIngredients && selectedMealFromDropdown.mealIngredients.length > 0 && (
+                              <div>
+                                <Text className="text-sm font-medium text-zinc-700 mb-3">Adjust Ingredients</Text>
+                                <div className="space-y-2">
+                                  {selectedMealFromDropdown.mealIngredients.map((ingredient: any, index: number) => (
+                                    <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-100">
+                                      <div className="flex-1">
+                                        <Text className="text-sm font-medium text-zinc-900">
+                                          {ingredient.ingredient?.name || 'Unknown Ingredient'}
+                                        </Text>
+                                        <Text className="text-xs text-zinc-500">
+                                          {ingredient.ingredient?.category || 'Unknown'}
+                                        </Text>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Input
+                                          type="number"
+                                          value={ingredient.quantity}
+                                          onChange={(e) => {
+                                            const newQuantity = parseFloat(e.target.value) || 0;
+                                            setSelectedMealFromDropdown(prev => {
+                                              if (!prev) return prev;
+                                              return {
+                                                ...prev,
+                                                mealIngredients: prev.mealIngredients?.map((ing, idx) => 
+                                                  idx === index ? { ...ing, quantity: newQuantity } : ing
+                                                ) || []
+                                              };
+                                            });
+                                          }}
+                                          className="w-20 text-sm text-center"
+                                          min="0"
+                                          step="0.1"
+                                        />
+                                        <Text className="text-xs text-zinc-500 w-12">
+                                          {ingredient.unit}
+                                        </Text>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200 bg-zinc-50/50">
+                      <Button
+                        onClick={() => {
+                          setSelectedMealFromDropdown(null);
+                          setEditingMealIndex(null);
+                          setShowExistingMealAccordion(false);
+                        }}
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (selectedMealFromDropdown) {
+                            if (editingMealIndex !== null) {
+                              // Update existing meal
+                              setSelectedMealsForDay(prev => prev.map((mealEntry, i) => 
+                                i === editingMealIndex 
+                                  ? { ...mealEntry, meal: selectedMealFromDropdown }
+                                  : mealEntry
+                              ));
+                              setEditingMealIndex(null);
+                            } else {
+                              // Add new meal
+                              addMealToDay(selectedMealFromDropdown, selectedMealFromDropdown.category || 'Meal');
+                            }
+                            setSelectedMealFromDropdown(null);
+                            setShowExistingMealAccordion(false);
+                          }
+                        }}
+                        disabled={!selectedMealFromDropdown}
+                      >
+                        {editingMealIndex !== null ? 'Update Meal' : 'Add to Day'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Create New Meal Accordion */}
+                {showNewMealAccordion && (
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
+                    <div className="p-6">
+                      <div className="space-y-6">
+                        <div>
+                          <Text className="text-sm font-medium text-zinc-900 mb-3">Meal Details</Text>
+                          <div className="space-y-4">
+                            <div>
+                              <Text className="text-xs font-medium text-zinc-700 mb-2">Meal Name</Text>
+                              <Input
+                                value={newMealForm.name}
+                                onChange={(e) => setNewMealForm(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Enter meal name"
+                                className="w-full"
+                              />
+                            </div>
+                            
+                            <div>
+                              <Text className="text-xs font-medium text-zinc-700 mb-2">Description</Text>
+                              <Textarea
+                                value={newMealForm.description}
+                                onChange={(e) => setNewMealForm(prev => ({ ...prev, description: e.target.value }))}
+                                placeholder="Enter meal description"
+                                rows={3}
+                                className="w-full"
+                              />
+                            </div>
+                            
+                            <div>
+                              <Text className="text-xs font-medium text-zinc-700 mb-2">Category</Text>
+                              <Select
+                                value={newMealForm.category}
+                                onChange={(e) => setNewMealForm(prev => ({ ...prev, category: e.target.value }))}
+                                className="w-full"
+                              >
+                                <option value="">Select category</option>
+                                <option value="Breakfast">Breakfast</option>
+                                <option value="Lunch">Lunch</option>
+                                <option value="Dinner">Dinner</option>
+                                <option value="Snack">Snack</option>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <Text className="text-sm font-medium text-zinc-900">Ingredients</Text>
+                            <Button
+                              onClick={() => {
+                                setNewMealForm(prev => ({
+                                  ...prev,
+                                  ingredients: [...prev.ingredients, { ingredientId: 0, quantity: 0, unit: 'g' }]
+                                }));
+                              }}
+                              className="text-xs px-3 py-1 h-8"
+                            >
+                              <PlusIcon className="w-3 h-3 mr-1" />
+                              Add Ingredient
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {newMealForm.ingredients.map((ingredient, index) => (
+                              <div key={index} className="flex items-center gap-3 p-3 border border-zinc-100 rounded-lg bg-zinc-50/50">
+                                <Select
+                                  value={ingredient.ingredientId}
+                                  onChange={(e) => {
+                                    const ingredientId = parseInt(e.target.value);
+                                    const selectedIngredient = availableIngredients.find(ing => ing.id === ingredientId);
+                                    setNewMealForm(prev => ({
+                                      ...prev,
+                                      ingredients: prev.ingredients.map((ing, i) => 
+                                        i === index ? { ...ing, ingredientId, unit: selectedIngredient?.unitType || 'g' } : ing
+                                      )
+                                    }));
+                                  }}
+                                  className="flex-1"
+                                >
+                                  <option value="">Select ingredient</option>
+                                  {availableIngredients.map((ing) => (
+                                    <option key={ing.id} value={ing.id}>{ing.name}</option>
+                                  ))}
+                                </Select>
+                                <Input
+                                  type="number"
+                                  value={ingredient.quantity}
+                                  onChange={(e) => {
+                                    const quantity = parseFloat(e.target.value) || 0;
+                                    setNewMealForm(prev => ({
+                                      ...prev,
+                                      ingredients: prev.ingredients.map((ing, i) => 
+                                        i === index ? { ...ing, quantity } : ing
+                                      )
+                                    }));
+                                  }}
+                                  placeholder="Amount"
+                                  className="w-24"
+                                  min="0"
+                                  step="0.1"
+                                />
+                                <Text className="text-sm text-zinc-500 w-12">{ingredient.unit}</Text>
+                                <button
+                                  onClick={() => {
+                                    setNewMealForm(prev => ({
+                                      ...prev,
+                                      ingredients: prev.ingredients.filter((_, i) => i !== index)
+                                    }));
+                                  }}
+                                  className="text-red-500 hover:text-red-700 p-1 rounded"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                            
+                            {newMealForm.ingredients.length === 0 && (
+                              <div className="text-center py-8 text-zinc-400">
+                                <PlusIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                <Text className="text-sm">No ingredients added yet</Text>
+                                <Text className="text-xs">Click "Add Ingredient" to get started</Text>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+                    
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200 bg-zinc-50/50">
+                      <Button
+                        onClick={() => {
+                          setNewMealForm({
+                            name: '',
+                            description: '',
+                            category: '',
+                            ingredients: []
+                          });
+                          setShowNewMealAccordion(false);
+                        }}
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          // TODO: Save new meal and add to day
+                          console.log('Save new meal:', newMealForm);
+                          setNewMealForm({
+                            name: '',
+                            description: '',
+                            category: '',
+                            ingredients: []
+                          });
+                          setShowNewMealAccordion(false);
+                        }}
+                        disabled={!newMealForm.name || !newMealForm.category}
+                      >
+                        Save & Add to Day
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Selected Meals Section */}
+                {selectedMealsForDay.length > 0 && (
+                  <div>
+                    <Text className="text-sm font-medium text-zinc-900 mb-4">
+                      Meals for this Day ({selectedMealsForDay.length})
+                    </Text>
+                    <div className="space-y-3">
+                      {selectedMealsForDay.map((mealEntry, index) => (
+                        <div key={index} className="border border-zinc-200 rounded-lg p-4 bg-white shadow-sm">
+                          <div className="flex items-start gap-4">
+                            {mealEntry.meal.imageUrl && (
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${mealEntry.meal.imageUrl}`}
+                                alt={mealEntry.meal.name}
+                                className="w-12 h-12 rounded-lg object-cover border border-zinc-200"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Text className="text-sm font-semibold text-zinc-900">{mealEntry.meal.name}</Text>
+                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                  {mealEntry.mealType}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-3 mb-3">
+                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                  {Math.round(mealEntry.meal.totalCalories)} cal
+                                </Badge>
+                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                  {Math.round(mealEntry.meal.totalProtein)}gP
+                                </Badge>
+                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                  {Math.round(mealEntry.meal.totalCarbs)}gC
+                                </Badge>
+                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                  {Math.round(mealEntry.meal.totalFats)}gF
+                                </Badge>
+                              </div>
+                              
+                              {/* Ingredients */}
+                              {mealEntry.meal.mealIngredients && mealEntry.meal.mealIngredients.length > 0 && (
+                                <div className="space-y-2">
+                                  <Text className="text-xs font-medium text-zinc-600">Ingredients:</Text>
+                                  <div className="space-y-1">
+                                    {mealEntry.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                      <div key={ingIndex} className="flex items-center gap-2 text-xs">
+                                        <Text className="text-zinc-700">{ingredient.ingredient?.name}</Text>
+                                        <Text className="text-zinc-500">({ingredient.quantity} {ingredient.unit})</Text>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => editMealInList(index)}
+                                className="text-zinc-500 hover:text-zinc-700 p-1 rounded"
+                                title="Edit Meal"
+                              >
+                                <PencilIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => removeMealFromList(index)}
+                                className="text-red-500 hover:text-red-700 p-1 rounded"
+                                title="Remove Meal"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {selectedMealsForDay.length === 0 && (
+                  <div className="text-center py-12 text-zinc-500">
+                    <svg className="mx-auto h-12 w-12 text-zinc-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <Text className="text-lg font-medium mb-2">No meals added yet</Text>
+                    <Text className="text-sm mb-4">Add existing meals or create new ones to get started</Text>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1472,6 +1786,7 @@ export default function NutritionProgramBuilder() {
           </div>
         </>
       )}
+
 
       {/* Action Buttons - Bottom of Page */}
       <div className="flex gap-3 justify-end mt-10">
