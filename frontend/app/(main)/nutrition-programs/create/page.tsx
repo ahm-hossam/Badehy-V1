@@ -167,7 +167,9 @@ export default function NutritionProgramBuilder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSidePanel, setShowSidePanel] = useState(false);
+  const [showPreviewPanel, setShowPreviewPanel] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [isPreviewClosing, setIsPreviewClosing] = useState(false);
   const [selectedDay, setSelectedDay] = useState<NutritionProgramDay | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
   const [editingMealData, setEditingMealData] = useState<NutritionProgramMeal | null>(null);
@@ -508,6 +510,23 @@ export default function NutritionProgramBuilder() {
     const week = program.weeks!.find(w => w.weekNumber === weekId);
     const day = week?.days?.find(d => d.id === dayId);
     setSelectedDay(day || null);
+    
+    // Initialize selectedMealsForDay with existing meals from the day
+    if (day?.meals) {
+      const existingMeals = day.meals.map(meal => ({
+        meal: meal.meal!,
+        mealType: meal.mealType,
+        customIngredients: meal.meal?.mealIngredients?.map(mi => ({
+          ingredientId: mi.ingredientId,
+          quantity: mi.quantity,
+          unit: mi.unit
+        }))
+      }));
+      setSelectedMealsForDay(existingMeals);
+    } else {
+      setSelectedMealsForDay([]);
+    }
+    
     setIsClosing(false);
     setShowSidePanel(true);
   };
@@ -518,6 +537,15 @@ export default function NutritionProgramBuilder() {
     setTimeout(() => {
       cancelMealSelection();
       setIsClosing(false);
+    }, 300); // Match animation duration
+  };
+
+  const closePreviewPanel = () => {
+    setIsPreviewClosing(true);
+    // Wait for animation to complete before actually closing
+    setTimeout(() => {
+      setShowPreviewPanel(false);
+      setIsPreviewClosing(false);
     }, 300); // Match animation duration
   };
 
@@ -1445,6 +1473,19 @@ export default function NutritionProgramBuilder() {
                                             {meal.meal?.totalCalories} cal
                                           </Text>
                                         </div>
+                                        {/* Ingredients List */}
+                                        {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
+                                          <div className="mt-2">
+                                            <Text className="text-xs text-gray-600 mb-1">Ingredients:</Text>
+                                            <div className="flex flex-wrap gap-1">
+                                              {meal.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                                <span key={ingIndex} className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                  {ingredient.ingredient?.name || `Ingredient ${ingredient.ingredientId}`} ({ingredient.quantity} {ingredient.unit})
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -2718,12 +2759,158 @@ export default function NutritionProgramBuilder() {
       )}
 
 
+      {/* Program Preview Side Panel */}
+      {showPreviewPanel && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className={`fixed top-0 left-0 right-0 bg-black/50 z-40 ${isPreviewClosing ? 'fade-out' : 'fade-in'}`}
+            style={{ height: '100vh' }}
+            onClick={closePreviewPanel}
+          />
+          
+          {/* Preview Panel */}
+          <div 
+            className={`fixed top-0 right-0 w-[900px] bg-white shadow-xl z-50 flex flex-col ${isPreviewClosing ? 'slide-out-right' : 'slide-in-right'}`}
+            style={{ height: '100vh' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-200">
+              <h3 className="text-lg font-semibold text-zinc-900">Program Preview</h3>
+              <button
+                onClick={closePreviewPanel}
+                className="p-2 text-zinc-400 hover:text-zinc-600 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* Program Info */}
+                <div className="bg-zinc-50 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-zinc-900 mb-2">{program.name || 'Untitled Program'}</h4>
+                  <p className="text-zinc-600">{program.description || 'No description provided'}</p>
+                </div>
+
+                {/* Nutrition Goals */}
+                <div className="bg-zinc-50 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-zinc-900 mb-3">Nutrition Goals</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Target Calories</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">{program.targetCalories}</Text>
+                    </div>
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Protein</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">
+                        {program.usePercentages ? `${program.targetProtein}%` : `${program.targetProtein}g`}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Carbs</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">
+                        {program.usePercentages ? `${program.targetCarbs}%` : `${program.targetCarbs}g`}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Fats</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">
+                        {program.usePercentages ? `${program.targetFats}%` : `${program.targetFats}g`}
+                      </Text>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Program Weeks */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-zinc-900">Program Structure</h4>
+                  {program.weeks?.map((week, weekIndex) => (
+                    <div key={week.id || weekIndex} className="border border-zinc-200 rounded-lg">
+                      {/* Week Header */}
+                      <div className="bg-zinc-100 px-4 py-3 border-b border-zinc-200">
+                        <h5 className="font-semibold text-zinc-900">Week {week.weekNumber}</h5>
+                      </div>
+
+                      {/* Days */}
+                      <div className="p-4 space-y-3">
+                        {week.days?.map((day, dayIndex) => (
+                          <div key={day.id || dayIndex} className="border border-zinc-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h6 className="font-medium text-zinc-900">{day.name}</h6>
+                              {day.isOffDay && (
+                                <Badge className="bg-yellow-100 text-yellow-800">Rest Day</Badge>
+                              )}
+                            </div>
+
+                            {/* Meals */}
+                            {day.meals && day.meals.length > 0 ? (
+                              <div className="space-y-2">
+                                {day.meals.map((meal, mealIndex) => (
+                                  <div key={meal.id || mealIndex} className="bg-zinc-50 rounded-lg p-3">
+                                    <div className="flex items-start gap-3">
+                                      {meal.meal?.imageUrl && (
+                                        <img
+                                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                          alt={meal.meal.name}
+                                          className="w-12 h-12 rounded-lg object-cover"
+                                        />
+                                      )}
+                                      <div className="flex-1">
+                                        <Text className="font-medium text-zinc-900">{meal.meal?.name}</Text>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Badge className={`text-xs ${getMealTypeColor(meal.mealType)}`}>
+                                            {meal.mealType}
+                                          </Badge>
+                                          <Text className="text-xs text-zinc-500">
+                                            {meal.meal?.totalCalories} cal
+                                          </Text>
+                                        </div>
+                                        {/* Ingredients */}
+                                        {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
+                                          <div className="mt-2">
+                                            <Text className="text-xs text-zinc-600 mb-1">Ingredients:</Text>
+                                            <div className="flex flex-wrap gap-1">
+                                              {meal.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                                <span key={ingIndex} className="text-xs text-zinc-500 bg-zinc-100 px-2 py-1 rounded">
+                                                  {ingredient.ingredient?.name || `Ingredient ${ingredient.ingredientId}`} ({ingredient.quantity} {ingredient.unit})
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <Text className="text-zinc-500 text-sm">No meals assigned</Text>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Action Buttons - Bottom of Page */}
       <div className="flex gap-3 justify-end mt-10">
         <Button 
           color="white" 
           className="font-semibold border border-zinc-200" 
-          onClick={() => setShowSidePanel(true)}
+          onClick={() => {
+            setIsPreviewClosing(false);
+            setShowPreviewPanel(true);
+          }}
         >
           <EyeIcon className="w-4 h-4 mr-2" />
           Preview Program
