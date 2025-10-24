@@ -511,25 +511,13 @@ export default function NutritionProgramBuilder() {
   };
 
   const openMealSelector = (weekId: number, dayId: number, dayOfWeek: number) => {
-    console.log('openMealSelector called with:', { weekId, dayId, dayOfWeek });
-    console.log('Current program:', program);
-    console.log('Program weeks:', program.weeks);
-    
     // Find the actual day object
     const week = program.weeks!.find(w => w.weekNumber === weekId);
-    console.log('Found week:', week);
-    console.log('Week days:', week?.days);
-    
     const day = week?.days?.find(d => d.id === dayId);
-    console.log('Found day:', day);
-    console.log('Day meals:', day?.meals);
-    console.log('Day meals length:', day?.meals?.length);
-    
     setSelectedDay(day || null);
     
     // Initialize selectedMealsForDay with existing meals from the day
     if (day?.meals && day.meals.length > 0) {
-      console.log('Processing existing meals...');
       const existingMeals = day.meals.map(meal => ({
         meal: meal.meal!,
         mealType: meal.mealType,
@@ -539,10 +527,8 @@ export default function NutritionProgramBuilder() {
           unit: mi.unit
         }))
       }));
-      console.log('Mapped existing meals:', existingMeals);
       setSelectedMealsForDay(existingMeals);
     } else {
-      console.log('No meals found for day - setting empty array');
       setSelectedMealsForDay([]);
     }
     
@@ -655,10 +641,6 @@ export default function NutritionProgramBuilder() {
   const saveMealsToDay = () => {
     if (!selectedDay) return;
 
-    console.log('saveMealsToDay called');
-    console.log('selectedDay:', selectedDay);
-    console.log('selectedMealsForDay:', selectedMealsForDay);
-
     const newMeals: NutritionProgramMeal[] = selectedMealsForDay.map((mealEntry, index) => ({
       mealId: mealEntry.meal.id,
       mealType: mealEntry.mealType,
@@ -666,8 +648,6 @@ export default function NutritionProgramBuilder() {
       customQuantity: 1,
       meal: mealEntry.meal
     }));
-
-    console.log('newMeals to save:', newMeals);
 
     setProgram(prev => ({
       ...prev,
@@ -1481,7 +1461,9 @@ export default function NutritionProgramBuilder() {
                                     <div className="flex items-center gap-3">
                                       {meal.meal?.imageUrl && (
                                         <img
-                                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                          src={meal.meal.imageUrl.startsWith('blob:') || meal.meal.imageUrl.startsWith('http') 
+                                            ? meal.meal.imageUrl 
+                                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
                                           alt={meal.meal.name}
                                           className="w-10 h-10 rounded-lg object-cover"
                                         />
@@ -1878,7 +1860,9 @@ export default function NutritionProgramBuilder() {
                             {/* Meal Image */}
                             {meal.meal?.imageUrl && (
                               <img
-                                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                src={meal.meal.imageUrl.startsWith('blob:') || meal.meal.imageUrl.startsWith('http') 
+                                  ? meal.meal.imageUrl 
+                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
                                 alt={meal.meal.name}
                                 className="w-12 h-12 object-cover rounded-lg"
                               />
@@ -2140,7 +2124,9 @@ export default function NutritionProgramBuilder() {
                             <div className="flex items-start gap-4 mb-4">
                               {selectedMealFromDropdown.imageUrl && (
                                 <img
-                                  src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${selectedMealFromDropdown.imageUrl}`}
+                                  src={selectedMealFromDropdown.imageUrl.startsWith('blob:') || selectedMealFromDropdown.imageUrl.startsWith('http') 
+                                    ? selectedMealFromDropdown.imageUrl 
+                                    : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${selectedMealFromDropdown.imageUrl}`}
                                   alt={selectedMealFromDropdown.name}
                                   className="w-14 h-14 rounded-lg object-cover border border-zinc-200"
                                 />
@@ -2705,7 +2691,9 @@ export default function NutritionProgramBuilder() {
                           <div className="flex items-start gap-4">
                             {mealEntry.meal.imageUrl && (
                               <img
-                                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${mealEntry.meal.imageUrl}`}
+                                src={mealEntry.meal.imageUrl.startsWith('blob:') || mealEntry.meal.imageUrl.startsWith('http') 
+                                  ? mealEntry.meal.imageUrl 
+                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${mealEntry.meal.imageUrl}`}
                                 alt={mealEntry.meal.name}
                                 className="w-12 h-12 rounded-lg object-cover border border-zinc-200"
                               />
@@ -2878,6 +2866,13 @@ export default function NutritionProgramBuilder() {
                               }
 
                               // Create a cheat meal object
+                              let imageUrl = cheatMealForm.imageUrl;
+                              
+                              // If a file was uploaded, create a local URL for it
+                              if (imageFile && imageUploadMethod === 'upload') {
+                                imageUrl = URL.createObjectURL(imageFile);
+                              }
+                              
                               const cheatMeal = {
                                 id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
                                 name: 'Cheat Meal',
@@ -2886,7 +2881,7 @@ export default function NutritionProgramBuilder() {
                                 totalProtein: 0,
                                 totalCarbs: 0,
                                 totalFats: 0,
-                                imageUrl: cheatMealForm.imageUrl,
+                                imageUrl: imageUrl,
                                 mealIngredients: [],
                                 isCheatMeal: true
                               };
@@ -2928,11 +2923,6 @@ export default function NutritionProgramBuilder() {
                 )}
 
                 {/* Empty State */}
-                {(() => {
-                  console.log('Side panel rendering - selectedMealsForDay:', selectedMealsForDay);
-                  console.log('selectedMealsForDay.length:', selectedMealsForDay.length);
-                  return null;
-                })()}
                 {selectedMealsForDay.length === 0 && (
                   <div className="text-center py-12 text-zinc-500">
                     <svg className="mx-auto h-12 w-12 text-zinc-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3059,7 +3049,9 @@ export default function NutritionProgramBuilder() {
                                     <div className="flex items-start gap-3">
                                       {meal.meal?.imageUrl && (
                                         <img
-                                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                          src={meal.meal.imageUrl.startsWith('blob:') || meal.meal.imageUrl.startsWith('http') 
+                                            ? meal.meal.imageUrl 
+                                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
                                           alt={meal.meal.name}
                                           className="w-12 h-12 rounded-lg object-cover"
                                         />
