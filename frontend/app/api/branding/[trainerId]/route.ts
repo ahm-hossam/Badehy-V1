@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { trainerId: string } }
+  { params }: { params: Promise<{ trainerId: string }> }
 ) {
   try {
-    const response = await fetch(`http://localhost:4000/api/branding/${params.trainerId}`);
+    const { trainerId } = await params;
+    const response = await fetch(`http://localhost:4000/api/branding/${trainerId}`);
     
     if (response.ok) {
       const data = await response.json();

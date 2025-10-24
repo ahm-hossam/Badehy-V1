@@ -1,6 +1,65 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+// Add CSS animations
+const sidePanelStyles = `
+  @keyframes slideInFromRight {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideOutToRight {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  
+  .slide-in-right {
+    animation: slideInFromRight 0.3s ease-out;
+  }
+  
+  .slide-out-right {
+    animation: slideOutToRight 0.3s ease-out;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  
+  .fade-out {
+    animation: fadeOut 0.3s ease-out;
+  }
+`;
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
@@ -17,6 +76,7 @@ import {
   TrashIcon,
   PencilIcon,
   EyeIcon,
+  CloudArrowUpIcon,
   ChartBarIcon,
   FireIcon,
   CalendarIcon,
@@ -107,8 +167,13 @@ export default function NutritionProgramBuilder() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showSidePanel, setShowSidePanel] = useState(false);
+  const [showPreviewPanel, setShowPreviewPanel] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isPreviewClosing, setIsPreviewClosing] = useState(false);
   const [selectedDay, setSelectedDay] = useState<NutritionProgramDay | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
+  const [editingMealData, setEditingMealData] = useState<NutritionProgramMeal | null>(null);
+  const [tempEditingMeals, setTempEditingMeals] = useState<NutritionProgramMeal[]>([]);
   const [selectedMealFromDropdown, setSelectedMealFromDropdown] = useState<Meal | null>(null);
   const [isCreatingNewMeal, setIsCreatingNewMeal] = useState(false);
   const [selectedMealsForDay, setSelectedMealsForDay] = useState<Array<{ meal: Meal; mealType: string; customIngredients?: Array<{ ingredientId: number; quantity: number; unit: string }> }>>([]);
@@ -116,14 +181,85 @@ export default function NutritionProgramBuilder() {
   const [mealAddedMessage, setMealAddedMessage] = useState<string | null>(null);
   const [showExistingMealAccordion, setShowExistingMealAccordion] = useState(false);
   const [showNewMealAccordion, setShowNewMealAccordion] = useState(false);
+  const [showCheatMealAccordion, setShowCheatMealAccordion] = useState(false);
+  const [showMealTypeDropdown, setShowMealTypeDropdown] = useState(false);
+  const [showSaveMealDropdown, setShowSaveMealDropdown] = useState(false);
   const [newMealForm, setNewMealForm] = useState({
     name: '',
     description: '',
     category: '',
+    imageUrl: '',
     ingredients: [] as Array<{ ingredientId: number; quantity: number; unit: string }>
   });
+  const [cheatMealForm, setCheatMealForm] = useState({
+    description: '',
+    imageUrl: ''
+  });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUploadMethod, setImageUploadMethod] = useState<'upload' | 'url'>('upload');
   const [availableMeals, setAvailableMeals] = useState<Meal[]>([]);
   const [availableIngredients, setAvailableIngredients] = useState<any[]>([]);
+
+  // Image upload handlers
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setNewMealForm(prev => ({ ...prev, imageUrl: '' })); // Clear URL when uploading file
+    }
+  };
+
+  const handleImageUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMealForm(prev => ({ ...prev, imageUrl: e.target.value }));
+    setImageFile(null); // Clear file when entering URL
+  };
+
+  // Calculate nutritional totals for new meal form
+  const calculateNewMealNutritionTotals = () => {
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFats = 0;
+
+    if (availableIngredients.length === 0) {
+      return {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fats: 0
+      };
+    }
+
+    newMealForm.ingredients.forEach((ingredient) => {
+      if (ingredient.ingredientId && ingredient.quantity) {
+        const quantity = parseFloat(ingredient.quantity.toString()) || 0;
+        const ingredientData = availableIngredients.find(ing => ing.id === ingredient.ingredientId);
+        
+        if (ingredientData) {
+          const isCooked = ingredientData.cookingState === 'after_cook';
+          const calories = isCooked ? ingredientData.caloriesAfter : ingredientData.caloriesBefore;
+          const protein = isCooked ? ingredientData.proteinAfter : ingredientData.proteinBefore;
+          const carbs = isCooked ? ingredientData.carbsAfter : ingredientData.carbsBefore;
+          const fats = isCooked ? ingredientData.fatsAfter : ingredientData.fatsBefore;
+          const servingSize = ingredientData.servingSize || 1;
+          
+          const multiplier = quantity / servingSize;
+          
+          totalCalories += calories * multiplier;
+          totalProtein += protein * multiplier;
+          totalCarbs += carbs * multiplier;
+          totalFats += fats * multiplier;
+        }
+      }
+    });
+
+    return {
+      calories: Math.round(totalCalories * 100) / 100,
+      protein: Math.round(totalProtein * 100) / 100,
+      carbs: Math.round(totalCarbs * 100) / 100,
+      fats: Math.round(totalFats * 100) / 100
+    };
+  };
 
   // Program form state
   const [program, setProgram] = useState<NutritionProgram>({
@@ -173,17 +309,19 @@ export default function NutritionProgramBuilder() {
       if (!target.closest('[data-dropdown-trigger]') && !target.closest('[data-dropdown-content]')) {
         setOpenWeekDropdown(null);
         setOpenDayDropdown(null);
+        setShowMealTypeDropdown(false);
+        setShowSaveMealDropdown(false);
       }
     };
 
-    if (openWeekDropdown !== null || openDayDropdown !== null) {
+    if (openWeekDropdown !== null || openDayDropdown !== null || showMealTypeDropdown || showSaveMealDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [openWeekDropdown, openDayDropdown]);
+  }, [openWeekDropdown, openDayDropdown, showMealTypeDropdown]);
 
   const fetchProgram = async (trainerId: number) => {
     try {
@@ -373,11 +511,61 @@ export default function NutritionProgramBuilder() {
   };
 
   const openMealSelector = (weekId: number, dayId: number, dayOfWeek: number) => {
+    console.log('openMealSelector called with:', { weekId, dayId, dayOfWeek });
+    console.log('Current program:', program);
+    console.log('Program weeks:', program.weeks);
+    
     // Find the actual day object
     const week = program.weeks!.find(w => w.weekNumber === weekId);
+    console.log('Found week:', week);
+    console.log('Week days:', week?.days);
+    
     const day = week?.days?.find(d => d.id === dayId);
+    console.log('Found day:', day);
+    console.log('Day meals:', day?.meals);
+    console.log('Day meals length:', day?.meals?.length);
+    
     setSelectedDay(day || null);
+    
+    // Initialize selectedMealsForDay with existing meals from the day
+    if (day?.meals && day.meals.length > 0) {
+      console.log('Processing existing meals...');
+      const existingMeals = day.meals.map(meal => ({
+        meal: meal.meal!,
+        mealType: meal.mealType,
+        customIngredients: meal.meal?.mealIngredients?.map(mi => ({
+          ingredientId: mi.ingredientId,
+          quantity: mi.quantity,
+          unit: mi.unit
+        }))
+      }));
+      console.log('Mapped existing meals:', existingMeals);
+      setSelectedMealsForDay(existingMeals);
+    } else {
+      console.log('No meals found for day - setting empty array');
+      setSelectedMealsForDay([]);
+    }
+    
+    setIsClosing(false);
     setShowSidePanel(true);
+  };
+
+  const closeSidePanel = () => {
+    setIsClosing(true);
+    // Wait for animation to complete before actually closing
+    setTimeout(() => {
+      cancelMealSelection();
+      setIsClosing(false);
+    }, 300); // Match animation duration
+  };
+
+  const closePreviewPanel = () => {
+    setIsPreviewClosing(true);
+    // Wait for animation to complete before actually closing
+    setTimeout(() => {
+      setShowPreviewPanel(false);
+      setIsPreviewClosing(false);
+    }, 300); // Match animation duration
   };
 
   const addMealToDay = (meal: Meal, mealType: string) => {
@@ -434,7 +622,18 @@ export default function NutritionProgramBuilder() {
 
   const editMealInList = (index: number) => {
     const mealEntry = selectedMealsForDay[index];
-    setSelectedMealFromDropdown(mealEntry.meal);
+    console.log('Editing meal:', mealEntry);
+    
+    // Set the meal for editing with proper ingredient data
+    setSelectedMealFromDropdown({
+      ...mealEntry.meal,
+      mealIngredients: mealEntry.meal.mealIngredients || mealEntry.customIngredients?.map(ci => ({
+        ingredientId: ci.ingredientId,
+        quantity: ci.quantity,
+        unit: ci.unit,
+        ingredient: availableIngredients.find(ai => ai.id === ci.ingredientId)
+      })) || []
+    });
     setEditingMealIndex(index);
     setShowExistingMealAccordion(true);
     setShowNewMealAccordion(false);
@@ -456,6 +655,10 @@ export default function NutritionProgramBuilder() {
   const saveMealsToDay = () => {
     if (!selectedDay) return;
 
+    console.log('saveMealsToDay called');
+    console.log('selectedDay:', selectedDay);
+    console.log('selectedMealsForDay:', selectedMealsForDay);
+
     const newMeals: NutritionProgramMeal[] = selectedMealsForDay.map((mealEntry, index) => ({
       mealId: mealEntry.meal.id,
       mealType: mealEntry.mealType,
@@ -463,6 +666,8 @@ export default function NutritionProgramBuilder() {
       customQuantity: 1,
       meal: mealEntry.meal
     }));
+
+    console.log('newMeals to save:', newMeals);
 
     setProgram(prev => ({
       ...prev,
@@ -474,7 +679,7 @@ export default function NutritionProgramBuilder() {
                 day.id === selectedDay.id
                   ? {
                       ...day,
-                      meals: [...(day.meals || []), ...newMeals]
+                      meals: newMeals // Replace meals instead of appending
                     }
                   : day
               )
@@ -498,6 +703,16 @@ export default function NutritionProgramBuilder() {
     setMealAddedMessage(null);
     setShowSidePanel(false);
     setSelectedDay(null);
+    setSelectedMeal(null);
+    setEditingMealData(null);
+    setTempEditingMeals([]);
+    setEditingMealIndex(null);
+    setShowExistingMealAccordion(false);
+    setShowNewMealAccordion(false);
+    setShowCheatMealAccordion(false);
+    setShowMealTypeDropdown(false);
+    setShowSaveMealDropdown(false);
+    setIsClosing(false);
   };
 
   const removeMealFromDay = (weekNumber: number, dayOfWeek: number, mealIndex: number) => {
@@ -555,7 +770,35 @@ export default function NutritionProgramBuilder() {
   const editMeal = (meal: NutritionProgramMeal) => {
     // Set the selected meal for editing and open the side panel
     if (meal.meal) {
+      // Set a dummy meal to indicate edit mode
       setSelectedMeal(meal.meal);
+      setEditingMealData(meal);
+      setIsClosing(false);
+      
+      // Find which day this meal belongs to by searching through all weeks and days
+      let foundDay = null;
+      for (const week of program.weeks || []) {
+        for (const day of week.days || []) {
+          if (day.meals?.find(m => m.id === meal.id)) {
+            foundDay = day;
+            break;
+          }
+        }
+        if (foundDay) break;
+      }
+      
+      if (foundDay) {
+        setSelectedDay(foundDay);
+        // Initialize temporary editing state with a deep copy of the meals
+        setTempEditingMeals(foundDay.meals?.map(meal => ({
+          ...meal,
+          meal: meal.meal ? {
+            ...meal.meal,
+            mealIngredients: meal.meal.mealIngredients?.map(ing => ({ ...ing }))
+          } : meal.meal
+        })) || []);
+      }
+      
       setShowSidePanel(true);
     }
   };
@@ -713,7 +956,11 @@ export default function NutritionProgramBuilder() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      {/* Inject CSS animations */}
+      <style dangerouslySetInnerHTML={{ __html: sidePanelStyles }} />
+      
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -1191,10 +1438,7 @@ export default function NutritionProgramBuilder() {
                                     <div className="py-1">
                                       <button
                                         onClick={() => {
-                                          const weekObj = program.weeks!.find(w => w.weekNumber === week.weekNumber);
-                                          const dayObj = weekObj?.days?.find((d: any) => d.id === day.id);
-                                          setSelectedDay(dayObj || null);
-                                          setShowSidePanel(true);
+                                          openMealSelector(week.weekNumber, day.id, day.dayOfWeek);
                                           setOpenDayDropdown(null);
                                         }}
                                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
@@ -1248,10 +1492,26 @@ export default function NutritionProgramBuilder() {
                                           <Badge className={`text-xs ${getMealTypeColor(meal.mealType)}`}>
                                             {meal.mealType}
                                           </Badge>
-                                          <Text className="text-xs text-gray-500">
-                                            {meal.meal?.totalCalories} cal
-                                          </Text>
+                                          {/* Only show calories for non-cheat meals */}
+                                          {!meal.meal?.isCheatMeal && (
+                                            <Text className="text-xs text-gray-500">
+                                              {meal.meal?.totalCalories} cal
+                                            </Text>
+                                          )}
                                         </div>
+                                        {/* Ingredients List */}
+                                        {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
+                                          <div className="mt-2">
+                                            <Text className="text-xs text-gray-600 mb-1">Ingredients:</Text>
+                                            <div className="flex flex-wrap gap-1">
+                                              {meal.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                                <span key={ingIndex} className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                  {ingredient.ingredient?.name || `Ingredient ${ingredient.ingredientId}`} ({ingredient.quantity} {ingredient.unit})
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -1304,25 +1564,23 @@ export default function NutritionProgramBuilder() {
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
-            onClick={() => {
-              setShowSidePanel(false);
-              setSelectedMeal(null);
-            }}
+            className={`fixed top-0 left-0 right-0 bg-black/50 z-40 ${isClosing ? 'fade-out' : 'fade-in'}`}
+            style={{ height: '100vh' }}
+            onClick={closeSidePanel}
           />
           
           {/* Side Panel */}
-          <div className="fixed right-0 top-0 h-full w-[800px] bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out">
+          <div 
+            className={`fixed top-0 right-0 w-[800px] bg-white shadow-xl z-50 flex flex-col ${isClosing ? 'slide-out-right' : 'slide-in-right'}`}
+            style={{ height: '100vh' }}
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-zinc-200">
               <h3 className="text-lg font-semibold text-zinc-900">
                 {selectedMeal ? 'Edit Meal' : 'Select Meal'}
               </h3>
               <button
-                onClick={() => {
-                  setShowSidePanel(false);
-                  setSelectedMeal(null);
-                }}
+                onClick={closeSidePanel}
                 className="p-2 text-zinc-400 hover:text-zinc-600 rounded-lg transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1331,11 +1589,258 @@ export default function NutritionProgramBuilder() {
               </button>
             </div>
 
+            {/* Daily Nutrition Progress */}
+            {selectedDay && (
+              <div className="px-6 py-4 border-b border-zinc-200 bg-zinc-50/50">
+                <Text className="text-sm font-medium text-zinc-900 mb-3">Daily Nutrition Progress</Text>
+                <div className="flex items-center justify-center gap-6">
+                  {/* Calories Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+
+                    return (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-blue-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.calories / program.targetCalories) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-blue-900">
+                              {Math.round((nutrition.calories / program.targetCalories) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-blue-700 font-medium mt-1">Cal</Text>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Protein Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+                    const targets = getMacroTargets();
+
+                    return targets.protein > 0 && (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-green-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.protein / targets.protein) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-green-900">
+                              {Math.round((nutrition.protein / targets.protein) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-green-700 font-medium mt-1">Pro</Text>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Carbs Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+                    const targets = getMacroTargets();
+
+                    return targets.carbs > 0 && (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-orange-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.carbs / targets.carbs) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-orange-900">
+                              {Math.round((nutrition.carbs / targets.carbs) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-orange-700 font-medium mt-1">Carb</Text>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Fats Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+                    const targets = getMacroTargets();
+
+                    return targets.fats > 0 && (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-purple-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.fats / targets.fats) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-purple-900">
+                              {Math.round((nutrition.fats / targets.fats) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-purple-700 font-medium mt-1">Fat</Text>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {/* Success Message */}
               {mealAddedMessage && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg fade-in">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1344,56 +1849,291 @@ export default function NutritionProgramBuilder() {
                   </div>
                 </div>
               )}
+
+              {/* Edit Existing Meal Section */}
+              {selectedMeal && selectedDay && (
+                <div className="mb-6 p-4 border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Text className="text-lg font-semibold text-zinc-900">Edit Meals for {selectedDay.name}</Text>
+                      <button
+                        onClick={() => {
+                          setSelectedMeal(null);
+                          setEditingMealData(null);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-600"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    {/* Meals List with Editable Quantities */}
+                    <div className="space-y-3">
+                      {tempEditingMeals.map((meal, index) => (
+                        <div key={meal.id || index} className="border border-zinc-200 rounded-lg p-4">
+                          {/* Meal Header */}
+                          <div className="flex items-center gap-4 mb-3">
+                            {/* Meal Image */}
+                            {meal.meal?.imageUrl && (
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                alt={meal.meal.name}
+                                className="w-12 h-12 object-cover rounded-lg"
+                              />
+                            )}
+                            
+                            {/* Meal Info */}
+                            <div className="flex-1">
+                              <Text className="text-sm font-medium text-zinc-900">{meal.meal?.name}</Text>
+                              <Text className="text-xs text-zinc-500">{meal.mealType}</Text>
+                              {/* Only show nutritional badges for non-cheat meals */}
+                              {!meal.meal?.isCheatMeal && (
+                                <div className="flex gap-2 mt-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalCalories || 0) * (meal.customQuantity || 1))} cal
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalProtein || 0) * (meal.customQuantity || 1))}gP
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalCarbs || 0) * (meal.customQuantity || 1))}gC
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalFats || 0) * (meal.customQuantity || 1))}gF
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
+                            
+                            
+                            {/* Remove Button */}
+                            <button
+                              onClick={() => {
+                                setTempEditingMeals(prev => prev.filter((_, i) => i !== index));
+                              }}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Remove meal"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* Ingredients List */}
+                          {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-zinc-100">
+                              <Text className="text-xs font-medium text-zinc-600 mb-2">Ingredients:</Text>
+                              <div className="space-y-2">
+                                {meal.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                  <div key={ingIndex} className="flex items-center gap-3 p-2 bg-zinc-50 rounded-lg">
+                                    <div className="flex-1">
+                                      <Text className="text-sm font-medium text-zinc-900">
+                                        {ingredient.ingredient?.name || `Ingredient ${ingredient.ingredientId}`}
+                                      </Text>
+                                      <Text className="text-xs text-zinc-500">
+                                        {ingredient.quantity} {ingredient.unit}
+                                      </Text>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Text className="text-xs text-zinc-600">Amount:</Text>
+                                      <Input
+                                        type="number"
+                                        value={ingredient.quantity}
+                                        onChange={(e) => {
+                                          const newQuantity = parseFloat(e.target.value) || 0;
+                                          setTempEditingMeals(prev => prev.map((m, mealIndex) =>
+                                            mealIndex === index ? {
+                                              ...m,
+                                              meal: m.meal ? {
+                                                ...m.meal,
+                                                mealIngredients: m.meal.mealIngredients?.map((ing, idx) =>
+                                                  idx === ingIndex ? { ...ing, quantity: newQuantity } : ing
+                                                )
+                                              } : m.meal
+                                            } : m
+                                          ));
+                                        }}
+                                        min="0"
+                                        step="0.1"
+                                        className="w-20 text-center text-xs"
+                                      />
+                                      <Text className="text-xs text-zinc-500">{ingredient.unit}</Text>
+                                      <button
+                                        onClick={() => {
+                                          setTempEditingMeals(prev => prev.map((m, mealIndex) =>
+                                            mealIndex === index ? {
+                                              ...m,
+                                              meal: m.meal ? {
+                                                ...m.meal,
+                                                mealIngredients: m.meal.mealIngredients?.filter((_, idx) => idx !== ingIndex)
+                                              } : m.meal
+                                            } : m
+                                          ));
+                                        }}
+                                        className="text-red-500 hover:text-red-700 p-1 ml-2"
+                                        title="Remove ingredient"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Save/Cancel Actions */}
+                    <div className="flex gap-3 pt-4 border-t border-zinc-200">
+                      <button
+                        onClick={() => {
+                          // Apply changes to the main program
+                          if (selectedDay) {
+                            setProgram(prev => ({
+                              ...prev,
+                              weeks: prev.weeks!.map(week => ({
+                                ...week,
+                                days: week.days!.map(day =>
+                                  day.id === selectedDay.id ? {
+                                    ...day,
+                                    meals: tempEditingMeals
+                                  } : day
+                                )
+                              }))
+                            }));
+                          }
+                          // Close the edit view
+                          setSelectedMeal(null);
+                          setEditingMealData(null);
+                          setTempEditingMeals([]);
+                        }}
+                        className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+                      >
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Discard changes and close
+                          setSelectedMeal(null);
+                          setEditingMealData(null);
+                          setTempEditingMeals([]);
+                        }}
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    
+                  </div>
+                </div>
+              )}
               
               <div className="space-y-6">
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => {
-                      setShowExistingMealAccordion(!showExistingMealAccordion);
-                      setShowNewMealAccordion(false);
-                    }}
-                    className={`flex-1 ${showExistingMealAccordion ? 'bg-zinc-100 text-zinc-700 border-zinc-300' : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50'}`}
+                {/* Action Button */}
+                <div className="relative flex justify-end">
+                  <button
+                    onClick={() => setShowMealTypeDropdown(!showMealTypeDropdown)}
+                    data-dropdown-trigger
+                    className="border-2 border-dashed border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 hover:border-zinc-400 font-normal px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
                   >
                     <PlusIcon className="w-4 h-4 mr-2" />
-                    Add Existing Meal
-                    {showExistingMealAccordion && <ChevronDownIcon className="w-4 h-4 ml-2" />}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowNewMealAccordion(!showNewMealAccordion);
-                      setShowExistingMealAccordion(false);
-                    }}
-                    className={`flex-1 ${showNewMealAccordion ? 'bg-green-700' : 'bg-green-600 hover:bg-green-700'}`}
-                  >
-                    <PlusIcon className="w-4 h-4 mr-2" />
-                    Create New Meal
-                    {showNewMealAccordion && <ChevronDownIcon className="w-4 h-4 ml-2" />}
-                  </Button>
+                    Add Meal
+                    <ChevronDownIcon className="w-4 h-4 ml-2" />
+                  </button>
+                  
+                  {showMealTypeDropdown && (
+                    <div 
+                      data-dropdown-content
+                      className="absolute top-full right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 min-w-[200px] fade-in"
+                    >
+                      <button
+                        onClick={() => {
+                          setShowExistingMealAccordion(true);
+                          setShowNewMealAccordion(false);
+                          setShowMealTypeDropdown(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 border-b border-zinc-100"
+                      >
+                        {/* <PlusIcon className="w-3 h-3" /> */}
+                        Add Existing Meal
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setShowNewMealAccordion(true);
+                          setShowExistingMealAccordion(false);
+                          setShowMealTypeDropdown(false);
+                          
+                          // Fetch available ingredients
+                          try {
+                            console.log('Fetching ingredients for trainerId:', user.id);
+                          console.log('User object:', user);
+                            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/ingredients?trainerId=${user.id}`);
+                            console.log('Ingredients response:', response);
+                            if (response.ok) {
+                              const data = await response.json();
+                              console.log('Ingredients data:', data);
+                              setAvailableIngredients(data.ingredients || []);
+                              console.log('Set availableIngredients to:', data.ingredients || []);
+                            } else {
+                              console.error('Failed to fetch ingredients:', response.status, response.statusText);
+                            }
+                          } catch (error) {
+                            console.error('Failed to fetch ingredients:', error);
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                      >
+                        {/* <PlusIcon className="w-3 h-3" /> */}
+                        Create New Meal
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCheatMealAccordion(true);
+                          setShowExistingMealAccordion(false);
+                          setShowNewMealAccordion(false);
+                          setShowMealTypeDropdown(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                      >
+                        {/* <PlusIcon className="w-3 h-3" /> */}
+                        Add Cheat Meal
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Add Existing Meal Accordion */}
                 {showExistingMealAccordion && (
-                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
                     <div className="p-6">
                       <div className="space-y-6">
-                        <div>
-                          <Text className="text-sm font-medium text-zinc-900 mb-3">Select Existing Meal</Text>
-                          <Select 
-                            value={selectedMealFromDropdown?.id || ''}
-                            onChange={(e) => {
-                              const mealId = parseInt(e.target.value);
-                              const meal = availableMeals.find(m => m.id === mealId);
-                              setSelectedMealFromDropdown(meal || null);
-                            }}
-                            className="w-full"
-                          >
-                            <option value="">Choose a meal from your library...</option>
-                            {availableMeals.map((meal) => (
-                              <option key={meal.id} value={meal.id}>{meal.name}</option>
-                            ))}
-                          </Select>
-                        </div>
+                        {/* Only show dropdown when not editing an existing meal */}
+                        {editingMealIndex === null && (
+                          <div>
+                            <Text className="text-sm font-medium text-zinc-900 mb-3">Select Existing Meal</Text>
+                            <Select 
+                              value={selectedMealFromDropdown?.id || ''}
+                              onChange={(e) => {
+                                const mealId = parseInt(e.target.value);
+                                const meal = availableMeals.find(m => m.id === mealId);
+                                setSelectedMealFromDropdown(meal || null);
+                              }}
+                              className="w-full"
+                            >
+                              <option value="">Choose a meal from your library...</option>
+                              {availableMeals.map((meal) => (
+                                <option key={meal.id} value={meal.id}>{meal.name}</option>
+                              ))}
+                            </Select>
+                          </div>
+                        )}
                         
                         {selectedMealFromDropdown && (
                           <div className="border border-zinc-100 rounded-lg p-4 bg-zinc-50/50">
@@ -1408,20 +2148,23 @@ export default function NutritionProgramBuilder() {
                               <div className="flex-1">
                                 <Text className="text-base font-semibold text-zinc-900">{selectedMealFromDropdown.name}</Text>
                                 <Text className="text-sm text-zinc-500 mt-1">{selectedMealFromDropdown.description}</Text>
-                                <div className="flex items-center gap-3 mt-2">
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalCalories || 0)} cal
-                                  </Badge>
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalProtein || 0)}gP
-                                  </Badge>
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalCarbs || 0)}gC
-                                  </Badge>
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalFats || 0)}gF
-                                  </Badge>
-                                </div>
+                                {/* Only show nutritional badges for non-cheat meals */}
+                                {!selectedMealFromDropdown.isCheatMeal && (
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalCalories || 0)} cal
+                                    </Badge>
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalProtein || 0)}gP
+                                    </Badge>
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalCarbs || 0)}gC
+                                    </Badge>
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalFats || 0)}gF
+                                    </Badge>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             
@@ -1476,16 +2219,16 @@ export default function NutritionProgramBuilder() {
                     
                     {/* Footer Actions */}
                     <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200 bg-zinc-50/50">
-                      <Button
+                      <button
                         onClick={() => {
                           setSelectedMealFromDropdown(null);
                           setEditingMealIndex(null);
                           setShowExistingMealAccordion(false);
                         }}
-                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
                       >
                         Cancel
-                      </Button>
+                      </button>
                       <Button
                         onClick={() => {
                           if (selectedMealFromDropdown) {
@@ -1515,7 +2258,7 @@ export default function NutritionProgramBuilder() {
 
                 {/* Create New Meal Accordion */}
                 {showNewMealAccordion && (
-                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
                     <div className="p-6">
                       <div className="space-y-6">
                         <div>
@@ -1558,22 +2301,85 @@ export default function NutritionProgramBuilder() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Image Upload Section */}
+                        <div>
+                          <Text className="text-sm font-medium text-zinc-900 mb-3">Image</Text>
+                          
+                          {/* Tab Navigation */}
+                          <div className="flex border-b border-zinc-200 mb-4">
+                            <button
+                              type="button"
+                              onClick={() => setImageUploadMethod('upload')}
+                              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                imageUploadMethod === 'upload'
+                                  ? 'border-blue-500 text-blue-600'
+                                  : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                              }`}
+                            >
+                              Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setImageUploadMethod('url')}
+                              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                imageUploadMethod === 'url'
+                                  ? 'border-blue-500 text-blue-600'
+                                  : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                              }`}
+                            >
+                              Image URL
+                            </button>
+                          </div>
+                          
+                          {/* Tab Content */}
+                          {imageUploadMethod === 'upload' ? (
+                            <div>
+                              <Text className="text-xs text-zinc-600 mb-2">Choose file from your computer</Text>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="block w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                              />
+                              {imageFile && (
+                                <Text className="mt-2 text-sm text-green-600">
+                                  Selected: {imageFile.name}
+                                </Text>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <Text className="text-xs text-zinc-600 mb-2">Enter image URL</Text>
+                              <Input
+                                type="url"
+                                value={newMealForm.imageUrl}
+                                onChange={handleImageUrlChange}
+                                placeholder="https://example.com/image.jpg"
+                                className="w-full"
+                              />
+                            </div>
+                          )}
+                        </div>
                         
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <Text className="text-sm font-medium text-zinc-900">Ingredients</Text>
-                            <Button
+                            <div className="flex items-center justify-between">
+                              <Text className="text-sm font-medium text-zinc-900">Ingredients</Text>
+                              <Text className="text-xs text-zinc-500">({availableIngredients.length} available)</Text>
+                            </div>
+                            <button
                               onClick={() => {
                                 setNewMealForm(prev => ({
                                   ...prev,
-                                  ingredients: [...prev.ingredients, { ingredientId: 0, quantity: 0, unit: 'g' }]
+                                  ingredients: [...prev.ingredients, { ingredientId: 0, quantity: 0, unit: 'g', ingredientName: '' }]
                                 }));
                               }}
-                              className="text-xs px-3 py-1 h-8"
+                              className="text-xs px-3 py-1 h-8 bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 rounded-lg font-bold transition-colors flex items-center gap-1"
                             >
-                              <PlusIcon className="w-3 h-3 mr-1" />
+                              <PlusIcon className="w-3 h-3" />
                               Add Ingredient
-                            </Button>
+                            </button>
                           </div>
                           
                           <div className="space-y-2">
@@ -1587,16 +2393,25 @@ export default function NutritionProgramBuilder() {
                                     setNewMealForm(prev => ({
                                       ...prev,
                                       ingredients: prev.ingredients.map((ing, i) => 
-                                        i === index ? { ...ing, ingredientId, unit: selectedIngredient?.unitType || 'g' } : ing
+                                        i === index ? { 
+                                          ...ing, 
+                                          ingredientId, 
+                                          unit: selectedIngredient?.unitType || 'g',
+                                          ingredientName: selectedIngredient?.name || ''
+                                        } : ing
                                       )
                                     }));
                                   }}
-                                  className="flex-1"
+                                  className="w-64"
                                 >
                                   <option value="">Select ingredient</option>
-                                  {availableIngredients.map((ing) => (
-                                    <option key={ing.id} value={ing.id}>{ing.name}</option>
-                                  ))}
+                                  {availableIngredients.length > 0 ? (
+                                    availableIngredients.map((ing) => (
+                                      <option key={ing.id} value={ing.id}>{ing.name}</option>
+                                    ))
+                                  ) : (
+                                    <option value="" disabled>Loading ingredients...</option>
+                                  )}
                                 </Select>
                                 <Input
                                   type="number"
@@ -1615,7 +2430,9 @@ export default function NutritionProgramBuilder() {
                                   min="0"
                                   step="0.1"
                                 />
-                                <Text className="text-sm text-zinc-500 w-12">{ingredient.unit}</Text>
+                                <div className="w-20 px-3 py-2 border border-zinc-300 rounded-md bg-zinc-50 text-sm text-zinc-700 text-center">
+                                  {ingredient.unit || '-'}
+                                </div>
                                 <button
                                   onClick={() => {
                                     setNewMealForm(prev => ({
@@ -1639,48 +2456,246 @@ export default function NutritionProgramBuilder() {
                             )}
                           </div>
                         </div>
+
+                        {/* Meal Summary Section */}
+                        <div>
+                          <Text className="text-sm font-medium text-zinc-900 mb-3">Meal Summary</Text>
+                          <div className="bg-zinc-50 rounded-lg p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().calories}
+                                </div>
+                                <div className="text-sm text-zinc-600">Calories</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().protein}g
+                                </div>
+                                <div className="text-sm text-zinc-600">Protein</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().carbs}g
+                                </div>
+                                <div className="text-sm text-zinc-600">Carbs</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().fats}g
+                                </div>
+                                <div className="text-sm text-zinc-600">Fats</div>
+                              </div>
+                            </div>
+                            {newMealForm.ingredients.length === 0 && (
+                              <div className="text-center text-zinc-500 text-sm mt-2">
+                                Add ingredients to see nutritional summary
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     
                     {/* Footer Actions */}
                     <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200 bg-zinc-50/50">
-                      <Button
+                      <button
                         onClick={() => {
                           setNewMealForm({
                             name: '',
                             description: '',
                             category: '',
+                            imageUrl: '',
                             ingredients: []
                           });
+                          setImageFile(null);
+                          setImageUploadMethod('upload');
                           setShowNewMealAccordion(false);
                         }}
-                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
                       >
                         Cancel
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          // TODO: Save new meal and add to day
-                          console.log('Save new meal:', newMealForm);
-                          setNewMealForm({
-                            name: '',
-                            description: '',
-                            category: '',
-                            ingredients: []
-                          });
-                          setShowNewMealAccordion(false);
-                        }}
-                        disabled={!newMealForm.name || !newMealForm.category}
-                      >
-                        Save & Add to Day
-                      </Button>
+                      </button>
+                      <div className="relative" data-dropdown-trigger>
+                        <Button
+                          onClick={() => setShowSaveMealDropdown(!showSaveMealDropdown)}
+                          disabled={!newMealForm.name || !newMealForm.category || newMealForm.ingredients.length === 0}
+                          className="text-xs px-3 py-1 h-8 flex items-center gap-2"
+                        >
+                          Save Meal
+                          <ChevronDownIcon className="w-3 h-3" />
+                        </Button>
+                        
+                        {/* Dropdown Menu */}
+                        {showSaveMealDropdown && (
+                          <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-zinc-200 rounded-lg shadow-lg z-10 fade-in" data-dropdown-content>
+                          <button
+                            onClick={async () => {
+                              // Save to meals list AND add to day
+                              try {
+                                console.log('Saving meal to global list and adding to day:', newMealForm);
+                                
+                                // First, save the meal to the global meals list
+                                const mealData = {
+                                  name: newMealForm.name,
+                                  description: newMealForm.description,
+                                  category: newMealForm.category,
+                                  imageUrl: newMealForm.imageUrl,
+                                  ingredients: newMealForm.ingredients.map(ing => ({
+                                    ingredientId: ing.ingredientId,
+                                    quantity: ing.quantity,
+                                    unit: ing.unit
+                                  }))
+                                };
+                                
+                                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/meals`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    ...mealData,
+                                    trainerId: user.id
+                                  })
+                                });
+                                
+                                if (response.ok) {
+                                  const savedMeal = await response.json();
+                                  console.log('Meal saved globally:', savedMeal);
+                                  
+                                  // Now add this meal to the current day with proper nutritional values
+                                  const mealToAdd = {
+                                    meal: {
+                                      ...savedMeal,
+                                      // Ensure nutritional values are properly set from backend response
+                                      totalCalories: savedMeal.totalCalories || 0,
+                                      totalProtein: savedMeal.totalProtein || 0,
+                                      totalCarbs: savedMeal.totalCarbs || 0,
+                                      totalFats: savedMeal.totalFats || 0,
+                                      mealIngredients: savedMeal.mealIngredients || []
+                                    },
+                                    mealType: newMealForm.category,
+                                    customIngredients: newMealForm.ingredients.map(ing => ({
+                                      ingredientId: ing.ingredientId,
+                                      quantity: ing.quantity,
+                                      unit: ing.unit
+                                    }))
+                                  };
+                                  
+                                  setSelectedMealsForDay(prev => [...prev, mealToAdd]);
+                                  
+                                  // Reset form and close accordion
+                                  setNewMealForm({
+                                    name: '',
+                                    description: '',
+                                    category: '',
+                                    imageUrl: '',
+                                    ingredients: []
+                                  });
+                                  setImageFile(null);
+                                  setImageUploadMethod('upload');
+                                  setShowNewMealAccordion(false);
+                                  setShowSaveMealDropdown(false);
+                                } else {
+                                  console.error('Failed to save meal globally');
+                                }
+                              } catch (error) {
+                                console.error('Error saving meal:', error);
+                              }
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 border-b border-zinc-100 whitespace-nowrap"
+                          >
+                            {/* <CloudArrowUpIcon className="w-5 h-5" /> */}
+                            Save to Meals & Add to Day
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              // Add to day only (without saving globally) - calculate nutritional values locally
+                              console.log('Adding meal to day only:', newMealForm);
+                              
+                              let totalCalories = 0;
+                              let totalProtein = 0;
+                              let totalCarbs = 0;
+                              let totalFats = 0;
+                              
+                              // Calculate nutritional values from ingredients
+                              for (const ing of newMealForm.ingredients) {
+                                if (ing.ingredientId && ing.quantity > 0) {
+                                  const ingredient = availableIngredients.find(ai => ai.id === ing.ingredientId);
+                                  if (ingredient) {
+                                    const caloriesPerUnit = ingredient.caloriesAfter || ingredient.caloriesBefore || 0;
+                                    const proteinPerUnit = ingredient.proteinAfter || ingredient.proteinBefore || 0;
+                                    const carbsPerUnit = ingredient.carbsAfter || ingredient.carbsBefore || 0;
+                                    const fatsPerUnit = ingredient.fatsAfter || ingredient.fatsBefore || 0;
+                                    const servingSize = ingredient.servingSize || 1;
+                                    
+                                    const multiplier = ing.quantity / servingSize;
+                                    
+                                    totalCalories += caloriesPerUnit * multiplier;
+                                    totalProtein += proteinPerUnit * multiplier;
+                                    totalCarbs += carbsPerUnit * multiplier;
+                                    totalFats += fatsPerUnit * multiplier;
+                                  }
+                                }
+                              }
+                              
+                              const mealToAdd = {
+                                meal: {
+                                  id: -1, // Temporary ID for meals not saved globally
+                                  name: newMealForm.name,
+                                  description: newMealForm.description,
+                                  category: newMealForm.category,
+                                  imageUrl: undefined,
+                                  totalCalories: Math.round(totalCalories * 100) / 100,
+                                  totalProtein: Math.round(totalProtein * 100) / 100,
+                                  totalCarbs: Math.round(totalCarbs * 100) / 100,
+                                  totalFats: Math.round(totalFats * 100) / 100,
+                                  mealIngredients: newMealForm.ingredients.map(ing => ({
+                                    ingredientId: ing.ingredientId,
+                                    quantity: ing.quantity,
+                                    unit: ing.unit,
+                                    ingredient: availableIngredients.find(ai => ai.id === ing.ingredientId)
+                                  }))
+                                },
+                                mealType: newMealForm.category,
+                                customIngredients: newMealForm.ingredients.map(ing => ({
+                                  ingredientId: ing.ingredientId,
+                                  quantity: ing.quantity,
+                                  unit: ing.unit
+                                }))
+                              };
+                              
+                              setSelectedMealsForDay(prev => [...prev, mealToAdd]);
+                              
+                              // Reset form and close accordion
+                              setNewMealForm({
+                                name: '',
+                                description: '',
+                                category: '',
+                                imageUrl: '',
+                                ingredients: []
+                              });
+                              setImageFile(null);
+                              setImageUploadMethod('upload');
+                              setShowNewMealAccordion(false);
+                              setShowSaveMealDropdown(false);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 whitespace-nowrap"
+                          >
+                            {/* <PlusIcon className="w-5 h-5" /> */}
+                            Add to Day Only
+                          </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* Selected Meals Section */}
                 {selectedMealsForDay.length > 0 && (
-                  <div>
+                  <div className="fade-in">
                     <Text className="text-sm font-medium text-zinc-900 mb-4">
                       Meals for this Day ({selectedMealsForDay.length})
                     </Text>
@@ -1702,20 +2717,23 @@ export default function NutritionProgramBuilder() {
                                   {mealEntry.mealType}
                                 </Badge>
                               </div>
-                              <div className="flex items-center gap-3 mb-3">
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalCalories)} cal
-                                </Badge>
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalProtein)}gP
-                                </Badge>
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalCarbs)}gC
-                                </Badge>
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalFats)}gF
-                                </Badge>
-                              </div>
+                              {/* Only show nutritional badges for non-cheat meals */}
+                              {!mealEntry.meal.isCheatMeal && (
+                                <div className="flex items-center gap-3 mb-3">
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalCalories)} cal
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalProtein)}gP
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalCarbs)}gC
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalFats)}gF
+                                  </Badge>
+                                </div>
+                              )}
                               
                               {/* Ingredients */}
                               {mealEntry.meal.mealIngredients && mealEntry.meal.mealIngredients.length > 0 && (
@@ -1755,7 +2773,166 @@ export default function NutritionProgramBuilder() {
                   </div>
                 )}
 
+                {/* Add Cheat Meal Accordion */}
+                {showCheatMealAccordion && (
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                            <span className="text-orange-600 font-semibold text-sm">CM</span>
+                          </div>
+                          <div>
+                            <Text className="text-lg font-semibold text-zinc-900">Add Cheat Meal</Text>
+                            <Text className="text-sm text-zinc-500">Add a cheat meal with custom description</Text>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowCheatMealAccordion(false);
+                            setCheatMealForm({ description: '', imageUrl: '' });
+                          }}
+                          className="text-zinc-400 hover:text-zinc-600"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Cheat Meal Description */}
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-2">
+                            Cheat Meal Description
+                          </label>
+                          <Textarea
+                            value={cheatMealForm.description}
+                            onChange={(e) => setCheatMealForm(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder="Describe the cheat meal... (e.g., 'Pizza night with friends', 'Ice cream sundae', 'Burger and fries')"
+                            rows={4}
+                            className="w-full"
+                          />
+                        </div>
+
+                        {/* Image Upload Section */}
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-2">
+                            Cheat Meal Image (Optional)
+                          </label>
+                          <div className="border border-zinc-200 rounded-lg p-4">
+                            <div className="flex gap-4">
+                              {/* Upload File Tab */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className={`w-2 h-2 rounded-full ${imageUploadMethod === 'upload' ? 'bg-zinc-900' : 'bg-zinc-300'}`}></div>
+                                  <Text className="text-sm font-medium text-zinc-700">Upload File</Text>
+                                </div>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      setImageFile(file);
+                                      setImageUploadMethod('upload');
+                                    }
+                                  }}
+                                  className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200"
+                                />
+                              </div>
+
+                              {/* Divider */}
+                              <div className="flex items-center">
+                                <div className="w-px h-8 bg-zinc-200"></div>
+                              </div>
+
+                              {/* Image URL Tab */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className={`w-2 h-2 rounded-full ${imageUploadMethod === 'url' ? 'bg-zinc-900' : 'bg-zinc-300'}`}></div>
+                                  <Text className="text-sm font-medium text-zinc-700">Image URL</Text>
+                                </div>
+                                <Input
+                                  type="url"
+                                  value={cheatMealForm.imageUrl}
+                                  onChange={(e) => {
+                                    setCheatMealForm(prev => ({ ...prev, imageUrl: e.target.value }));
+                                    setImageUploadMethod('url');
+                                  }}
+                                  placeholder="https://example.com/image.jpg"
+                                  className="w-full"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Add to Day Button */}
+                        <div className="flex gap-3 pt-4 border-t border-zinc-200">
+                          <button
+                            onClick={() => {
+                              if (!cheatMealForm.description.trim()) {
+                                alert('Please enter a cheat meal description');
+                                return;
+                              }
+
+                              // Create a cheat meal object
+                              const cheatMeal = {
+                                id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                                name: 'Cheat Meal',
+                                description: cheatMealForm.description,
+                                totalCalories: 0, // Cheat meals don't count towards calories
+                                totalProtein: 0,
+                                totalCarbs: 0,
+                                totalFats: 0,
+                                imageUrl: cheatMealForm.imageUrl,
+                                mealIngredients: [],
+                                isCheatMeal: true
+                              };
+
+                              // Add to selected meals for the day
+                              setSelectedMealsForDay(prev => [...prev, {
+                                meal: cheatMeal,
+                                mealType: 'Cheat Meal',
+                                customIngredients: []
+                              }]);
+
+                              // Reset form
+                              setCheatMealForm({ description: '', imageUrl: '' });
+                              setImageFile(null);
+                              setShowCheatMealAccordion(false);
+
+                              // Show success message
+                              setMealAddedMessage('Cheat meal added successfully!');
+                              setTimeout(() => setMealAddedMessage(null), 3000);
+                            }}
+                            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                          >
+                            Add Cheat Meal to Day
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowCheatMealAccordion(false);
+                              setCheatMealForm({ description: '', imageUrl: '' });
+                              setImageFile(null);
+                            }}
+                            className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Empty State */}
+                {(() => {
+                  console.log('Side panel rendering - selectedMealsForDay:', selectedMealsForDay);
+                  console.log('selectedMealsForDay.length:', selectedMealsForDay.length);
+                  return null;
+                })()}
                 {selectedMealsForDay.length === 0 && (
                   <div className="text-center py-12 text-zinc-500">
                     <svg className="mx-auto h-12 w-12 text-zinc-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1770,12 +2947,12 @@ export default function NutritionProgramBuilder() {
 
             {/* Footer Actions */}
             <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200">
-              <Button
-                onClick={cancelMealSelection}
-                className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+              <button
+                onClick={closeSidePanel}
+                className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
               >
                 Cancel
-              </Button>
+              </button>
               <Button
                 onClick={saveMealsToDay}
                 disabled={selectedMealsForDay.length === 0}
@@ -1787,13 +2964,161 @@ export default function NutritionProgramBuilder() {
         </>
       )}
 
+      {/* Program Preview Side Panel */}
+      {showPreviewPanel && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className={`fixed top-0 left-0 right-0 bg-black/50 z-40 ${isPreviewClosing ? 'fade-out' : 'fade-in'}`}
+            style={{ height: '100vh' }}
+            onClick={closePreviewPanel}
+          />
+          
+          {/* Preview Panel */}
+          <div 
+            className={`fixed top-0 right-0 w-[900px] bg-white shadow-xl z-50 flex flex-col ${isPreviewClosing ? 'slide-out-right' : 'slide-in-right'}`}
+            style={{ height: '100vh' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-200">
+              <h3 className="text-lg font-semibold text-zinc-900">Program Preview</h3>
+              <button
+                onClick={closePreviewPanel}
+                className="p-2 text-zinc-400 hover:text-zinc-600 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* Program Info */}
+                <div className="bg-zinc-50 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-zinc-900 mb-2">{program.name || 'Untitled Program'}</h4>
+                  <p className="text-zinc-600">{program.description || 'No description provided'}</p>
+                </div>
+
+                {/* Nutrition Goals */}
+                <div className="bg-zinc-50 rounded-lg p-4">
+                  <h4 className="text-lg font-semibold text-zinc-900 mb-3">Nutrition Goals</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Target Calories</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">{program.targetCalories}</Text>
+                    </div>
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Protein</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">
+                        {program.usePercentages ? `${program.targetProtein}%` : `${program.targetProtein}g`}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Carbs</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">
+                        {program.usePercentages ? `${program.targetCarbs}%` : `${program.targetCarbs}g`}
+                      </Text>
+                    </div>
+                    <div>
+                      <Text className="text-sm font-medium text-zinc-700">Fats</Text>
+                      <Text className="text-lg font-semibold text-zinc-900">
+                        {program.usePercentages ? `${program.targetFats}%` : `${program.targetFats}g`}
+                      </Text>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Program Weeks */}
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-zinc-900">Program Structure</h4>
+                  {program.weeks?.map((week, weekIndex) => (
+                    <div key={week.id || weekIndex} className="border border-zinc-200 rounded-lg">
+                      {/* Week Header */}
+                      <div className="bg-zinc-100 px-4 py-3 border-b border-zinc-200">
+                        <h5 className="font-semibold text-zinc-900">Week {week.weekNumber}</h5>
+                      </div>
+
+                      {/* Days */}
+                      <div className="p-4 space-y-3">
+                        {week.days?.map((day, dayIndex) => (
+                          <div key={day.id || dayIndex} className="border border-zinc-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h6 className="font-medium text-zinc-900">{day.name}</h6>
+                              {day.isOffDay && (
+                                <Badge className="bg-yellow-100 text-yellow-800">Rest Day</Badge>
+                              )}
+                            </div>
+
+                            {/* Meals */}
+                            {day.meals && day.meals.length > 0 ? (
+                              <div className="space-y-2">
+                                {day.meals.map((meal, mealIndex) => (
+                                  <div key={meal.id || mealIndex} className="bg-zinc-50 rounded-lg p-3">
+                                    <div className="flex items-start gap-3">
+                                      {meal.meal?.imageUrl && (
+                                        <img
+                                          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                          alt={meal.meal.name}
+                                          className="w-12 h-12 rounded-lg object-cover"
+                                        />
+                                      )}
+                                      <div className="flex-1">
+                                        <Text className="font-medium text-zinc-900">{meal.meal?.name}</Text>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Badge className={`text-xs ${getMealTypeColor(meal.mealType)}`}>
+                                            {meal.mealType}
+                                          </Badge>
+                                          {/* Only show calories for non-cheat meals */}
+                                          {!meal.meal?.isCheatMeal && (
+                                            <Text className="text-xs text-zinc-500">
+                                              {meal.meal?.totalCalories} cal
+                                            </Text>
+                                          )}
+                                        </div>
+                                        {/* Ingredients */}
+                                        {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
+                                          <div className="mt-2">
+                                            <Text className="text-xs text-zinc-600 mb-1">Ingredients:</Text>
+                                            <div className="flex flex-wrap gap-1">
+                                              {meal.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                                <span key={ingIndex} className="text-xs text-zinc-500 bg-zinc-100 px-2 py-1 rounded">
+                                                  {ingredient.ingredient?.name || `Ingredient ${ingredient.ingredientId}`} ({ingredient.quantity} {ingredient.unit})
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <Text className="text-zinc-500 text-sm">No meals assigned</Text>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Action Buttons - Bottom of Page */}
       <div className="flex gap-3 justify-end mt-10">
         <Button 
           color="white" 
           className="font-semibold border border-zinc-200" 
-          onClick={() => setShowSidePanel(true)}
+          onClick={() => {
+            setIsPreviewClosing(false);
+            setShowPreviewPanel(true);
+          }}
         >
           <EyeIcon className="w-4 h-4 mr-2" />
           Preview Program
@@ -1807,5 +3132,6 @@ export default function NutritionProgramBuilder() {
         </Button>
       </div>
     </div>
+    </>
   );
 } 
