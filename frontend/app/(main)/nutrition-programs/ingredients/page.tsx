@@ -123,7 +123,18 @@ export default function IngredientsPage() {
     if (trainerId) {
       fetchIngredients(trainerId);
     }
-  }, [trainerId, searchTerm, categoryFilter]);
+  }, [trainerId]);
+
+  // Debounced search effect
+  useEffect(() => {
+    if (!trainerId) return;
+    
+    const timeoutId = setTimeout(() => {
+      fetchIngredients(trainerId);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, categoryFilter, trainerId]);
 
   const handleDelete = async (ingredient: Ingredient) => {
     try {
@@ -233,6 +244,7 @@ export default function IngredientsPage() {
                 <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />
               </div>
               <input
+                key="search-input"
                 type="text"
                 placeholder="Search ingredients..."
                 value={searchTerm}

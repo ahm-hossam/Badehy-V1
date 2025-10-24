@@ -31,6 +31,7 @@ model Registered {
   ingredients                Ingredient[]
   labels                     Label[]
   leads                      Lead[]
+  meals                      Meal[]
   nutritionPrograms          NutritionProgram[]
   pdfTemplates               PDFTemplate[]
   packages                   Package[]
@@ -443,6 +444,7 @@ model Ingredient {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   trainer          Registered        @relation(fields: [trainerId], references: [id])
+  mealIngredients  MealIngredient[]
 
   @@index([trainerId])
   @@index([category])
@@ -487,8 +489,78 @@ model NutritionProgram {
   updatedAt         DateTime                    @updatedAt
   clientAssignments ClientNutritionAssignment[]
   trainer           Registered                  @relation(fields: [trainerId], references: [id])
+  meals             NutritionProgramMeal[]
 
   @@index([trainerId])
+}
+
+model Meal {
+  id                Int                    @id @default(autoincrement())
+  trainerId         Int
+  name              String
+  description       String?
+  category          String                 // Breakfast, Lunch, Dinner, Snack, etc.
+  prepTime          Int?                   // in minutes
+  cookTime          Int?                   // in minutes
+  servings          Int                    @default(1)
+  difficulty        String?                // Easy, Medium, Hard
+  instructions      String?                // Cooking instructions
+  imageUrl          String?
+  isActive          Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  
+  // Calculated nutritional values (per serving)
+  totalCalories     Float                  @default(0)
+  totalProtein      Float                  @default(0)
+  totalCarbs        Float                  @default(0)
+  totalFats         Float                  @default(0)
+  totalFiber        Float                  @default(0)
+  totalSugar        Float                  @default(0)
+  totalSodium       Float                  @default(0)
+  
+  // Relations
+  trainer           Registered             @relation(fields: [trainerId], references: [id])
+  mealIngredients   MealIngredient[]
+  nutritionPrograms NutritionProgramMeal[]
+
+  @@index([trainerId])
+  @@index([category])
+  @@index([name])
+}
+
+model MealIngredient {
+  id           Int       @id @default(autoincrement())
+  mealId       Int
+  ingredientId Int
+  quantity     Float     // amount of ingredient
+  unit         String    // unit of measurement (grams, cups, pieces, etc.)
+  notes        String?   // optional notes for this ingredient in this meal
+  
+  // Relations
+  meal         Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([mealId, ingredientId])
+  @@index([mealId])
+  @@index([ingredientId])
+}
+
+model NutritionProgramMeal {
+  id                Int             @id @default(autoincrement())
+  nutritionProgramId Int
+  mealId            Int
+  dayOfWeek         Int?            // 1-7 (Monday-Sunday)
+  mealType          String?         // Breakfast, Lunch, Dinner, Snack
+  order             Int?            // order within the day
+  
+  // Relations
+  nutritionProgram  NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+  meal              Meal            @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@unique([nutritionProgramId, mealId, dayOfWeek, mealType])
+  @@index([nutritionProgramId])
+  @@index([mealId])
 }
 
 model ProgramWeek {
