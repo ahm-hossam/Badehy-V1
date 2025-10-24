@@ -170,6 +170,8 @@ export default function NutritionProgramBuilder() {
   const [isClosing, setIsClosing] = useState(false);
   const [selectedDay, setSelectedDay] = useState<NutritionProgramDay | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<Meal | null>(null);
+  const [editingMealData, setEditingMealData] = useState<NutritionProgramMeal | null>(null);
+  const [tempEditingMeals, setTempEditingMeals] = useState<NutritionProgramMeal[]>([]);
   const [selectedMealFromDropdown, setSelectedMealFromDropdown] = useState<Meal | null>(null);
   const [isCreatingNewMeal, setIsCreatingNewMeal] = useState(false);
   const [selectedMealsForDay, setSelectedMealsForDay] = useState<Array<{ meal: Meal; mealType: string; customIngredients?: Array<{ ingredientId: number; quantity: number; unit: string }> }>>([]);
@@ -649,6 +651,8 @@ export default function NutritionProgramBuilder() {
     setShowSidePanel(false);
     setSelectedDay(null);
     setSelectedMeal(null);
+    setEditingMealData(null);
+    setTempEditingMeals([]);
     setEditingMealIndex(null);
     setShowExistingMealAccordion(false);
     setShowNewMealAccordion(false);
@@ -712,7 +716,35 @@ export default function NutritionProgramBuilder() {
   const editMeal = (meal: NutritionProgramMeal) => {
     // Set the selected meal for editing and open the side panel
     if (meal.meal) {
+      // Set a dummy meal to indicate edit mode
       setSelectedMeal(meal.meal);
+      setEditingMealData(meal);
+      setIsClosing(false);
+      
+      // Find which day this meal belongs to by searching through all weeks and days
+      let foundDay = null;
+      for (const week of program.weeks || []) {
+        for (const day of week.days || []) {
+          if (day.meals?.find(m => m.id === meal.id)) {
+            foundDay = day;
+            break;
+          }
+        }
+        if (foundDay) break;
+      }
+      
+      if (foundDay) {
+        setSelectedDay(foundDay);
+        // Initialize temporary editing state with a deep copy of the meals
+        setTempEditingMeals(foundDay.meals?.map(meal => ({
+          ...meal,
+          meal: meal.meal ? {
+            ...meal.meal,
+            mealIngredients: meal.meal.mealIngredients?.map(ing => ({ ...ing }))
+          } : meal.meal
+        })) || []);
+      }
+      
       setShowSidePanel(true);
     }
   };
@@ -1747,6 +1779,188 @@ export default function NutritionProgramBuilder() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-sm text-green-700">{mealAddedMessage}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Edit Existing Meal Section */}
+              {selectedMeal && selectedDay && (
+                <div className="mb-6 p-4 border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Text className="text-lg font-semibold text-zinc-900">Edit Meals for {selectedDay.name}</Text>
+                      <button
+                        onClick={() => {
+                          setSelectedMeal(null);
+                          setEditingMealData(null);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-600"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    
+                    {/* Meals List with Editable Quantities */}
+                    <div className="space-y-3">
+                      {tempEditingMeals.map((meal, index) => (
+                        <div key={meal.id || index} className="border border-zinc-200 rounded-lg p-4">
+                          {/* Meal Header */}
+                          <div className="flex items-center gap-4 mb-3">
+                            {/* Meal Image */}
+                            {meal.meal?.imageUrl && (
+                              <img
+                                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${meal.meal.imageUrl}`}
+                                alt={meal.meal.name}
+                                className="w-12 h-12 object-cover rounded-lg"
+                              />
+                            )}
+                            
+                            {/* Meal Info */}
+                            <div className="flex-1">
+                              <Text className="text-sm font-medium text-zinc-900">{meal.meal?.name}</Text>
+                              <Text className="text-xs text-zinc-500">{meal.mealType}</Text>
+                              <div className="flex gap-2 mt-1">
+                                <Badge variant="secondary" className="text-xs">
+                                  {Math.round((meal.meal?.totalCalories || 0) * (meal.customQuantity || 1))} cal
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {Math.round((meal.meal?.totalProtein || 0) * (meal.customQuantity || 1))}gP
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {Math.round((meal.meal?.totalCarbs || 0) * (meal.customQuantity || 1))}gC
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {Math.round((meal.meal?.totalFats || 0) * (meal.customQuantity || 1))}gF
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            
+                            {/* Remove Button */}
+                            <button
+                              onClick={() => {
+                                setTempEditingMeals(prev => prev.filter((_, i) => i !== index));
+                              }}
+                              className="text-red-500 hover:text-red-700 p-1"
+                              title="Remove meal"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* Ingredients List */}
+                          {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-zinc-100">
+                              <Text className="text-xs font-medium text-zinc-600 mb-2">Ingredients:</Text>
+                              <div className="space-y-2">
+                                {meal.meal.mealIngredients.map((ingredient: any, ingIndex: number) => (
+                                  <div key={ingIndex} className="flex items-center gap-3 p-2 bg-zinc-50 rounded-lg">
+                                    <div className="flex-1">
+                                      <Text className="text-sm font-medium text-zinc-900">
+                                        {ingredient.ingredient?.name || `Ingredient ${ingredient.ingredientId}`}
+                                      </Text>
+                                      <Text className="text-xs text-zinc-500">
+                                        {ingredient.quantity} {ingredient.unit}
+                                      </Text>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Text className="text-xs text-zinc-600">Amount:</Text>
+                                      <Input
+                                        type="number"
+                                        value={ingredient.quantity}
+                                        onChange={(e) => {
+                                          const newQuantity = parseFloat(e.target.value) || 0;
+                                          setTempEditingMeals(prev => prev.map((m, mealIndex) =>
+                                            mealIndex === index ? {
+                                              ...m,
+                                              meal: m.meal ? {
+                                                ...m.meal,
+                                                mealIngredients: m.meal.mealIngredients?.map((ing, idx) =>
+                                                  idx === ingIndex ? { ...ing, quantity: newQuantity } : ing
+                                                )
+                                              } : m.meal
+                                            } : m
+                                          ));
+                                        }}
+                                        min="0"
+                                        step="0.1"
+                                        className="w-20 text-center text-xs"
+                                      />
+                                      <Text className="text-xs text-zinc-500">{ingredient.unit}</Text>
+                                      <button
+                                        onClick={() => {
+                                          setTempEditingMeals(prev => prev.map((m, mealIndex) =>
+                                            mealIndex === index ? {
+                                              ...m,
+                                              meal: m.meal ? {
+                                                ...m.meal,
+                                                mealIngredients: m.meal.mealIngredients?.filter((_, idx) => idx !== ingIndex)
+                                              } : m.meal
+                                            } : m
+                                          ));
+                                        }}
+                                        className="text-red-500 hover:text-red-700 p-1 ml-2"
+                                        title="Remove ingredient"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Save/Cancel Actions */}
+                    <div className="flex gap-3 pt-4 border-t border-zinc-200">
+                      <button
+                        onClick={() => {
+                          // Apply changes to the main program
+                          if (selectedDay) {
+                            setProgram(prev => ({
+                              ...prev,
+                              weeks: prev.weeks!.map(week => ({
+                                ...week,
+                                days: week.days!.map(day =>
+                                  day.id === selectedDay.id ? {
+                                    ...day,
+                                    meals: tempEditingMeals
+                                  } : day
+                                )
+                              }))
+                            }));
+                          }
+                          // Close the edit view
+                          setSelectedMeal(null);
+                          setEditingMealData(null);
+                          setTempEditingMeals([]);
+                        }}
+                        className="bg-zinc-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-zinc-800 transition-colors"
+                      >
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Discard changes and close
+                          setSelectedMeal(null);
+                          setEditingMealData(null);
+                          setTempEditingMeals([]);
+                        }}
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    
                   </div>
                 </div>
               )}
