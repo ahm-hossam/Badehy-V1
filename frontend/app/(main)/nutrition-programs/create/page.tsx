@@ -1495,16 +1495,16 @@ export default function NutritionProgramBuilder() {
                     
                     {/* Footer Actions */}
                     <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200 bg-zinc-50/50">
-                      <Button
+                      <button
                         onClick={() => {
                           setSelectedMealFromDropdown(null);
                           setEditingMealIndex(null);
                           setShowExistingMealAccordion(false);
                         }}
-                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
                       >
                         Cancel
-                      </Button>
+                      </button>
                       <Button
                         onClick={() => {
                           if (selectedMealFromDropdown) {
@@ -1663,7 +1663,7 @@ export default function NutritionProgramBuilder() {
                     
                     {/* Footer Actions */}
                     <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200 bg-zinc-50/50">
-                      <Button
+                      <button
                         onClick={() => {
                           setNewMealForm({
                             name: '',
@@ -1673,10 +1673,10 @@ export default function NutritionProgramBuilder() {
                           });
                           setShowNewMealAccordion(false);
                         }}
-                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                        className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
                       >
                         Cancel
-                      </Button>
+                      </button>
                       <Button
                         onClick={() => {
                           // TODO: Save new meal and add to day
@@ -1789,12 +1789,12 @@ export default function NutritionProgramBuilder() {
 
             {/* Footer Actions */}
             <div className="flex items-center justify-end gap-3 p-4 border-t border-zinc-200">
-              <Button
+              <button
                 onClick={cancelMealSelection}
-                className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50"
+                className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
               >
                 Cancel
-              </Button>
+              </button>
               <Button
                 onClick={saveMealsToDay}
                 disabled={selectedMealsForDay.length === 0}
