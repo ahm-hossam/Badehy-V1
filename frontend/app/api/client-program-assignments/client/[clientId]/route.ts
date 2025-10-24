@@ -4,9 +4,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clientId: string } }
+  { params }: { params: Promise<{ clientId: string }> }
 ) {
   try {
+    const { clientId } = await params;
     const { searchParams } = new URL(request.url);
     const trainerId = searchParams.get('trainerId');
 
@@ -14,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: 'Trainer ID is required' }, { status: 400 });
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/client-program-assignments/client/${params.clientId}?trainerId=${trainerId}`, {
+    const response = await fetch(`${BACKEND_URL}/api/client-program-assignments/client/${clientId}?trainerId=${trainerId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

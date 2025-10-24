@@ -116,6 +116,7 @@ export default function NutritionProgramBuilder() {
   const [mealAddedMessage, setMealAddedMessage] = useState<string | null>(null);
   const [showExistingMealAccordion, setShowExistingMealAccordion] = useState(false);
   const [showNewMealAccordion, setShowNewMealAccordion] = useState(false);
+  const [showMealTypeDropdown, setShowMealTypeDropdown] = useState(false);
   const [newMealForm, setNewMealForm] = useState({
     name: '',
     description: '',
@@ -173,17 +174,18 @@ export default function NutritionProgramBuilder() {
       if (!target.closest('[data-dropdown-trigger]') && !target.closest('[data-dropdown-content]')) {
         setOpenWeekDropdown(null);
         setOpenDayDropdown(null);
+        setShowMealTypeDropdown(false);
       }
     };
 
-    if (openWeekDropdown !== null || openDayDropdown !== null) {
+    if (openWeekDropdown !== null || openDayDropdown !== null || showMealTypeDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [openWeekDropdown, openDayDropdown]);
+  }, [openWeekDropdown, openDayDropdown, showMealTypeDropdown]);
 
   const fetchProgram = async (trainerId: number) => {
     try {
@@ -1346,30 +1348,47 @@ export default function NutritionProgramBuilder() {
               )}
               
               <div className="space-y-6">
-                {/* Action Buttons */}
-                <div className="flex gap-3">
+                {/* Action Button */}
+                <div className="relative">
                   <Button
-                    onClick={() => {
-                      setShowExistingMealAccordion(!showExistingMealAccordion);
-                      setShowNewMealAccordion(false);
-                    }}
-                    className={`flex-1 ${showExistingMealAccordion ? 'bg-zinc-100 text-zinc-700 border-zinc-300' : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50'}`}
+                    onClick={() => setShowMealTypeDropdown(!showMealTypeDropdown)}
+                    data-dropdown-trigger
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
                   >
                     <PlusIcon className="w-4 h-4 mr-2" />
-                    Add Existing Meal
-                    {showExistingMealAccordion && <ChevronDownIcon className="w-4 h-4 ml-2" />}
+                    Add Meal
+                    <ChevronDownIcon className="w-4 h-4 ml-2" />
                   </Button>
-                  <Button
-                    onClick={() => {
-                      setShowNewMealAccordion(!showNewMealAccordion);
-                      setShowExistingMealAccordion(false);
-                    }}
-                    className={`flex-1 ${showNewMealAccordion ? 'bg-green-700' : 'bg-green-600 hover:bg-green-700'}`}
-                  >
-                    <PlusIcon className="w-4 h-4 mr-2" />
-                    Create New Meal
-                    {showNewMealAccordion && <ChevronDownIcon className="w-4 h-4 ml-2" />}
-                  </Button>
+                  
+                  {showMealTypeDropdown && (
+                    <div 
+                      data-dropdown-content
+                      className="absolute top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-10"
+                    >
+                      <button
+                        onClick={() => {
+                          setShowExistingMealAccordion(true);
+                          setShowNewMealAccordion(false);
+                          setShowMealTypeDropdown(false);
+                        }}
+                        className="w-full px-4 py-3 text-left text-zinc-700 hover:bg-zinc-50 flex items-center gap-3 border-b border-zinc-100"
+                      >
+                        <PlusIcon className="w-4 h-4" />
+                        Add Existing Meal
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowNewMealAccordion(true);
+                          setShowExistingMealAccordion(false);
+                          setShowMealTypeDropdown(false);
+                        }}
+                        className="w-full px-4 py-3 text-left text-zinc-700 hover:bg-zinc-50 flex items-center gap-3"
+                      >
+                        <PlusIcon className="w-4 h-4" />
+                        Create New Meal
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Add Existing Meal Accordion */}
