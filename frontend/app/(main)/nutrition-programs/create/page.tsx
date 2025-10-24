@@ -1916,6 +1916,7 @@ export default function NutritionProgramBuilder() {
                                   name: newMealForm.name,
                                   description: newMealForm.description,
                                   category: newMealForm.category,
+                                  imageUrl: newMealForm.imageUrl,
                                   ingredients: newMealForm.ingredients.map(ing => ({
                                     ingredientId: ing.ingredientId,
                                     quantity: ing.quantity,
@@ -2048,8 +2049,11 @@ export default function NutritionProgramBuilder() {
                                 name: '',
                                 description: '',
                                 category: '',
+                                imageUrl: '',
                                 ingredients: []
                               });
+                              setImageFile(null);
+                              setImageUploadMethod('upload');
                               setShowNewMealAccordion(false);
                               setShowSaveMealDropdown(false);
                             }}
