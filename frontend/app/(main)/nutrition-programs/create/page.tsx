@@ -17,6 +17,7 @@ import {
   TrashIcon,
   PencilIcon,
   EyeIcon,
+  CloudArrowUpIcon,
   ChartBarIcon,
   FireIcon,
   CalendarIcon,
@@ -117,6 +118,7 @@ export default function NutritionProgramBuilder() {
   const [showExistingMealAccordion, setShowExistingMealAccordion] = useState(false);
   const [showNewMealAccordion, setShowNewMealAccordion] = useState(false);
   const [showMealTypeDropdown, setShowMealTypeDropdown] = useState(false);
+  const [showSaveMealDropdown, setShowSaveMealDropdown] = useState(false);
   const [newMealForm, setNewMealForm] = useState({
     name: '',
     description: '',
@@ -175,10 +177,11 @@ export default function NutritionProgramBuilder() {
         setOpenWeekDropdown(null);
         setOpenDayDropdown(null);
         setShowMealTypeDropdown(false);
+        setShowSaveMealDropdown(false);
       }
     };
 
-    if (openWeekDropdown !== null || openDayDropdown !== null || showMealTypeDropdown) {
+    if (openWeekDropdown !== null || openDayDropdown !== null || showMealTypeDropdown || showSaveMealDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
@@ -1378,10 +1381,28 @@ export default function NutritionProgramBuilder() {
                         Add Existing Meal
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           setShowNewMealAccordion(true);
                           setShowExistingMealAccordion(false);
                           setShowMealTypeDropdown(false);
+                          
+                          // Fetch available ingredients
+                          try {
+                            console.log('Fetching ingredients for trainerId:', user.id);
+                          console.log('User object:', user);
+                            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/ingredients?trainerId=${user.id}`);
+                            console.log('Ingredients response:', response);
+                            if (response.ok) {
+                              const data = await response.json();
+                              console.log('Ingredients data:', data);
+                              setAvailableIngredients(data.ingredients || []);
+                              console.log('Set availableIngredients to:', data.ingredients || []);
+                            } else {
+                              console.error('Failed to fetch ingredients:', response.status, response.statusText);
+                            }
+                          } catch (error) {
+                            console.error('Failed to fetch ingredients:', error);
+                          }
                         }}
                         className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
                       >
@@ -1581,19 +1602,22 @@ export default function NutritionProgramBuilder() {
                         
                         <div>
                           <div className="flex items-center justify-between mb-3">
-                            <Text className="text-sm font-medium text-zinc-900">Ingredients</Text>
-                            <Button
+                            <div className="flex items-center justify-between">
+                              <Text className="text-sm font-medium text-zinc-900">Ingredients</Text>
+                              <Text className="text-xs text-zinc-500">({availableIngredients.length} available)</Text>
+                            </div>
+                            <button
                               onClick={() => {
                                 setNewMealForm(prev => ({
                                   ...prev,
-                                  ingredients: [...prev.ingredients, { ingredientId: 0, quantity: 0, unit: 'g' }]
+                                  ingredients: [...prev.ingredients, { ingredientId: 0, quantity: 0, unit: 'g', ingredientName: '' }]
                                 }));
                               }}
-                              className="text-xs px-3 py-1 h-8"
+                              className="text-xs px-3 py-1 h-8 bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 rounded-lg font-bold transition-colors flex items-center gap-1"
                             >
-                              <PlusIcon className="w-3 h-3 mr-1" />
+                              <PlusIcon className="w-3 h-3" />
                               Add Ingredient
-                            </Button>
+                            </button>
                           </div>
                           
                           <div className="space-y-2">
@@ -1607,16 +1631,25 @@ export default function NutritionProgramBuilder() {
                                     setNewMealForm(prev => ({
                                       ...prev,
                                       ingredients: prev.ingredients.map((ing, i) => 
-                                        i === index ? { ...ing, ingredientId, unit: selectedIngredient?.unitType || 'g' } : ing
+                                        i === index ? { 
+                                          ...ing, 
+                                          ingredientId, 
+                                          unit: selectedIngredient?.unitType || 'g',
+                                          ingredientName: selectedIngredient?.name || ''
+                                        } : ing
                                       )
                                     }));
                                   }}
-                                  className="flex-1"
+                                  className="w-64"
                                 >
                                   <option value="">Select ingredient</option>
-                                  {availableIngredients.map((ing) => (
-                                    <option key={ing.id} value={ing.id}>{ing.name}</option>
-                                  ))}
+                                  {availableIngredients.length > 0 ? (
+                                    availableIngredients.map((ing) => (
+                                      <option key={ing.id} value={ing.id}>{ing.name}</option>
+                                    ))
+                                  ) : (
+                                    <option value="" disabled>Loading ingredients...</option>
+                                  )}
                                 </Select>
                                 <Input
                                   type="number"
@@ -1635,7 +1668,9 @@ export default function NutritionProgramBuilder() {
                                   min="0"
                                   step="0.1"
                                 />
-                                <Text className="text-sm text-zinc-500 w-12">{ingredient.unit}</Text>
+                                <div className="w-20 px-3 py-2 border border-zinc-300 rounded-md bg-zinc-50 text-sm text-zinc-700 text-center">
+                                  {ingredient.unit || '-'}
+                                </div>
                                 <button
                                   onClick={() => {
                                     setNewMealForm(prev => ({
@@ -1678,22 +1713,132 @@ export default function NutritionProgramBuilder() {
                       >
                         Cancel
                       </button>
-                      <Button
-                        onClick={() => {
-                          // TODO: Save new meal and add to day
-                          console.log('Save new meal:', newMealForm);
-                          setNewMealForm({
-                            name: '',
-                            description: '',
-                            category: '',
-                            ingredients: []
-                          });
-                          setShowNewMealAccordion(false);
-                        }}
-                        disabled={!newMealForm.name || !newMealForm.category}
-                      >
-                        Save & Add to Day
-                      </Button>
+                      <div className="relative" data-dropdown-trigger>
+                        <Button
+                          onClick={() => setShowSaveMealDropdown(!showSaveMealDropdown)}
+                          disabled={!newMealForm.name || !newMealForm.category || newMealForm.ingredients.length === 0}
+                          className="text-xs px-3 py-1 h-8 flex items-center gap-2"
+                        >
+                          Save Meal
+                          <ChevronDownIcon className="w-3 h-3" />
+                        </Button>
+                        
+                        {/* Dropdown Menu */}
+                        {showSaveMealDropdown && (
+                          <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-zinc-200 rounded-lg shadow-lg z-10" data-dropdown-content>
+                          <button
+                            onClick={async () => {
+                              // Save to meals list AND add to day
+                              try {
+                                console.log('Saving meal to global list and adding to day:', newMealForm);
+                                
+                                // First, save the meal to the global meals list
+                                const mealData = {
+                                  name: newMealForm.name,
+                                  description: newMealForm.description,
+                                  category: newMealForm.category,
+                                  ingredients: newMealForm.ingredients.map(ing => ({
+                                    ingredientId: ing.ingredientId,
+                                    quantity: ing.quantity,
+                                    unit: ing.unit
+                                  }))
+                                };
+                                
+                                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/meals`, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({
+                                    ...mealData,
+                                    trainerId: user.id
+                                  })
+                                });
+                                
+                                if (response.ok) {
+                                  const savedMeal = await response.json();
+                                  console.log('Meal saved globally:', savedMeal);
+                                  
+                                  // Now add this meal to the current day
+                                  const mealToAdd = {
+                                    meal: savedMeal,
+                                    mealType: newMealForm.category,
+                                    customIngredients: newMealForm.ingredients.map(ing => ({
+                                      ingredientId: ing.ingredientId,
+                                      quantity: ing.quantity,
+                                      unit: ing.unit
+                                    }))
+                                  };
+                                  
+                                  setSelectedMealsForDay(prev => [...prev, mealToAdd]);
+                                  
+                                  // Reset form and close accordion
+                                  setNewMealForm({
+                                    name: '',
+                                    description: '',
+                                    category: '',
+                                    ingredients: []
+                                  });
+                                  setShowNewMealAccordion(false);
+                                  setShowSaveMealDropdown(false);
+                                } else {
+                                  console.error('Failed to save meal globally');
+                                }
+                              } catch (error) {
+                                console.error('Error saving meal:', error);
+                              }
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 border-b border-zinc-100 whitespace-nowrap"
+                          >
+                            {/* <CloudArrowUpIcon className="w-5 h-5" /> */}
+                            Save to Meals & Add to Day
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              // Add to day only (without saving globally)
+                              console.log('Adding meal to day only:', newMealForm);
+                              
+                              const mealToAdd = {
+                                meal: {
+                                  id: -1, // Temporary ID for meals not saved globally
+                                  name: newMealForm.name,
+                                  description: newMealForm.description,
+                                  category: newMealForm.category,
+                                  imageUrl: undefined,
+                                  totalCalories: 0,
+                                  totalProtein: 0,
+                                  totalCarbs: 0,
+                                  totalFats: 0
+                                },
+                                mealType: newMealForm.category,
+                                customIngredients: newMealForm.ingredients.map(ing => ({
+                                  ingredientId: ing.ingredientId,
+                                  quantity: ing.quantity,
+                                  unit: ing.unit
+                                }))
+                              };
+                              
+                              setSelectedMealsForDay(prev => [...prev, mealToAdd]);
+                              
+                              // Reset form and close accordion
+                              setNewMealForm({
+                                name: '',
+                                description: '',
+                                category: '',
+                                ingredients: []
+                              });
+                              setShowNewMealAccordion(false);
+                              setShowSaveMealDropdown(false);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 whitespace-nowrap"
+                          >
+                            {/* <PlusIcon className="w-5 h-5" /> */}
+                            Add to Day Only
+                          </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
