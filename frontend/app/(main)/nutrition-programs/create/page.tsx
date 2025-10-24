@@ -1306,7 +1306,8 @@ export default function NutritionProgramBuilder() {
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
+            className="fixed top-0 left-0 right-0 bg-black/50 z-40 transition-opacity duration-300"
+            style={{ height: '100vh' }}
             onClick={() => {
               setShowSidePanel(false);
               setSelectedMeal(null);
@@ -1314,7 +1315,7 @@ export default function NutritionProgramBuilder() {
           />
           
           {/* Side Panel */}
-          <div className="fixed right-0 top-0 h-full w-[800px] bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out">
+          <div className="fixed top-0 right-0 w-[800px] bg-white shadow-xl z-50 flex flex-col transition-transform duration-300 ease-out" style={{ height: '100vh' }}>
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-zinc-200">
               <h3 className="text-lg font-semibold text-zinc-900">
