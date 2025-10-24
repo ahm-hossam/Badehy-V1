@@ -1412,6 +1412,253 @@ export default function NutritionProgramBuilder() {
               </button>
             </div>
 
+            {/* Daily Nutrition Progress */}
+            {selectedDay && (
+              <div className="px-6 py-4 border-b border-zinc-200 bg-zinc-50/50">
+                <Text className="text-sm font-medium text-zinc-900 mb-3">Daily Nutrition Progress</Text>
+                <div className="flex items-center justify-center gap-6">
+                  {/* Calories Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+
+                    return (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-blue-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.calories / program.targetCalories) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-blue-900">
+                              {Math.round((nutrition.calories / program.targetCalories) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-blue-700 font-medium mt-1">Cal</Text>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Protein Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+                    const targets = getMacroTargets();
+
+                    return targets.protein > 0 && (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-green-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.protein / targets.protein) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-green-900">
+                              {Math.round((nutrition.protein / targets.protein) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-green-700 font-medium mt-1">Pro</Text>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Carbs Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+                    const targets = getMacroTargets();
+
+                    return targets.carbs > 0 && (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-orange-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.carbs / targets.carbs) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-orange-900">
+                              {Math.round((nutrition.carbs / targets.carbs) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-orange-700 font-medium mt-1">Carb</Text>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Fats Progress */}
+                  {(() => {
+                    // Calculate nutrition from saved meals
+                    const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
+                      acc.calories += meal.meal.totalCalories || 0;
+                      acc.protein += meal.meal.totalProtein || 0;
+                      acc.carbs += meal.meal.totalCarbs || 0;
+                      acc.fats += meal.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
+
+                    // Calculate nutrition from temporary meals
+                    const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
+                      acc.calories += mealEntry.meal.totalCalories || 0;
+                      acc.protein += mealEntry.meal.totalProtein || 0;
+                      acc.carbs += mealEntry.meal.totalCarbs || 0;
+                      acc.fats += mealEntry.meal.totalFats || 0;
+                      return acc;
+                    }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+                    // Combine both
+                    const nutrition = {
+                      calories: savedNutrition.calories + tempNutrition.calories,
+                      protein: savedNutrition.protein + tempNutrition.protein,
+                      carbs: savedNutrition.carbs + tempNutrition.carbs,
+                      fats: savedNutrition.fats + tempNutrition.fats
+                    };
+                    const targets = getMacroTargets();
+
+                    return targets.fats > 0 && (
+                      <div className="text-center">
+                        <div className="relative w-16 h-16">
+                          <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-gray-200"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-purple-600"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              fill="none"
+                              strokeDasharray={`${Math.min(100, (nutrition.fats / targets.fats) * 100)}, 100`}
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Text className="text-xs font-bold text-purple-900">
+                              {Math.round((nutrition.fats / targets.fats) * 100)}%
+                            </Text>
+                          </div>
+                        </div>
+                        <Text className="text-xs text-purple-700 font-medium mt-1">Fat</Text>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {/* Success Message */}
