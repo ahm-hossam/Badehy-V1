@@ -181,6 +181,7 @@ export default function NutritionProgramBuilder() {
   const [mealAddedMessage, setMealAddedMessage] = useState<string | null>(null);
   const [showExistingMealAccordion, setShowExistingMealAccordion] = useState(false);
   const [showNewMealAccordion, setShowNewMealAccordion] = useState(false);
+  const [showCheatMealAccordion, setShowCheatMealAccordion] = useState(false);
   const [showMealTypeDropdown, setShowMealTypeDropdown] = useState(false);
   const [showSaveMealDropdown, setShowSaveMealDropdown] = useState(false);
   const [newMealForm, setNewMealForm] = useState({
@@ -189,6 +190,10 @@ export default function NutritionProgramBuilder() {
     category: '',
     imageUrl: '',
     ingredients: [] as Array<{ ingredientId: number; quantity: number; unit: string }>
+  });
+  const [cheatMealForm, setCheatMealForm] = useState({
+    description: '',
+    imageUrl: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUploadMethod, setImageUploadMethod] = useState<'upload' | 'url'>('upload');
@@ -684,6 +689,7 @@ export default function NutritionProgramBuilder() {
     setEditingMealIndex(null);
     setShowExistingMealAccordion(false);
     setShowNewMealAccordion(false);
+    setShowCheatMealAccordion(false);
     setShowMealTypeDropdown(false);
     setShowSaveMealDropdown(false);
     setIsClosing(false);
@@ -1469,9 +1475,12 @@ export default function NutritionProgramBuilder() {
                                           <Badge className={`text-xs ${getMealTypeColor(meal.mealType)}`}>
                                             {meal.mealType}
                                           </Badge>
-                                          <Text className="text-xs text-gray-500">
-                                            {meal.meal?.totalCalories} cal
-                                          </Text>
+                                          {/* Only show calories for non-cheat meals */}
+                                          {!meal.meal?.isCheatMeal && (
+                                            <Text className="text-xs text-gray-500">
+                                              {meal.meal?.totalCalories} cal
+                                            </Text>
+                                          )}
                                         </div>
                                         {/* Ingredients List */}
                                         {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
@@ -1862,20 +1871,23 @@ export default function NutritionProgramBuilder() {
                             <div className="flex-1">
                               <Text className="text-sm font-medium text-zinc-900">{meal.meal?.name}</Text>
                               <Text className="text-xs text-zinc-500">{meal.mealType}</Text>
-                              <div className="flex gap-2 mt-1">
-                                <Badge variant="secondary" className="text-xs">
-                                  {Math.round((meal.meal?.totalCalories || 0) * (meal.customQuantity || 1))} cal
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs">
-                                  {Math.round((meal.meal?.totalProtein || 0) * (meal.customQuantity || 1))}gP
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs">
-                                  {Math.round((meal.meal?.totalCarbs || 0) * (meal.customQuantity || 1))}gC
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs">
-                                  {Math.round((meal.meal?.totalFats || 0) * (meal.customQuantity || 1))}gF
-                                </Badge>
-                              </div>
+                              {/* Only show nutritional badges for non-cheat meals */}
+                              {!meal.meal?.isCheatMeal && (
+                                <div className="flex gap-2 mt-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalCalories || 0) * (meal.customQuantity || 1))} cal
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalProtein || 0) * (meal.customQuantity || 1))}gP
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalCarbs || 0) * (meal.customQuantity || 1))}gC
+                                  </Badge>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {Math.round((meal.meal?.totalFats || 0) * (meal.customQuantity || 1))}gF
+                                  </Badge>
+                                </div>
+                              )}
                             </div>
                             
                             
@@ -2032,7 +2044,7 @@ export default function NutritionProgramBuilder() {
                         }}
                         className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2 border-b border-zinc-100"
                       >
-                        <PlusIcon className="w-3 h-3" />
+                        {/* <PlusIcon className="w-3 h-3" /> */}
                         Add Existing Meal
                       </button>
                       <button
@@ -2061,8 +2073,20 @@ export default function NutritionProgramBuilder() {
                         }}
                         className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
                       >
-                        <PlusIcon className="w-3 h-3" />
+                        {/* <PlusIcon className="w-3 h-3" /> */}
                         Create New Meal
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowCheatMealAccordion(true);
+                          setShowExistingMealAccordion(false);
+                          setShowNewMealAccordion(false);
+                          setShowMealTypeDropdown(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 flex items-center gap-2"
+                      >
+                        {/* <PlusIcon className="w-3 h-3" /> */}
+                        Add Cheat Meal
                       </button>
                     </div>
                   )}
@@ -2107,20 +2131,23 @@ export default function NutritionProgramBuilder() {
                               <div className="flex-1">
                                 <Text className="text-base font-semibold text-zinc-900">{selectedMealFromDropdown.name}</Text>
                                 <Text className="text-sm text-zinc-500 mt-1">{selectedMealFromDropdown.description}</Text>
-                                <div className="flex items-center gap-3 mt-2">
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalCalories || 0)} cal
-                                  </Badge>
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalProtein || 0)}gP
-                                  </Badge>
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalCarbs || 0)}gC
-                                  </Badge>
-                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                    {Math.round(selectedMealFromDropdown.totalFats || 0)}gF
-                                  </Badge>
-                                </div>
+                                {/* Only show nutritional badges for non-cheat meals */}
+                                {!selectedMealFromDropdown.isCheatMeal && (
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalCalories || 0)} cal
+                                    </Badge>
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalProtein || 0)}gP
+                                    </Badge>
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalCarbs || 0)}gC
+                                    </Badge>
+                                    <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                      {Math.round(selectedMealFromDropdown.totalFats || 0)}gF
+                                    </Badge>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             
@@ -2673,20 +2700,23 @@ export default function NutritionProgramBuilder() {
                                   {mealEntry.mealType}
                                 </Badge>
                               </div>
-                              <div className="flex items-center gap-3 mb-3">
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalCalories)} cal
-                                </Badge>
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalProtein)}gP
-                                </Badge>
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalCarbs)}gC
-                                </Badge>
-                                <Badge className="text-xs bg-zinc-100 text-zinc-700">
-                                  {Math.round(mealEntry.meal.totalFats)}gF
-                                </Badge>
-                              </div>
+                              {/* Only show nutritional badges for non-cheat meals */}
+                              {!mealEntry.meal.isCheatMeal && (
+                                <div className="flex items-center gap-3 mb-3">
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalCalories)} cal
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalProtein)}gP
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalCarbs)}gC
+                                  </Badge>
+                                  <Badge className="text-xs bg-zinc-100 text-zinc-700">
+                                    {Math.round(mealEntry.meal.totalFats)}gF
+                                  </Badge>
+                                </div>
+                              )}
                               
                               {/* Ingredients */}
                               {mealEntry.meal.mealIngredients && mealEntry.meal.mealIngredients.length > 0 && (
@@ -2726,6 +2756,160 @@ export default function NutritionProgramBuilder() {
                   </div>
                 )}
 
+                {/* Add Cheat Meal Accordion */}
+                {showCheatMealAccordion && (
+                  <div className="border border-zinc-200 rounded-xl bg-white shadow-sm fade-in">
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                            <span className="text-orange-600 font-semibold text-sm">CM</span>
+                          </div>
+                          <div>
+                            <Text className="text-lg font-semibold text-zinc-900">Add Cheat Meal</Text>
+                            <Text className="text-sm text-zinc-500">Add a cheat meal with custom description</Text>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowCheatMealAccordion(false);
+                            setCheatMealForm({ description: '', imageUrl: '' });
+                          }}
+                          className="text-zinc-400 hover:text-zinc-600"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Cheat Meal Description */}
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-2">
+                            Cheat Meal Description
+                          </label>
+                          <Textarea
+                            value={cheatMealForm.description}
+                            onChange={(e) => setCheatMealForm(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder="Describe the cheat meal... (e.g., 'Pizza night with friends', 'Ice cream sundae', 'Burger and fries')"
+                            rows={4}
+                            className="w-full"
+                          />
+                        </div>
+
+                        {/* Image Upload Section */}
+                        <div>
+                          <label className="block text-sm font-medium text-zinc-700 mb-2">
+                            Cheat Meal Image (Optional)
+                          </label>
+                          <div className="border border-zinc-200 rounded-lg p-4">
+                            <div className="flex gap-4">
+                              {/* Upload File Tab */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className={`w-2 h-2 rounded-full ${imageUploadMethod === 'upload' ? 'bg-zinc-900' : 'bg-zinc-300'}`}></div>
+                                  <Text className="text-sm font-medium text-zinc-700">Upload File</Text>
+                                </div>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      setImageFile(file);
+                                      setImageUploadMethod('upload');
+                                    }
+                                  }}
+                                  className="w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200"
+                                />
+                              </div>
+
+                              {/* Divider */}
+                              <div className="flex items-center">
+                                <div className="w-px h-8 bg-zinc-200"></div>
+                              </div>
+
+                              {/* Image URL Tab */}
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className={`w-2 h-2 rounded-full ${imageUploadMethod === 'url' ? 'bg-zinc-900' : 'bg-zinc-300'}`}></div>
+                                  <Text className="text-sm font-medium text-zinc-700">Image URL</Text>
+                                </div>
+                                <Input
+                                  type="url"
+                                  value={cheatMealForm.imageUrl}
+                                  onChange={(e) => {
+                                    setCheatMealForm(prev => ({ ...prev, imageUrl: e.target.value }));
+                                    setImageUploadMethod('url');
+                                  }}
+                                  placeholder="https://example.com/image.jpg"
+                                  className="w-full"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Add to Day Button */}
+                        <div className="flex gap-3 pt-4 border-t border-zinc-200">
+                          <button
+                            onClick={() => {
+                              if (!cheatMealForm.description.trim()) {
+                                alert('Please enter a cheat meal description');
+                                return;
+                              }
+
+                              // Create a cheat meal object
+                              const cheatMeal = {
+                                id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
+                                name: 'Cheat Meal',
+                                description: cheatMealForm.description,
+                                totalCalories: 0, // Cheat meals don't count towards calories
+                                totalProtein: 0,
+                                totalCarbs: 0,
+                                totalFats: 0,
+                                imageUrl: cheatMealForm.imageUrl,
+                                mealIngredients: [],
+                                isCheatMeal: true
+                              };
+
+                              // Add to selected meals for the day
+                              setSelectedMealsForDay(prev => [...prev, {
+                                meal: cheatMeal,
+                                mealType: 'Cheat Meal',
+                                customIngredients: []
+                              }]);
+
+                              // Reset form
+                              setCheatMealForm({ description: '', imageUrl: '' });
+                              setImageFile(null);
+                              setShowCheatMealAccordion(false);
+
+                              // Show success message
+                              setMealAddedMessage('Cheat meal added successfully!');
+                              setTimeout(() => setMealAddedMessage(null), 3000);
+                            }}
+                            className="bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                          >
+                            Add Cheat Meal to Day
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowCheatMealAccordion(false);
+                              setCheatMealForm({ description: '', imageUrl: '' });
+                              setImageFile(null);
+                            }}
+                            className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Empty State */}
                 {selectedMealsForDay.length === 0 && (
                   <div className="text-center py-12 text-zinc-500">
@@ -2757,7 +2941,6 @@ export default function NutritionProgramBuilder() {
           </div>
         </>
       )}
-
 
       {/* Program Preview Side Panel */}
       {showPreviewPanel && (
@@ -2865,9 +3048,12 @@ export default function NutritionProgramBuilder() {
                                           <Badge className={`text-xs ${getMealTypeColor(meal.mealType)}`}>
                                             {meal.mealType}
                                           </Badge>
-                                          <Text className="text-xs text-zinc-500">
-                                            {meal.meal?.totalCalories} cal
-                                          </Text>
+                                          {/* Only show calories for non-cheat meals */}
+                                          {!meal.meal?.isCheatMeal && (
+                                            <Text className="text-xs text-zinc-500">
+                                              {meal.meal?.totalCalories} cal
+                                            </Text>
+                                          )}
                                         </div>
                                         {/* Ingredients */}
                                         {meal.meal?.mealIngredients && meal.meal.mealIngredients.length > 0 && (
