@@ -123,10 +123,74 @@ export default function NutritionProgramBuilder() {
     name: '',
     description: '',
     category: '',
+    imageUrl: '',
     ingredients: [] as Array<{ ingredientId: number; quantity: number; unit: string }>
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUploadMethod, setImageUploadMethod] = useState<'upload' | 'url'>('upload');
   const [availableMeals, setAvailableMeals] = useState<Meal[]>([]);
   const [availableIngredients, setAvailableIngredients] = useState<any[]>([]);
+
+  // Image upload handlers
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      setNewMealForm(prev => ({ ...prev, imageUrl: '' })); // Clear URL when uploading file
+    }
+  };
+
+  const handleImageUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMealForm(prev => ({ ...prev, imageUrl: e.target.value }));
+    setImageFile(null); // Clear file when entering URL
+  };
+
+  // Calculate nutritional totals for new meal form
+  const calculateNewMealNutritionTotals = () => {
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFats = 0;
+
+    if (availableIngredients.length === 0) {
+      return {
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fats: 0
+      };
+    }
+
+    newMealForm.ingredients.forEach((ingredient) => {
+      if (ingredient.ingredientId && ingredient.quantity) {
+        const quantity = parseFloat(ingredient.quantity.toString()) || 0;
+        const ingredientData = availableIngredients.find(ing => ing.id === ingredient.ingredientId);
+        
+        if (ingredientData) {
+          const isCooked = ingredientData.cookingState === 'after_cook';
+          const calories = isCooked ? ingredientData.caloriesAfter : ingredientData.caloriesBefore;
+          const protein = isCooked ? ingredientData.proteinAfter : ingredientData.proteinBefore;
+          const carbs = isCooked ? ingredientData.carbsAfter : ingredientData.carbsBefore;
+          const fats = isCooked ? ingredientData.fatsAfter : ingredientData.fatsBefore;
+          const servingSize = ingredientData.servingSize || 1;
+          
+          const multiplier = quantity / servingSize;
+          
+          totalCalories += calories * multiplier;
+          totalProtein += protein * multiplier;
+          totalCarbs += carbs * multiplier;
+          totalFats += fats * multiplier;
+        }
+      }
+    });
+
+    return {
+      calories: Math.round(totalCalories * 100) / 100,
+      protein: Math.round(totalProtein * 100) / 100,
+      carbs: Math.round(totalCarbs * 100) / 100,
+      fats: Math.round(totalFats * 100) / 100
+    };
+  };
 
   // Program form state
   const [program, setProgram] = useState<NutritionProgram>({
@@ -439,7 +503,18 @@ export default function NutritionProgramBuilder() {
 
   const editMealInList = (index: number) => {
     const mealEntry = selectedMealsForDay[index];
-    setSelectedMealFromDropdown(mealEntry.meal);
+    console.log('Editing meal:', mealEntry);
+    
+    // Set the meal for editing with proper ingredient data
+    setSelectedMealFromDropdown({
+      ...mealEntry.meal,
+      mealIngredients: mealEntry.meal.mealIngredients || mealEntry.customIngredients?.map(ci => ({
+        ingredientId: ci.ingredientId,
+        quantity: ci.quantity,
+        unit: ci.unit,
+        ingredient: availableIngredients.find(ai => ai.id === ci.ingredientId)
+      })) || []
+    });
     setEditingMealIndex(index);
     setShowExistingMealAccordion(true);
     setShowNewMealAccordion(false);
@@ -1418,23 +1493,26 @@ export default function NutritionProgramBuilder() {
                   <div className="border border-zinc-200 rounded-xl bg-white shadow-sm">
                     <div className="p-6">
                       <div className="space-y-6">
-                        <div>
-                          <Text className="text-sm font-medium text-zinc-900 mb-3">Select Existing Meal</Text>
-                          <Select 
-                            value={selectedMealFromDropdown?.id || ''}
-                            onChange={(e) => {
-                              const mealId = parseInt(e.target.value);
-                              const meal = availableMeals.find(m => m.id === mealId);
-                              setSelectedMealFromDropdown(meal || null);
-                            }}
-                            className="w-full"
-                          >
-                            <option value="">Choose a meal from your library...</option>
-                            {availableMeals.map((meal) => (
-                              <option key={meal.id} value={meal.id}>{meal.name}</option>
-                            ))}
-                          </Select>
-                        </div>
+                        {/* Only show dropdown when not editing an existing meal */}
+                        {editingMealIndex === null && (
+                          <div>
+                            <Text className="text-sm font-medium text-zinc-900 mb-3">Select Existing Meal</Text>
+                            <Select 
+                              value={selectedMealFromDropdown?.id || ''}
+                              onChange={(e) => {
+                                const mealId = parseInt(e.target.value);
+                                const meal = availableMeals.find(m => m.id === mealId);
+                                setSelectedMealFromDropdown(meal || null);
+                              }}
+                              className="w-full"
+                            >
+                              <option value="">Choose a meal from your library...</option>
+                              {availableMeals.map((meal) => (
+                                <option key={meal.id} value={meal.id}>{meal.name}</option>
+                              ))}
+                            </Select>
+                          </div>
+                        )}
                         
                         {selectedMealFromDropdown && (
                           <div className="border border-zinc-100 rounded-lg p-4 bg-zinc-50/50">
@@ -1599,6 +1677,66 @@ export default function NutritionProgramBuilder() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Image Upload Section */}
+                        <div>
+                          <Text className="text-sm font-medium text-zinc-900 mb-3">Image</Text>
+                          
+                          {/* Tab Navigation */}
+                          <div className="flex border-b border-zinc-200 mb-4">
+                            <button
+                              type="button"
+                              onClick={() => setImageUploadMethod('upload')}
+                              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                imageUploadMethod === 'upload'
+                                  ? 'border-blue-500 text-blue-600'
+                                  : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                              }`}
+                            >
+                              Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setImageUploadMethod('url')}
+                              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                imageUploadMethod === 'url'
+                                  ? 'border-blue-500 text-blue-600'
+                                  : 'border-transparent text-zinc-500 hover:text-zinc-700 hover:border-zinc-300'
+                              }`}
+                            >
+                              Image URL
+                            </button>
+                          </div>
+                          
+                          {/* Tab Content */}
+                          {imageUploadMethod === 'upload' ? (
+                            <div>
+                              <Text className="text-xs text-zinc-600 mb-2">Choose file from your computer</Text>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="block w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                              />
+                              {imageFile && (
+                                <Text className="mt-2 text-sm text-green-600">
+                                  Selected: {imageFile.name}
+                                </Text>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <Text className="text-xs text-zinc-600 mb-2">Enter image URL</Text>
+                              <Input
+                                type="url"
+                                value={newMealForm.imageUrl}
+                                onChange={handleImageUrlChange}
+                                placeholder="https://example.com/image.jpg"
+                                className="w-full"
+                              />
+                            </div>
+                          )}
+                        </div>
                         
                         <div>
                           <div className="flex items-center justify-between mb-3">
@@ -1694,6 +1832,44 @@ export default function NutritionProgramBuilder() {
                             )}
                           </div>
                         </div>
+
+                        {/* Meal Summary Section */}
+                        <div>
+                          <Text className="text-sm font-medium text-zinc-900 mb-3">Meal Summary</Text>
+                          <div className="bg-zinc-50 rounded-lg p-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().calories}
+                                </div>
+                                <div className="text-sm text-zinc-600">Calories</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().protein}g
+                                </div>
+                                <div className="text-sm text-zinc-600">Protein</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().carbs}g
+                                </div>
+                                <div className="text-sm text-zinc-600">Carbs</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-2xl font-bold text-zinc-900">
+                                  {calculateNewMealNutritionTotals().fats}g
+                                </div>
+                                <div className="text-sm text-zinc-600">Fats</div>
+                              </div>
+                            </div>
+                            {newMealForm.ingredients.length === 0 && (
+                              <div className="text-center text-zinc-500 text-sm mt-2">
+                                Add ingredients to see nutritional summary
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     
@@ -1705,8 +1881,11 @@ export default function NutritionProgramBuilder() {
                             name: '',
                             description: '',
                             category: '',
+                            imageUrl: '',
                             ingredients: []
                           });
+                          setImageFile(null);
+                          setImageUploadMethod('upload');
                           setShowNewMealAccordion(false);
                         }}
                         className="bg-white text-zinc-700 border border-zinc-300 hover:bg-zinc-50 px-3 py-1.5 rounded-lg font-medium transition-colors"
@@ -1759,9 +1938,17 @@ export default function NutritionProgramBuilder() {
                                   const savedMeal = await response.json();
                                   console.log('Meal saved globally:', savedMeal);
                                   
-                                  // Now add this meal to the current day
+                                  // Now add this meal to the current day with proper nutritional values
                                   const mealToAdd = {
-                                    meal: savedMeal,
+                                    meal: {
+                                      ...savedMeal,
+                                      // Ensure nutritional values are properly set from backend response
+                                      totalCalories: savedMeal.totalCalories || 0,
+                                      totalProtein: savedMeal.totalProtein || 0,
+                                      totalCarbs: savedMeal.totalCarbs || 0,
+                                      totalFats: savedMeal.totalFats || 0,
+                                      mealIngredients: savedMeal.mealIngredients || []
+                                    },
                                     mealType: newMealForm.category,
                                     customIngredients: newMealForm.ingredients.map(ing => ({
                                       ingredientId: ing.ingredientId,
@@ -1777,8 +1964,11 @@ export default function NutritionProgramBuilder() {
                                     name: '',
                                     description: '',
                                     category: '',
+                                    imageUrl: '',
                                     ingredients: []
                                   });
+                                  setImageFile(null);
+                                  setImageUploadMethod('upload');
                                   setShowNewMealAccordion(false);
                                   setShowSaveMealDropdown(false);
                                 } else {
@@ -1796,8 +1986,34 @@ export default function NutritionProgramBuilder() {
                           
                           <button
                             onClick={() => {
-                              // Add to day only (without saving globally)
+                              // Add to day only (without saving globally) - calculate nutritional values locally
                               console.log('Adding meal to day only:', newMealForm);
+                              
+                              let totalCalories = 0;
+                              let totalProtein = 0;
+                              let totalCarbs = 0;
+                              let totalFats = 0;
+                              
+                              // Calculate nutritional values from ingredients
+                              for (const ing of newMealForm.ingredients) {
+                                if (ing.ingredientId && ing.quantity > 0) {
+                                  const ingredient = availableIngredients.find(ai => ai.id === ing.ingredientId);
+                                  if (ingredient) {
+                                    const caloriesPerUnit = ingredient.caloriesAfter || ingredient.caloriesBefore || 0;
+                                    const proteinPerUnit = ingredient.proteinAfter || ingredient.proteinBefore || 0;
+                                    const carbsPerUnit = ingredient.carbsAfter || ingredient.carbsBefore || 0;
+                                    const fatsPerUnit = ingredient.fatsAfter || ingredient.fatsBefore || 0;
+                                    const servingSize = ingredient.servingSize || 1;
+                                    
+                                    const multiplier = ing.quantity / servingSize;
+                                    
+                                    totalCalories += caloriesPerUnit * multiplier;
+                                    totalProtein += proteinPerUnit * multiplier;
+                                    totalCarbs += carbsPerUnit * multiplier;
+                                    totalFats += fatsPerUnit * multiplier;
+                                  }
+                                }
+                              }
                               
                               const mealToAdd = {
                                 meal: {
@@ -1806,10 +2022,16 @@ export default function NutritionProgramBuilder() {
                                   description: newMealForm.description,
                                   category: newMealForm.category,
                                   imageUrl: undefined,
-                                  totalCalories: 0,
-                                  totalProtein: 0,
-                                  totalCarbs: 0,
-                                  totalFats: 0
+                                  totalCalories: Math.round(totalCalories * 100) / 100,
+                                  totalProtein: Math.round(totalProtein * 100) / 100,
+                                  totalCarbs: Math.round(totalCarbs * 100) / 100,
+                                  totalFats: Math.round(totalFats * 100) / 100,
+                                  mealIngredients: newMealForm.ingredients.map(ing => ({
+                                    ingredientId: ing.ingredientId,
+                                    quantity: ing.quantity,
+                                    unit: ing.unit,
+                                    ingredient: availableIngredients.find(ai => ai.id === ing.ingredientId)
+                                  }))
                                 },
                                 mealType: newMealForm.category,
                                 customIngredients: newMealForm.ingredients.map(ing => ({
