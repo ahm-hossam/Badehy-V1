@@ -376,6 +376,101 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Duplicate meal
+router.post('/:id/duplicate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { trainerId } = req.query;
+
+    if (!trainerId) {
+      return res.status(400).json({ error: 'Trainer ID is required' });
+    }
+
+    // Get the original meal with ingredients
+    const originalMeal = await prisma.meal.findFirst({
+      where: {
+        id: parseInt(id),
+        trainerId: parseInt(trainerId as string),
+      },
+      include: {
+        mealIngredients: {
+          include: {
+            ingredient: true,
+          },
+        },
+      },
+    });
+
+    if (!originalMeal) {
+      return res.status(404).json({ error: 'Meal not found' });
+    }
+
+    // Create duplicated meal with "Copy of" prefix
+    const duplicatedMeal = await prisma.meal.create({
+      data: {
+        name: `Copy of ${originalMeal.name}`,
+        description: originalMeal.description,
+        category: originalMeal.category,
+        instructions: originalMeal.instructions,
+        imageUrl: originalMeal.imageUrl,
+        trainerId: originalMeal.trainerId,
+        isActive: true,
+        mealIngredients: {
+          create: originalMeal.mealIngredients.map(ingredient => ({
+            ingredientId: ingredient.ingredientId,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            notes: ingredient.notes,
+          })),
+        },
+      },
+      include: {
+        mealIngredients: {
+          include: {
+            ingredient: true,
+          },
+        },
+      },
+    });
+
+    // Calculate nutritional totals for the duplicated meal
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFats = 0;
+
+    for (const ing of duplicatedMeal.mealIngredients) {
+      const ingredient = ing.ingredient;
+      const multiplier = ing.quantity / ingredient.servingSize;
+      
+      // Use cooking state to determine which nutritional values to use
+      const calories = ingredient.cookingState === 'after_cook' ? ingredient.caloriesAfter : ingredient.caloriesBefore;
+      const protein = ingredient.cookingState === 'after_cook' ? ingredient.proteinAfter : ingredient.proteinBefore;
+      const carbs = ingredient.cookingState === 'after_cook' ? ingredient.carbsAfter : ingredient.carbsBefore;
+      const fats = ingredient.cookingState === 'after_cook' ? ingredient.fatsAfter : ingredient.fatsBefore;
+      
+      totalCalories += calories * multiplier;
+      totalProtein += protein * multiplier;
+      totalCarbs += carbs * multiplier;
+      totalFats += fats * multiplier;
+    }
+
+    // Add calculated totals to the response
+    const response = {
+      ...duplicatedMeal,
+      totalCalories,
+      totalProtein,
+      totalCarbs,
+      totalFats,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error duplicating meal:', error);
+    res.status(500).json({ error: 'Failed to duplicate meal' });
+  }
+});
+
 // Get meal categories
 router.get('/categories/list', async (req, res) => {
   try {

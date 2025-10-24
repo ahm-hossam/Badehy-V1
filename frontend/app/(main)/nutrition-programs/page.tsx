@@ -10,7 +10,10 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/table';
-import { Dialog } from '@/components/dialog';
+import { Badge } from '@/components/badge';
+import { Text } from '@/components/text';
+import { Heading } from '@/components/heading';
+import { Input } from '@/components/input';
 import { getStoredUser } from '@/lib/auth';
 import { 
   PlusIcon, 
@@ -20,23 +23,35 @@ import {
   FireIcon,
   CalendarIcon,
   ClockIcon,
+  DocumentDuplicateIcon,
+  EyeIcon,
+  ChartBarIcon,
   DocumentArrowUpIcon
-} from '@heroicons/react/20/solid';
+} from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
 
 interface NutritionProgram {
   id: number;
   name: string;
   description?: string;
-  template?: string;
-  branding?: any;
-  pdfUrl?: string;
-  isImported?: boolean;
-  importedPdfUrl?: string;
   programDuration?: number;
   durationUnit?: string;
+  repeatCount?: number;
+  targetCalories?: number;
+  targetProtein?: number;
+  targetCarbs?: number;
+  targetFats?: number;
+  proteinPercentage?: number;
+  carbsPercentage?: number;
+  fatsPercentage?: number;
+  usePercentages?: boolean;
+  calculatedCalories?: number;
+  calculatedProtein?: number;
+  calculatedCarbs?: number;
+  calculatedFats?: number;
+  weeks?: any[];
+  meals?: any[];
   createdAt: string;
   updatedAt: string;
 }
@@ -48,24 +63,10 @@ export default function NutritionProgramsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
-  const [total, setTotal] = useState(0);
-  const [confirmDelete, setConfirmDelete] = useState<{id: number, name: string} | null>(null);
-  const [showDeletedToast, setShowDeletedToast] = useState(false);
-  const [showErrorToast, setShowErrorToast] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<NutritionProgram | null>(null);
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [showCreatedToast, setShowCreatedToast] = useState(false);
-  
-  // Import program state
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [importData, setImportData] = useState({
-    programName: '',
-    programDuration: '',
-    durationUnit: 'weeks'
-  });
 
   useEffect(() => {
     const storedUser = getStoredUser();
@@ -75,404 +76,328 @@ export default function NutritionProgramsPage() {
     }
   }, []);
 
-  const fetchNutritionPrograms = async (trainerId: number) => {
+  const fetchNutritionPrograms = async (trainerId: number, search = '') => {
     try {
       setLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/nutrition-programs?trainerId=${trainerId}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const url = `${apiUrl}/api/nutrition-programs?trainerId=${trainerId}&page=${page}&limit=${pageSize}&search=${search}`;
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setNutritionPrograms(data);
-        setTotal(data.length);
+        setNutritionPrograms(data.programs || []);
+        setTotalPages(data.totalPages || 1);
+        setError('');
       } else {
-        console.error('Failed to fetch nutrition programs');
+        setError('Failed to fetch nutrition programs');
       }
     } catch (error) {
       console.error('Error fetching nutrition programs:', error);
+      setError('Failed to fetch nutrition programs');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (programId: number, programName: string) => {
-    setConfirmDelete({ id: programId, name: programName });
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    setPage(1);
+    if (user) {
+      fetchNutritionPrograms(user.id, value);
+    }
   };
 
-  const confirmDeleteProgram = async () => {
-    if (!confirmDelete || !user) return;
-
+  const handleDelete = async (program: NutritionProgram) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/nutrition-programs/${confirmDelete.id}?trainerId=${user.id}`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/nutrition-programs/${program.id}?trainerId=${user.id}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        setNutritionPrograms(prev => prev.filter(program => program.id !== confirmDelete.id));
-        setShowDeletedToast(true);
-        setTimeout(() => setShowDeletedToast(false), 3000);
+        setNutritionPrograms(programs => programs.filter(p => p.id !== program.id));
+        setDeleteConfirm(null);
+        setError('');
       } else {
-        const errorData = await response.json();
-        setErrorMessage(errorData.error || 'Failed to delete nutrition program');
-        setShowErrorToast(true);
-        setTimeout(() => setShowErrorToast(false), 3000);
+        setError('Failed to delete nutrition program');
       }
     } catch (error) {
       console.error('Error deleting nutrition program:', error);
-      setErrorMessage('Failed to delete nutrition program');
-      setShowErrorToast(true);
-      setTimeout(() => setShowErrorToast(false), 3000);
-    } finally {
-      setConfirmDelete(null);
+      setError('Failed to delete nutrition program');
     }
   };
 
-  const handleImportProgram = () => {
-    setShowImportModal(true);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file);
-      // Auto-fill program name from filename
-      const fileName = file.name.replace('.pdf', '');
-      setImportData(prev => ({ ...prev, programName: fileName }));
-    } else {
-      alert('Please select a valid PDF file');
-    }
-  };
-
-  const handleImportSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile || !user) return;
-
+  const handleDuplicateProgram = async (program: NutritionProgram) => {
     try {
-      setImportLoading(true);
-      const formData = new FormData();
-      formData.append('pdf', selectedFile);
-      formData.append('trainerId', user.id.toString());
-      formData.append('programName', importData.programName);
-      formData.append('programDuration', importData.programDuration);
-      formData.append('durationUnit', importData.durationUnit);
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/nutrition-programs/import`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const url = `${apiUrl}/api/nutrition-programs/${program.id}/duplicate?trainerId=${user.id}`;
+      
+      const response = await fetch(url, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
       if (response.ok) {
-        const newProgram = await response.json();
-        setNutritionPrograms(prev => [newProgram, ...prev]);
-        setShowCreatedToast(true);
-        setTimeout(() => setShowCreatedToast(false), 3000);
-        setShowImportModal(false);
-        setSelectedFile(null);
-        setImportData({
-          programName: '',
-          programDuration: '',
-          durationUnit: 'weeks'
-        });
+        const duplicatedProgram = await response.json();
+        setNutritionPrograms([duplicatedProgram, ...nutritionPrograms]);
+        setError('');
       } else {
-        const errorData = await response.json();
-        setErrorMessage(errorData.error || 'Failed to import nutrition program');
-        setShowErrorToast(true);
-        setTimeout(() => setShowErrorToast(false), 3000);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        setError('Failed to duplicate nutrition program');
       }
     } catch (error) {
-      console.error('Error importing nutrition program:', error);
-      setErrorMessage('Failed to import nutrition program');
-      setShowErrorToast(true);
-      setTimeout(() => setShowErrorToast(false), 3000);
-    } finally {
-      setImportLoading(false);
+      console.error('Error duplicating nutrition program:', error);
+      setError('Failed to duplicate nutrition program');
     }
   };
 
-  const filteredPrograms = nutritionPrograms.filter(program =>
-    program.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getDurationText = (program: NutritionProgram) => {
+    if (program.programDuration && program.durationUnit) {
+      return `${program.programDuration} ${program.durationUnit}`;
+    }
+    return 'Flexible';
+  };
+
+  const getGoalText = (program: NutritionProgram) => {
+    if (program.usePercentages) {
+      return `${program.targetCalories} cal | ${program.proteinPercentage}%P | ${program.carbsPercentage}%C | ${program.fatsPercentage}%F`;
+    } else {
+      return `${program.targetCalories} cal | ${program.targetProtein}gP | ${program.targetCarbs}gC | ${program.targetFats}gF`;
+    }
+  };
+
+  const getProgressText = (program: NutritionProgram) => {
+    if (program.calculatedCalories && program.targetCalories) {
+      const percentage = Math.round((program.calculatedCalories / program.targetCalories) * 100);
+      return `${program.calculatedCalories}/${program.targetCalories} cal (${percentage}%)`;
+    }
+    return 'No meals assigned';
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading nutrition programs...</div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Nutrition Programs</h1>
-          <p className="text-gray-600 mt-1">Create and manage your custom nutrition programs for clients</p>
+          <Heading level={1}>Nutrition Programs</Heading>
+          <Text className="text-gray-600 mt-1">
+            Create and manage comprehensive nutrition programs for your clients
+          </Text>
         </div>
+        <Button
+          onClick={() => router.push('/nutrition-programs/create')}
+          className="flex items-center gap-2"
+        >
+          <PlusIcon className="w-5 h-5" />
+          Create Program
+        </Button>
       </div>
 
-      {/* Search and Import Section */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-sm">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search programs by name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <Text className="text-red-800">{error}</Text>
         </div>
-        <div className="flex gap-3">
-          <Button
-            onClick={handleImportProgram}
-            outline
-            className="flex items-center gap-2"
-          >
-            <DocumentArrowUpIcon className="h-4 w-4" />
-            Import Program
-          </Button>
+      )}
+
+      {/* Search and Filters */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <Input
+            type="text"
+            placeholder="Search nutrition programs..."
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-10"
+          />
         </div>
       </div>
 
       {/* Programs Table */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-zinc-500 dark:text-zinc-400">
-              <tr>
-                <th className="border-b border-b-zinc-950/10 px-4 py-2 font-medium dark:border-b-white/10">ID</th>
-                <th className="border-b border-b-zinc-950/10 px-4 py-2 font-medium dark:border-b-white/10">Program Name</th>
-                <th className="border-b border-b-zinc-950/10 px-4 py-2 font-medium dark:border-b-white/10">Type/Duration</th>
-                <th className="border-b border-b-zinc-950/10 px-4 py-2 font-medium dark:border-b-white/10">Details</th>
-                <th className="border-b border-b-zinc-950/10 px-4 py-2 font-medium dark:border-b-white/10">Created</th>
-                <th className="border-b border-b-zinc-950/10 px-4 py-2 font-medium text-right dark:border-b-white/10">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPrograms.map((program) => (
-                <tr 
-                  key={program.id}
-                  className={program.isImported ? 'bg-blue-50' : ''}
-                >
-                  <td className="px-4 py-2 font-mono text-xs text-zinc-500">{program.id}</td>
-                  <td className="px-4 py-2">
-                    <div>
-                      <div className="font-medium flex items-center">
-                        {program.name}
-                        {program.isImported && (
-                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            Imported
-                          </span>
+      {nutritionPrograms.length === 0 ? (
+        <div className="text-center py-12">
+          <FireIcon className="mx-auto h-12 w-12 text-gray-400" />
+          <Heading level={3} className="mt-2 text-gray-900">No nutrition programs</Heading>
+          <Text className="mt-1 text-gray-500">
+            Get started by creating your first nutrition program.
+          </Text>
+          <div className="mt-6">
+            <Button
+              onClick={() => router.push('/nutrition-programs/create')}
+              className="flex items-center gap-2"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Create Program
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeader>Program</TableHeader>
+                <TableHeader>Duration</TableHeader>
+                <TableHeader>Goals</TableHeader>
+                <TableHeader>Progress</TableHeader>
+                <TableHeader>Meals</TableHeader>
+                <TableHeader className="text-right">Actions</TableHeader>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {nutritionPrograms.map((program) => (
+                <TableRow key={program.id}>
+                  <TableCell>
+                    <div className="flex items-start">
+                      <div className="flex-1">
+                        <Heading level={4} className="text-gray-900">
+                          {program.name}
+                        </Heading>
+                        {program.description && (
+                          <Text className="text-sm text-gray-500 mt-1">
+                            {program.description}
+                          </Text>
                         )}
+                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                          <div className="flex items-center gap-1">
+                            <CalendarIcon className="w-4 h-4" />
+                            Created {new Date(program.createdAt).toLocaleDateString()}
+                          </div>
+                          {program.repeatCount && program.repeatCount > 1 && (
+                            <Badge className="bg-blue-100 text-blue-800">
+                              {program.repeatCount}x repeat
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      {program.isImported && program.programDuration && (
-                        <div className="text-sm text-gray-500">
-                          Duration: {program.programDuration} {program.durationUnit}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <ClockIcon className="w-4 h-4 text-gray-400" />
+                      <Text className="text-sm">{getDurationText(program)}</Text>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      <Text className="font-medium text-gray-900">
+                        {program.targetCalories ? `${program.targetCalories} cal` : 'No target set'}
+                      </Text>
+                      {program.targetCalories && (
+                        <Text className="text-gray-500 mt-1">
+                          {program.usePercentages ? (
+                            `${program.proteinPercentage}%P | ${program.carbsPercentage}%C | ${program.fatsPercentage}%F`
+                          ) : (
+                            `${program.targetProtein}gP | ${program.targetCarbs}gC | ${program.targetFats}gF`
+                          )}
+                        </Text>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      <Text className="font-medium text-gray-900">
+                        {getProgressText(program)}
+                      </Text>
+                      {program.calculatedCalories && program.targetCalories && (
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className="bg-green-600 h-2 rounded-full" 
+                            style={{ 
+                              width: `${Math.min(100, (program.calculatedCalories / program.targetCalories) * 100)}%` 
+                            }}
+                          ></div>
                         </div>
                       )}
                     </div>
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex items-center">
-                      <CalendarIcon className="w-4 h-4 mr-1 text-gray-400" />
-                      <span className="text-sm">
-                        {program.isImported 
-                          ? (program.programDuration ? `${program.programDuration} ${program.durationUnit}` : 'PDF Program')
-                          : 'Nutrition Program'
-                        }
-                      </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <ChartBarIcon className="w-4 h-4 text-gray-400" />
+                      <Text className="text-sm">
+                        {program.weeks?.reduce((total, week) => total + week.days?.reduce((dayTotal, day) => dayTotal + day.meals?.length || 0, 0) || 0, 0) || 
+                         program.meals?.length || 0} meals
+                      </Text>
                     </div>
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex items-center">
-                      <ClockIcon className="w-4 h-4 mr-1 text-gray-400" />
-                      <span className="text-sm">
-                        {program.isImported 
-                          ? 'Imported PDF'
-                          : 'Nutrition Program'
-                        }
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-500">
-                    {new Date(program.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-2 text-right">
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center justify-end space-x-2">
-                      {program.isImported && program.importedPdfUrl && (
-                        <Button outline onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL}${program.importedPdfUrl}`, '_blank')} className="px-3 py-1">
-                          <DocumentArrowUpIcon className="h-4 w-4 mr-1" />View PDF
-                        </Button>
-                      )}
-                      <Button outline onClick={() => handleDelete(program.id, program.name)} className="px-3 py-1 text-red-600 hover:text-red-700">
-                        <TrashIcon className="h-4 w-4 mr-1" />Delete
-                      </Button>
+                      <button
+                        onClick={() => router.push(`/nutrition-programs/${program.id}`)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="View Program"
+                      >
+                        <EyeIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => router.push(`/nutrition-programs/${program.id}/edit`)}
+                        className="text-gray-600 hover:text-gray-800"
+                        title="Edit Program"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDuplicateProgram(program)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Duplicate Program"
+                      >
+                        <DocumentDuplicateIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(program)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
+                        title="Delete Program"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-        
-        {/* Pagination */}
-        {nutritionPrograms.length > 0 && (
-          <div className="flex justify-end mt-4 gap-2 p-4 border-t border-gray-200">
-            <Button outline disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</Button>
-            <span className="px-2 py-1 text-sm">Page {page}</span>
-            <Button outline disabled={page * pageSize >= total} onClick={() => setPage(page + 1)}>Next</Button>
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Import Modal */}
-      <Dialog open={showImportModal} onClose={() => setShowImportModal(false)}>
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Import Program</h2>
-            <button
-              onClick={() => setShowImportModal(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          <form onSubmit={handleImportSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Program PDF
-              </label>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileSelect}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                required
-              />
-              {selectedFile && (
-                <p className="mt-1 text-sm text-gray-600">Selected: {selectedFile.name}</p>
-              )}
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Program Name
-              </label>
-              <input
-                type="text"
-                value={importData.programName}
-                onChange={(e) => setImportData(prev => ({ ...prev, programName: e.target.value }))}
-                placeholder="Enter program name"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Duration
-                </label>
-                <input
-                  type="number"
-                  value={importData.programDuration}
-                  onChange={(e) => setImportData(prev => ({ ...prev, programDuration: e.target.value }))}
-                  placeholder="Enter duration"
-                  min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Duration Unit
-                </label>
-                <select
-                  value={importData.durationUnit}
-                  onChange={(e) => setImportData(prev => ({ ...prev, durationUnit: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="days">Days</option>
-                  <option value="weeks">Weeks</option>
-                  <option value="months">Months</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 mt-6">
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <Heading level={3} className="text-gray-900 mb-4">
+              Delete Nutrition Program
+            </Heading>
+            <Text className="text-gray-600 mb-6">
+              Are you sure you want to delete "{deleteConfirm.name}"? This action cannot be undone.
+            </Text>
+            <div className="flex justify-end space-x-3">
               <Button
-                type="button"
-                plain
-                onClick={() => setShowImportModal(false)}
+                onClick={() => setDeleteConfirm(null)}
+                className="bg-gray-100 text-gray-700 hover:bg-gray-200"
               >
                 Cancel
               </Button>
               <Button
-                type="submit"
-                disabled={!selectedFile || importLoading}
+                onClick={() => handleDelete(deleteConfirm)}
+                className="bg-red-600 text-white hover:bg-red-700"
               >
-                {importLoading ? 'Importing...' : 'Import Program'}
+                Delete
               </Button>
             </div>
-          </form>
-        </div>
-      </Dialog>
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Delete Nutrition Program</h2>
-            <button
-              onClick={() => setConfirmDelete(null)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
-          
-          <p className="text-gray-600 mb-6">
-            Are you sure you want to delete "{confirmDelete?.name}"? This action cannot be undone.
-          </p>
-          
-          <div className="flex justify-end gap-3">
-            <Button
-              outline
-              onClick={() => setConfirmDelete(null)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmDeleteProgram}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Toast Notifications */}
-      {showCreatedToast && (
-        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
-          Nutrition program imported successfully!
-        </div>
-      )}
-      {showDeletedToast && (
-        <div className="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
-          Nutrition program deleted successfully!
-        </div>
-      )}
-      {showErrorToast && (
-        <div className="fixed bottom-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg">
-          {errorMessage}
         </div>
       )}
     </div>
   );
-} 
+}
