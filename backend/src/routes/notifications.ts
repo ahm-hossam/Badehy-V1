@@ -44,9 +44,10 @@ router.get('/', async (req, res) => {
     // Calculate delivery statistics for each notification
     const notificationsWithStats = notifications.map(notification => {
       const totalRecipients = notification.recipients.length;
-      const delivered = notification.recipients.filter(r => r.status === 'delivered').length;
+      const delivered = notification.recipients.filter(r => r.status === 'delivered' || r.status === 'sent').length;
       const failed = notification.recipients.filter(r => r.status === 'failed').length;
       const sent = notification.recipients.filter(r => r.status === 'sent').length;
+      const opened = notification.recipients.filter(r => r.readAt !== null).length;
 
       return {
         ...notification,
@@ -55,7 +56,9 @@ router.get('/', async (req, res) => {
           delivered,
           failed,
           sent,
-          deliveryRate: totalRecipients > 0 ? Math.round((delivered / totalRecipients) * 100) : 0
+          opened,
+          deliveryRate: totalRecipients > 0 ? Math.round((delivered / totalRecipients) * 100) : 0,
+          openedRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0
         }
       };
     });
