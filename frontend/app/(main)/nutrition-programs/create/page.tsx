@@ -166,6 +166,7 @@ export default function NutritionProgramBuilder() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [showPreviewPanel, setShowPreviewPanel] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
@@ -838,6 +839,7 @@ export default function NutritionProgramBuilder() {
     }));
   };
 
+
   const calculateDailyNutrition = (day: NutritionProgramDay) => {
     let calories = 0;
     let protein = 0;
@@ -1003,6 +1005,13 @@ export default function NutritionProgramBuilder() {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <Text className="text-red-800">{error}</Text>
+        </div>
+      )}
+      
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4">
+          <Text className="text-green-800">{successMessage}</Text>
         </div>
       )}
 
