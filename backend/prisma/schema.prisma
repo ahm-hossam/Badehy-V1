@@ -19,7 +19,6 @@ model Registered {
   updatedAt                  DateTime                    @updatedAt
   accountStatus              String                      @default("pending")
   subscriptionStatus         String                      @default("active")
-  brandingSettings           BrandingSettings?
   checkIns                   CheckIn[]
   checkInForms               CheckInForm[]
   clientNutritionAssignments ClientNutritionAssignment[]
@@ -33,7 +32,6 @@ model Registered {
   leads                      Lead[]
   meals                      Meal[]
   nutritionPrograms          NutritionProgram[]
-  pdfTemplates               PDFTemplate[]
   packages                   Package[]
   programs                   Program[]
   services                   Service[]
@@ -456,8 +454,6 @@ model Program {
   trainerId         Int
   name              String
   description       String?
-  template          String?
-  branding          Json?
   pdfUrl            String?
   isImported        Boolean                   @default(false)
   isDefault         Boolean                   @default(false) // Mark default programs
@@ -478,8 +474,6 @@ model NutritionProgram {
   trainerId         Int
   name              String
   description       String?
-  template          String?
-  branding          Json?
   pdfUrl            String?
   isImported        Boolean                     @default(false)
   importedPdfUrl    String?
@@ -681,52 +675,6 @@ model ProgramExercise {
   @@index([exerciseId])
 }
 
-model BrandingSettings {
-  id           Int        @id @default(autoincrement())
-  trainerId    Int        @unique
-  companyName  String
-  logoUrl      String?
-  contactEmail String
-  contactPhone String
-  website      String?
-  address      String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  trainer      Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-
-  @@index([trainerId])
-}
-
-model PDFTemplate {
-  id          Int               @id @default(autoincrement())
-  trainerId   Int
-  name        String
-  description String?
-  fileUrl     String?
-  category    String            @default("general")
-  isActive    Boolean           @default(true)
-  uploadType  String            @default("complete")
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  trainer     Registered        @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  pages       PDFTemplatePage[]
-
-  @@index([trainerId])
-}
-
-model PDFTemplatePage {
-  id         Int         @id @default(autoincrement())
-  templateId Int
-  pageName   String
-  pageOrder  Int
-  fileUrl    String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  template   PDFTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
-  @@index([templateId])
-  @@index([pageOrder])
-}
 
 model SupportRequest {
   id        Int        @id @default(autoincrement())

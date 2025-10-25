@@ -32,8 +32,6 @@ interface Program {
   id: number;
   name: string;
   description?: string;
-  template?: string;
-  branding?: any;
   pdfUrl?: string;
   isImported?: boolean;
   isDefault?: boolean;

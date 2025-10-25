@@ -69,13 +69,6 @@ interface ProgramWeek {
   days: ProgramDay[];
 }
 
-interface PDFTemplate {
-  id: string;
-  name: string;
-  category: string;
-  fileUrl: string;
-  uploadedAt: string;
-}
 
 type BuilderMode = 'calendar' | 'spreadsheet';
 
