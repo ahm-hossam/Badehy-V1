@@ -59,6 +59,7 @@ router.get('/main', authMiddleware, async (req: any, res: any) => {
       return res.status(200).json({ 
         form: mainForm, 
         completed: true,
+        clientId: clientId, // Include clientId for push notification registration
         submission: existingSubmission
       });
     }
@@ -158,6 +159,7 @@ router.get('/main', authMiddleware, async (req: any, res: any) => {
     res.json({ 
       form: mainForm, 
       completed: false,
+      clientId: clientId, // Include clientId for push notification registration
       preFillData: preFillData
     });
   } catch (error) {

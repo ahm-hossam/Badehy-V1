@@ -3,7 +3,7 @@ import { SafeAreaView, View, Text, StyleSheet, Pressable, Alert } from 'react-na
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
+const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function ProfileScreen() {
   const router = useRouter();

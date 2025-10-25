@@ -19,7 +19,6 @@ model Registered {
   updatedAt                  DateTime                    @updatedAt
   accountStatus              String                      @default("pending")
   subscriptionStatus         String                      @default("active")
-  brandingSettings           BrandingSettings?
   checkIns                   CheckIn[]
   checkInForms               CheckInForm[]
   clientNutritionAssignments ClientNutritionAssignment[]
@@ -33,7 +32,6 @@ model Registered {
   leads                      Lead[]
   meals                      Meal[]
   nutritionPrograms          NutritionProgram[]
-  pdfTemplates               PDFTemplate[]
   packages                   Package[]
   programs                   Program[]
   services                   Service[]
@@ -41,6 +39,7 @@ model Registered {
   tasks                      Task[]
   teamMembers                TeamMember[]
   trainerClients             TrainerClient[]
+  notifications              Notification[]
 }
 
 model TrainerClient {
@@ -91,6 +90,9 @@ model TrainerClient {
   workoutSessions       WorkoutSession[]
   // Back relation for ClientAuth one-to-one credentials
   clientAuth            ClientAuth?
+  // Notification relations
+  notificationRecipients NotificationRecipient[]
+  pushToken             PushToken?
 
   @@index([trainerId])
 }
@@ -456,8 +458,6 @@ model Program {
   trainerId         Int
   name              String
   description       String?
-  template          String?
-  branding          Json?
   pdfUrl            String?
   isImported        Boolean                   @default(false)
   isDefault         Boolean                   @default(false) // Mark default programs
@@ -478,8 +478,6 @@ model NutritionProgram {
   trainerId         Int
   name              String
   description       String?
-  template          String?
-  branding          Json?
   pdfUrl            String?
   isImported        Boolean                     @default(false)
   importedPdfUrl    String?
@@ -681,52 +679,6 @@ model ProgramExercise {
   @@index([exerciseId])
 }
 
-model BrandingSettings {
-  id           Int        @id @default(autoincrement())
-  trainerId    Int        @unique
-  companyName  String
-  logoUrl      String?
-  contactEmail String
-  contactPhone String
-  website      String?
-  address      String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  trainer      Registered @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-
-  @@index([trainerId])
-}
-
-model PDFTemplate {
-  id          Int               @id @default(autoincrement())
-  trainerId   Int
-  name        String
-  description String?
-  fileUrl     String?
-  category    String            @default("general")
-  isActive    Boolean           @default(true)
-  uploadType  String            @default("complete")
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  trainer     Registered        @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  pages       PDFTemplatePage[]
-
-  @@index([trainerId])
-}
-
-model PDFTemplatePage {
-  id         Int         @id @default(autoincrement())
-  templateId Int
-  pageName   String
-  pageOrder  Int
-  fileUrl    String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  template   PDFTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
-  @@index([templateId])
-  @@index([pageOrder])
-}
 
 model SupportRequest {
   id        Int        @id @default(autoincrement())
@@ -959,4 +911,51 @@ model ExerciseCompletion {
 
   @@index([sessionId])
   @@index([exerciseId])
+}
+
+model Notification {
+  id          Int                     @id @default(autoincrement())
+  trainerId   Int
+  title       String
+  message     String
+  type        String                  @default("general") // general, workout, nutrition, program_update
+  sentAt      DateTime                @default(now())
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  trainer     Registered              @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  recipients  NotificationRecipient[]
+
+  @@index([trainerId])
+  @@index([sentAt])
+}
+
+model NotificationRecipient {
+  id             Int          @id @default(autoincrement())
+  notificationId Int
+  clientId       Int
+  status         String       @default("sent") // sent, delivered, failed
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model PushToken {
+  id        Int           @id @default(autoincrement())
+  clientId  Int           @unique
+  token     String        @unique
+  platform  String        // ios, android
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  client    TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([token])
 }

@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path, G } from 'react-native-svg';
+import NotificationBell from '../../components/NotificationBell';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 const { width } = Dimensions.get('window');
@@ -163,22 +164,25 @@ export default function HomeScreen() {
           <View style={{ height: 45, overflow: 'hidden' }}>
             <Image source={logoSource} style={styles.logo} />
           </View>
-          <Pressable onPress={() => router.push('/(tabs)/profile')} style={styles.profileSection}>
-            <Text style={styles.clientName}>
-              {client?.fullName || client?.email || 'User'}
-            </Text>
-            {client?.avatarUrl ? (
-              <Image source={{ uri: client.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <Svg width={36} height={36} viewBox="0 0 40 40">
-                <Circle cx="20" cy="20" r="20" fill="#111827" />
-                <G transform="translate(0,-2)">
-                  <Circle cx="20" cy="15" r="6" fill="#fff" />
-                  <Path d="M12 32c0-4 3.9-7.2 8-7.2s8 3.2 8 7.2v2H12v-2z" fill="#fff" />
-                </G>
-              </Svg>
-            )}
-          </Pressable>
+          <View style={styles.headerActions}>
+            <NotificationBell clientId={client?.id} />
+            <Pressable onPress={() => router.push('/(tabs)/profile')} style={styles.profileSection}>
+              <Text style={styles.clientName}>
+                {client?.fullName || client?.email || 'User'}
+              </Text>
+              {client?.avatarUrl ? (
+                <Image source={{ uri: client.avatarUrl }} style={styles.avatar} />
+              ) : (
+                <Svg width={36} height={36} viewBox="0 0 40 40">
+                  <Circle cx="20" cy="20" r="20" fill="#111827" />
+                  <G transform="translate(0,-2)">
+                    <Circle cx="20" cy="15" r="6" fill="#fff" />
+                    <Path d="M12 32c0-4 3.9-7.2 8-7.2s8 3.2 8 7.2v2H12v-2z" fill="#fff" />
+                  </G>
+                </Svg>
+              )}
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -382,6 +386,10 @@ const styles = StyleSheet.create({
     height: 45,
     aspectRatio: 1.2,
     resizeMode: 'contain',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   profileSection: {
     flexDirection: 'row',

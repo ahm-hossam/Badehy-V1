@@ -47,6 +47,7 @@ import {
   CurrencyDollarIcon,
   HeartIcon,
   ChartBarIcon,
+  BellIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -249,38 +250,6 @@ function NutritionCollapsible({ pathname }: { pathname: string }) {
   );
 }
 
-function BrandingCollapsible({ pathname }: { pathname: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5 hover:bg-zinc-950/5 group"
-      >
-        <Cog6ToothIcon className="size-6 shrink-0 fill-zinc-500 sm:size-5 group-hover:fill-zinc-950" />
-        <span className="flex-1">Branding & Templates</span>
-        <span className="ml-auto transition-transform duration-200 ease-in-out">
-          <ChevronDownIcon className={`w-4 h-4 transition-transform duration-200 ease-in-out ${isOpen ? 'rotate-180' : ''}`} />
-        </span>
-      </button>
-      <div 
-        className={`overflow-hidden transition-all duration-200 ease-in-out ${
-          isOpen ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0'
-        }`}
-      >
-        <div className="pl-8 flex flex-col gap-0.5 mt-1">
-          <SidebarItem
-            href="/branding"
-            current={pathname.startsWith('/branding')}
-          >
-            <SidebarLabel>PDF Templates</SidebarLabel>
-          </SidebarItem>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ReportsCollapsible({ pathname }: { pathname: string }) {
   const [isOpen, setIsOpen] = useState(pathname.startsWith('/finance'))
@@ -505,10 +474,13 @@ export function ApplicationLayout({
               <WorkoutProgramsCollapsible pathname={pathname} />
               {/* Nutrition Programs collapsible section */}
               <NutritionCollapsible pathname={pathname} />
-              {/* Branding & Templates collapsible section */}
-              <BrandingCollapsible pathname={pathname} />
               {/* Reports collapsible section */}
               <ReportsCollapsible pathname={pathname} />
+              
+              <SidebarItem href="/notifications" current={pathname === '/notifications'}>
+                <BellIcon />
+                <SidebarLabel>Notifications</SidebarLabel>
+              </SidebarItem>
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">
