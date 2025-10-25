@@ -24,7 +24,7 @@ import {
   CalendarIcon,
   ClockIcon,
   DocumentDuplicateIcon,
-  EyeIcon
+  DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -149,6 +149,58 @@ export default function NutritionProgramsPage() {
     } catch (error) {
       console.error('Error duplicating nutrition program:', error);
       setError('Failed to duplicate nutrition program');
+    }
+  };
+
+  const handleExportPDF = async (program: NutritionProgram) => {
+    try {
+      setLoading(true);
+      
+      // Call the backend API to generate PDF
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      console.log('Exporting PDF for program:', program.id, 'API URL:', apiUrl);
+      
+        const response = await fetch(`${apiUrl}/api/nutrition-programs/${program.id}/export-pdf?t=${Date.now()}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
+        });
+
+      console.log('PDF export response status:', response.status);
+
+      if (response.ok) {
+        // Get the HTML content
+        const htmlContent = await response.text();
+        console.log('Received HTML content, length:', htmlContent.length);
+        
+        // Create a new window with the HTML content
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+          newWindow.document.write(htmlContent);
+          newWindow.document.close();
+          
+          // Add print functionality
+          newWindow.onload = () => {
+            newWindow.print();
+          };
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('PDF export error response:', errorText);
+        try {
+          const data = JSON.parse(errorText);
+          setError(data.error || "Failed to export PDF.");
+        } catch {
+          setError(errorText || "Failed to export PDF.");
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      setError("Failed to export PDF. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -291,11 +343,11 @@ export default function NutritionProgramsPage() {
                   <TableCell>
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => router.push(`/nutrition-programs/${program.id}`)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="View Program"
+                        onClick={() => handleExportPDF(program)}
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded p-1 transition-colors"
+                        title="Export PDF"
                       >
-                        <EyeIcon className="w-4 h-4" />
+                        <DocumentArrowDownIcon className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => router.push(`/nutrition-programs/create?id=${program.id}`)}
