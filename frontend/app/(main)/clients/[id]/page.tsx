@@ -3781,10 +3781,11 @@ function NutritionProgramsTab({ client }: { client: Client }) {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/nutrition-programs?trainerId=${user.id}`);
       if (response.ok) {
         const data = await response.json();
-        setNutritionPrograms(data);
+        setNutritionPrograms(data.programs || []);
       }
     } catch (error) {
       console.error('Error loading nutrition programs:', error);
+      setNutritionPrograms([]);
     }
   };
 
