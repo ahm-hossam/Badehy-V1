@@ -598,7 +598,7 @@ model NutritionProgramMeal {
   nutritionProgramId Int
   nutritionProgramWeekId Int?       // Optional: specific week
   nutritionProgramDayId Int?        // Optional: specific day
-  mealId            Int
+  mealId            Int?            // Nullable for cheat meals
   mealType          String          // Breakfast, Lunch, Dinner, Snack
   order             Int?            // order within the day
   
@@ -618,7 +618,7 @@ model NutritionProgramMeal {
   nutritionProgram  NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
   nutritionProgramWeek NutritionProgramWeek? @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
   nutritionProgramDay NutritionProgramDay? @relation(fields: [nutritionProgramDayId], references: [id], onDelete: Cascade)
-  meal              Meal            @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  meal              Meal?           @relation(fields: [mealId], references: [id], onDelete: Cascade)
 
   @@index([nutritionProgramId])
   @@index([mealId])
