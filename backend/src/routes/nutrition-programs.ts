@@ -90,10 +90,13 @@ router.get('/', async (req, res) => {
             const meal = programMeal.meal;
             const quantity = programMeal.customQuantity || 1;
             
-            totalCalories += meal.totalCalories * quantity;
-            totalProtein += meal.totalProtein * quantity;
-            totalCarbs += meal.totalCarbs * quantity;
-            totalFats += meal.totalFats * quantity;
+            // Skip cheat meals (they don't have meal data)
+            if (meal) {
+              totalCalories += (meal.totalCalories || 0) * quantity;
+              totalProtein += (meal.totalProtein || 0) * quantity;
+              totalCarbs += (meal.totalCarbs || 0) * quantity;
+              totalFats += (meal.totalFats || 0) * quantity;
+            }
           });
         });
       });
@@ -104,10 +107,13 @@ router.get('/', async (req, res) => {
           const meal = programMeal.meal;
           const quantity = programMeal.customQuantity || 1;
           
-          totalCalories += meal.totalCalories * quantity;
-          totalProtein += meal.totalProtein * quantity;
-          totalCarbs += meal.totalCarbs * quantity;
-          totalFats += meal.totalFats * quantity;
+          // Skip cheat meals (they don't have meal data)
+          if (meal) {
+            totalCalories += (meal.totalCalories || 0) * quantity;
+            totalProtein += (meal.totalProtein || 0) * quantity;
+            totalCarbs += (meal.totalCarbs || 0) * quantity;
+            totalFats += (meal.totalFats || 0) * quantity;
+          }
         });
       }
 
@@ -462,7 +468,8 @@ router.put('/:id', async (req, res) => {
                     nutritionProgramId: Number(id),
                     nutritionProgramWeekId: week.id,
                     nutritionProgramDayId: day.id,
-                    mealId: mealData.mealId,
+                    // Only set mealId for non-cheat meals
+                    ...(!(mealData.isCheatMeal) && { mealId: mealData.mealId }),
                     mealType: mealData.mealType,
                     order: mealData.order || 0,
                     isCheatMeal: mealData.isCheatMeal || false,
@@ -725,6 +732,150 @@ router.post('/:id/duplicate', async (req, res) => {
   } catch (error) {
     console.error('Error duplicating nutrition program:', error);
     res.status(500).json({ error: 'Failed to duplicate nutrition program' });
+  }
+});
+
+// Create a new nutrition program
+router.post('/', async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      programDuration,
+      durationUnit,
+      repeatCount,
+      targetCalories,
+      targetProtein,
+      targetCarbs,
+      targetFats,
+      proteinPercentage,
+      carbsPercentage,
+      fatsPercentage,
+      usePercentages,
+      weeks,
+      trainerId
+    } = req.body;
+
+    if (!trainerId || !name) {
+      return res.status(400).json({ error: 'Trainer ID and program name are required' });
+    }
+
+    // Create the nutrition program
+    const program = await prisma.nutritionProgram.create({
+      data: {
+        trainerId: Number(trainerId),
+        name,
+        description: description || '',
+        programDuration: programDuration || 1,
+        durationUnit: durationUnit || 'weeks',
+        repeatCount: repeatCount || 1,
+        targetCalories: targetCalories || 2000,
+        targetProtein: targetProtein || 150,
+        targetCarbs: targetCarbs || 200,
+        targetFats: targetFats || 80,
+        proteinPercentage: proteinPercentage || 30,
+        carbsPercentage: carbsPercentage || 40,
+        fatsPercentage: fatsPercentage || 30,
+        usePercentages: usePercentages || false,
+      },
+    });
+
+    // Create weeks, days, and meals if provided
+    if (weeks && weeks.length > 0) {
+      for (const weekData of weeks) {
+        const week = await prisma.nutritionProgramWeek.create({
+          data: {
+            nutritionProgramId: program.id,
+            weekNumber: weekData.weekNumber,
+            name: weekData.name,
+          },
+        });
+
+        // Create days for this week
+        if (weekData.days && weekData.days.length > 0) {
+          for (const dayData of weekData.days) {
+            const day = await prisma.nutritionProgramDay.create({
+              data: {
+                nutritionProgramWeekId: week.id,
+                dayOfWeek: dayData.dayOfWeek,
+                name: dayData.name,
+              },
+            });
+
+            // Create meals for this day
+            if (dayData.meals && dayData.meals.length > 0) {
+              for (const mealData of dayData.meals) {
+                await prisma.nutritionProgramMeal.create({
+                  data: {
+                    nutritionProgramId: program.id,
+                    nutritionProgramWeekId: week.id,
+                    nutritionProgramDayId: day.id,
+                    // Only set mealId for non-cheat meals
+                    ...(!(mealData.isCheatMeal) && { mealId: mealData.mealId }),
+                    mealType: mealData.mealType,
+                    order: mealData.order || 0,
+                    isCheatMeal: mealData.isCheatMeal || false,
+                    cheatDescription: mealData.cheatDescription,
+                    cheatImageUrl: mealData.cheatImageUrl,
+                    customQuantity: mealData.customQuantity,
+                    customNotes: mealData.customNotes,
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fetch the complete program with all relations
+    const finalProgram = await prisma.nutritionProgram.findUnique({
+      where: { id: program.id },
+      include: {
+        weeks: {
+          orderBy: { weekNumber: 'asc' },
+          include: {
+            days: {
+              orderBy: { dayOfWeek: 'asc' },
+              include: {
+                meals: {
+                  orderBy: { order: 'asc' },
+                  include: {
+                    meal: {
+                      include: {
+                        mealIngredients: {
+                          include: {
+                            ingredient: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        meals: {
+          include: {
+            meal: {
+              include: {
+                mealIngredients: {
+                  include: {
+                    ingredient: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.status(201).json(finalProgram);
+  } catch (error) {
+    console.error('Error creating nutrition program:', error);
+    res.status(500).json({ error: 'Failed to create nutrition program' });
   }
 });
 

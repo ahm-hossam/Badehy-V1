@@ -46,7 +46,7 @@ dotenv.config({ path: envPath });
 console.log('DATABASE_URL after dotenv:', process.env.DATABASE_URL);
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = Number(process.env.PORT) || 4000;
 
 app.use(cors());
 app.use(express.json());
@@ -115,8 +115,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`Server is running on 127.0.0.1:${PORT}`);
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
 }); 

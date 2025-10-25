@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle } from 'react-native-svg';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 const { width } = Dimensions.get('window');
@@ -364,30 +363,11 @@ export default function NutritionTab() {
                   return (
                     <View key={macro.key} style={styles.macroChartItem}>
                       <View style={styles.pieChartContainer}>
-                        <Svg width={60} height={60} style={styles.pieChart}>
-                          {/* Background circle */}
-                          <Circle
-                            cx={30}
-                            cy={30}
-                            r={25}
-                            stroke="#F3F4F6"
-                            strokeWidth={6}
-                            fill="transparent"
-                          />
-                          {/* Progress arc */}
-                          <Circle
-                            cx={30}
-                            cy={30}
-                            r={25}
-                            stroke={macro.color}
-                            strokeWidth={6}
-                            fill="transparent"
-                            strokeDasharray={`${(percentage / 100) * 157} 157`}
-                            strokeDashoffset={0}
-                            strokeLinecap="round"
-                            transform="rotate(-90 30 30)"
-                          />
-                        </Svg>
+                        <View style={[styles.pieChart, { backgroundColor: macro.color }]}>
+                          <View style={styles.pieChartInner}>
+                            <Text style={styles.pieChartText}>{Math.round(percentage)}%</Text>
+                          </View>
+                        </View>
                         <View style={styles.pieChartCenter}>
                           <Text style={styles.pieChartPercentage}>{Math.round(percentage)}%</Text>
                         </View>
@@ -768,7 +748,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pieChart: {
-    // SVG styles handled by the component
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pieChartInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pieChartText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#374151',
   },
   pieChartCenter: {
     position: 'absolute',
@@ -923,11 +920,6 @@ const styles = StyleSheet.create({
   },
   cheatMealInfo: {
     gap: 8,
-  },
-  cheatMealImage: {
-    width: '100%',
-    height: 100,
-    borderRadius: 12,
   },
   noMealsContainer: {
     alignItems: 'center',

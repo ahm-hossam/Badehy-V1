@@ -618,7 +618,7 @@ export default function NutritionProgramBuilder() {
     // Set the meal for editing with proper ingredient data
     setSelectedMealFromDropdown({
       ...mealEntry.meal,
-      mealIngredients: mealEntry.meal.mealIngredients || mealEntry.customIngredients?.map(ci => ({
+      mealIngredients: mealEntry.meal?.mealIngredients || mealEntry.customIngredients?.map(ci => ({
         ingredientId: ci.ingredientId,
         quantity: ci.quantity,
         unit: ci.unit,
@@ -646,17 +646,22 @@ export default function NutritionProgramBuilder() {
   const saveMealsToDay = () => {
     if (!selectedDay) return;
 
-    const newMeals: NutritionProgramMeal[] = selectedMealsForDay.map((mealEntry, index) => ({
-      mealId: mealEntry.meal.id,
-      mealType: mealEntry.mealType,
-      order: index,
-      customQuantity: 1,
-      isCheatMeal: mealEntry.meal.isCheatMeal || false,
-      cheatDescription: mealEntry.meal.cheatDescription || null,
-      cheatImageUrl: mealEntry.meal.cheatImageUrl || null,
-      customNotes: null,
-      meal: mealEntry.meal // Keep this for frontend display, but it won't be sent to backend
-    }));
+    const newMeals: NutritionProgramMeal[] = selectedMealsForDay.map((mealEntry, index) => {
+      const mealData = {
+        mealId: mealEntry.meal?.id || null,
+        mealType: mealEntry.mealType,
+        order: index,
+        customQuantity: 1,
+        isCheatMeal: mealEntry.meal?.isCheatMeal || false,
+        cheatDescription: mealEntry.meal?.cheatDescription || null,
+        cheatImageUrl: mealEntry.meal?.cheatImageUrl || null,
+        customNotes: null,
+        meal: mealEntry.meal // Keep this for frontend display, but it won't be sent to backend
+      };
+      
+      
+      return mealData;
+    });
 
     setProgram(prev => ({
       ...prev,
@@ -1612,19 +1617,25 @@ export default function NutritionProgramBuilder() {
                   {(() => {
                     // Calculate nutrition from saved meals
                     const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
-                      acc.calories += meal.meal.totalCalories || 0;
-                      acc.protein += meal.meal.totalProtein || 0;
-                      acc.carbs += meal.meal.totalCarbs || 0;
-                      acc.fats += meal.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have meal data)
+                      if (meal.meal) {
+                        acc.calories += meal.meal.totalCalories || 0;
+                        acc.protein += meal.meal.totalProtein || 0;
+                        acc.carbs += meal.meal.totalCarbs || 0;
+                        acc.fats += meal.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
 
                     // Calculate nutrition from temporary meals
                     const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
-                      acc.calories += mealEntry.meal.totalCalories || 0;
-                      acc.protein += mealEntry.meal.totalProtein || 0;
-                      acc.carbs += mealEntry.meal.totalCarbs || 0;
-                      acc.fats += mealEntry.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have nutritional values)
+                      if (mealEntry.meal && !mealEntry.meal.isCheatMeal) {
+                        acc.calories += mealEntry.meal.totalCalories || 0;
+                        acc.protein += mealEntry.meal.totalProtein || 0;
+                        acc.carbs += mealEntry.meal.totalCarbs || 0;
+                        acc.fats += mealEntry.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
 
@@ -1671,19 +1682,25 @@ export default function NutritionProgramBuilder() {
                   {(() => {
                     // Calculate nutrition from saved meals
                     const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
-                      acc.calories += meal.meal.totalCalories || 0;
-                      acc.protein += meal.meal.totalProtein || 0;
-                      acc.carbs += meal.meal.totalCarbs || 0;
-                      acc.fats += meal.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have meal data)
+                      if (meal.meal) {
+                        acc.calories += meal.meal.totalCalories || 0;
+                        acc.protein += meal.meal.totalProtein || 0;
+                        acc.carbs += meal.meal.totalCarbs || 0;
+                        acc.fats += meal.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
 
                     // Calculate nutrition from temporary meals
                     const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
-                      acc.calories += mealEntry.meal.totalCalories || 0;
-                      acc.protein += mealEntry.meal.totalProtein || 0;
-                      acc.carbs += mealEntry.meal.totalCarbs || 0;
-                      acc.fats += mealEntry.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have nutritional values)
+                      if (mealEntry.meal && !mealEntry.meal.isCheatMeal) {
+                        acc.calories += mealEntry.meal.totalCalories || 0;
+                        acc.protein += mealEntry.meal.totalProtein || 0;
+                        acc.carbs += mealEntry.meal.totalCarbs || 0;
+                        acc.fats += mealEntry.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
 
@@ -1731,19 +1748,25 @@ export default function NutritionProgramBuilder() {
                   {(() => {
                     // Calculate nutrition from saved meals
                     const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
-                      acc.calories += meal.meal.totalCalories || 0;
-                      acc.protein += meal.meal.totalProtein || 0;
-                      acc.carbs += meal.meal.totalCarbs || 0;
-                      acc.fats += meal.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have meal data)
+                      if (meal.meal) {
+                        acc.calories += meal.meal.totalCalories || 0;
+                        acc.protein += meal.meal.totalProtein || 0;
+                        acc.carbs += meal.meal.totalCarbs || 0;
+                        acc.fats += meal.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
 
                     // Calculate nutrition from temporary meals
                     const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
-                      acc.calories += mealEntry.meal.totalCalories || 0;
-                      acc.protein += mealEntry.meal.totalProtein || 0;
-                      acc.carbs += mealEntry.meal.totalCarbs || 0;
-                      acc.fats += mealEntry.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have nutritional values)
+                      if (mealEntry.meal && !mealEntry.meal.isCheatMeal) {
+                        acc.calories += mealEntry.meal.totalCalories || 0;
+                        acc.protein += mealEntry.meal.totalProtein || 0;
+                        acc.carbs += mealEntry.meal.totalCarbs || 0;
+                        acc.fats += mealEntry.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
 
@@ -1791,19 +1814,25 @@ export default function NutritionProgramBuilder() {
                   {(() => {
                     // Calculate nutrition from saved meals
                     const savedNutrition = selectedDay.meals?.reduce((acc, meal) => {
-                      acc.calories += meal.meal.totalCalories || 0;
-                      acc.protein += meal.meal.totalProtein || 0;
-                      acc.carbs += meal.meal.totalCarbs || 0;
-                      acc.fats += meal.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have meal data)
+                      if (meal.meal) {
+                        acc.calories += meal.meal.totalCalories || 0;
+                        acc.protein += meal.meal.totalProtein || 0;
+                        acc.carbs += meal.meal.totalCarbs || 0;
+                        acc.fats += meal.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 }) || { calories: 0, protein: 0, carbs: 0, fats: 0 };
 
                     // Calculate nutrition from temporary meals
                     const tempNutrition = selectedMealsForDay.reduce((acc, mealEntry) => {
-                      acc.calories += mealEntry.meal.totalCalories || 0;
-                      acc.protein += mealEntry.meal.totalProtein || 0;
-                      acc.carbs += mealEntry.meal.totalCarbs || 0;
-                      acc.fats += mealEntry.meal.totalFats || 0;
+                      // Skip cheat meals (they don't have nutritional values)
+                      if (mealEntry.meal && !mealEntry.meal.isCheatMeal) {
+                        acc.calories += mealEntry.meal.totalCalories || 0;
+                        acc.protein += mealEntry.meal.totalProtein || 0;
+                        acc.carbs += mealEntry.meal.totalCarbs || 0;
+                        acc.fats += mealEntry.meal.totalFats || 0;
+                      }
                       return acc;
                     }, { calories: 0, protein: 0, carbs: 0, fats: 0 });
 
@@ -2721,7 +2750,7 @@ export default function NutritionProgramBuilder() {
                       {selectedMealsForDay.map((mealEntry, index) => (
                         <div key={index} className="border border-zinc-200 rounded-lg p-4 bg-white shadow-sm">
                           <div className="flex items-start gap-4">
-                            {mealEntry.meal.imageUrl && (
+                            {mealEntry.meal?.imageUrl && (
                               <img
                                 src={mealEntry.meal.imageUrl.startsWith('blob:') || mealEntry.meal.imageUrl.startsWith('http') 
                                   ? mealEntry.meal.imageUrl 
@@ -2732,13 +2761,13 @@ export default function NutritionProgramBuilder() {
                             )}
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <Text className="text-sm font-semibold text-zinc-900">{mealEntry.meal.name}</Text>
+                                <Text className="text-sm font-semibold text-zinc-900">{mealEntry.meal?.name || 'Cheat Meal'}</Text>
                                 <Badge className="text-xs bg-zinc-100 text-zinc-700">
                                   {mealEntry.mealType}
                                 </Badge>
                               </div>
                               {/* Only show nutritional badges for non-cheat meals */}
-                              {!mealEntry.meal.isCheatMeal && (
+                              {mealEntry.meal && !mealEntry.meal.isCheatMeal && (
                                 <div className="flex items-center gap-3 mb-3">
                                   <Badge className="text-xs bg-zinc-100 text-zinc-700">
                                     {Math.round(mealEntry.meal.totalCalories)} cal
@@ -2756,7 +2785,7 @@ export default function NutritionProgramBuilder() {
                               )}
                               
                               {/* Ingredients */}
-                              {mealEntry.meal.mealIngredients && mealEntry.meal.mealIngredients.length > 0 && (
+                              {mealEntry.meal?.mealIngredients && mealEntry.meal.mealIngredients.length > 0 && (
                                 <div className="space-y-2">
                                   <Text className="text-xs font-medium text-zinc-600">Ingredients:</Text>
                                   <div className="space-y-1">
@@ -2891,29 +2920,56 @@ export default function NutritionProgramBuilder() {
                         {/* Add to Day Button */}
                         <div className="flex gap-3 pt-4 border-t border-zinc-200">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (!cheatMealForm.description.trim()) {
                                 alert('Please enter a cheat meal description');
                                 return;
                               }
 
                               // Create a cheat meal object
-                              let imageUrl = cheatMealForm.imageUrl;
+                              let imageUrl = '';
                               
-                              // If a file was uploaded, create a local URL for it
-                              if (imageFile && imageUploadMethod === 'upload') {
-                                imageUrl = URL.createObjectURL(imageFile);
+                              // Handle image upload for cheat meals
+                              try {
+                                if (imageUploadMethod === 'url' && cheatMealForm.imageUrl) {
+                                  imageUrl = cheatMealForm.imageUrl;
+                                } else if (imageFile && imageUploadMethod === 'upload') {
+                                  // Upload file to server
+                                  const formData = new FormData();
+                                  formData.append('image', imageFile);
+                                  
+                                  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/meals/upload-cheat`, {
+                                    method: 'POST',
+                                    body: formData,
+                                  });
+                                  
+                                  if (!response.ok) {
+                                    const errorData = await response.json();
+                                    throw new Error(errorData.error || 'Failed to upload image');
+                                  }
+                                  
+                                  const uploadResult = await response.json();
+                                  imageUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${uploadResult.imageUrl}`;
+                                }
+                              } catch (uploadError) {
+                                console.error('Error uploading cheat meal image:', uploadError);
+                                alert(`Failed to upload image: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
+                                return;
                               }
+                              
                               
                               const cheatMeal = {
                                 id: Math.floor(Date.now() * 1000 + Math.random() * 1000),
-                                name: 'Cheat Meal',
+                                name: cheatMealForm.description || 'Cheat Meal',
                                 description: cheatMealForm.description,
+                                cheatDescription: cheatMealForm.description,
+                                category: 'cheat',
                                 totalCalories: 0, // Cheat meals don't count towards calories
                                 totalProtein: 0,
                                 totalCarbs: 0,
                                 totalFats: 0,
                                 imageUrl: imageUrl,
+                                cheatImageUrl: imageUrl,
                                 mealIngredients: [],
                                 isCheatMeal: true
                               };

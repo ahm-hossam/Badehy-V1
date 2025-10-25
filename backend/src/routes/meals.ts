@@ -550,4 +550,60 @@ router.post('/upload', async (req, res) => {
   }
 });
 
+// Upload cheat meal image
+router.post('/upload-cheat', (req, res) => {
+  try {
+    const multer = require('multer');
+    const path = require('path');
+    const fs = require('fs');
+
+    // Create uploads directory if it doesn't exist
+    const uploadDir = path.join(__dirname, '../../uploads/meals/cheat');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+      destination: (req: any, file: any, cb: any) => {
+        cb(null, uploadDir);
+      },
+      filename: (req: any, file: any, cb: any) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'cheat-' + uniqueSuffix + path.extname(file.originalname));
+      }
+    });
+
+    const upload = multer({ 
+      storage: storage,
+      limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+      },
+      fileFilter: (req: any, file: any, cb: any) => {
+        if (file.mimetype.startsWith('image/')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Only image files are allowed'), false);
+        }
+      }
+    });
+
+    upload.single('image')(req, res, (err: any) => {
+      if (err) {
+        console.error('Cheat meal upload error:', err);
+        return res.status(400).json({ error: err.message });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const imageUrl = `/uploads/meals/cheat/${req.file.filename}`;
+      res.json({ imageUrl });
+    });
+  } catch (error) {
+    console.error('Error uploading cheat meal image:', error);
+    res.status(500).json({ error: 'Failed to upload cheat meal image' });
+  }
+});
+
 export default router;
