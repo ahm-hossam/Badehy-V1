@@ -424,4 +424,43 @@ router.post('/test-push/:clientId', async (req, res) => {
   }
 });
 
+// Delete a notification
+router.delete('/:notificationId', async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const { trainerId } = req.body;
+
+    if (!trainerId) {
+      return res.status(400).json({ error: 'Trainer ID is required' });
+    }
+
+    // Verify the notification belongs to the trainer
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: Number(notificationId),
+        trainerId: Number(trainerId)
+      }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found or access denied' });
+    }
+
+    // Delete the notification (this will cascade delete recipients due to foreign key constraints)
+    await prisma.notification.delete({
+      where: {
+        id: Number(notificationId)
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Notification deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
+  }
+});
+
 export default router;
