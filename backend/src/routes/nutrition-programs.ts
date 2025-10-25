@@ -259,13 +259,34 @@ router.post('/', async (req, res) => {
         // Create days for this week
         if (weekData.days && weekData.days.length > 0) {
           for (const dayData of weekData.days) {
-            await prisma.nutritionProgramDay.create({
+            const day = await prisma.nutritionProgramDay.create({
               data: {
                 nutritionProgramWeekId: week.id,
                 dayOfWeek: dayData.dayOfWeek,
                 name: dayData.name,
               },
             });
+
+            // Create meals for this day
+            if (dayData.meals && dayData.meals.length > 0) {
+              for (const mealData of dayData.meals) {
+                await prisma.nutritionProgramMeal.create({
+                  data: {
+                    nutritionProgramId: program.id,
+                    nutritionProgramWeekId: week.id,
+                    nutritionProgramDayId: day.id,
+                    mealId: mealData.mealId,
+                    mealType: mealData.mealType,
+                    order: mealData.order || 0,
+                    isCheatMeal: mealData.isCheatMeal || false,
+                    cheatDescription: mealData.cheatDescription,
+                    cheatImageUrl: mealData.cheatImageUrl,
+                    customQuantity: mealData.customQuantity,
+                    customNotes: mealData.customNotes,
+                  },
+                });
+              }
+            }
           }
         }
       }
@@ -357,6 +378,7 @@ router.put('/:id', async (req, res) => {
       fatsPercentage,
       usePercentages,
       trainerId,
+      weeks,
     } = req.body;
 
     if (!trainerId) {
@@ -375,6 +397,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Nutrition program not found' });
     }
 
+    // Update the basic program fields
     const updatedProgram = await prisma.nutritionProgram.update({
       where: { id: Number(id) },
       data: {
@@ -391,6 +414,74 @@ router.put('/:id', async (req, res) => {
         fatsPercentage,
         usePercentages,
       },
+    });
+
+    // Handle weeks, days, and meals updates
+    if (weeks && weeks.length > 0) {
+      // Delete existing weeks, days, and meals
+      await prisma.nutritionProgramMeal.deleteMany({
+        where: { nutritionProgramId: Number(id) }
+      });
+      await prisma.nutritionProgramDay.deleteMany({
+        where: { 
+          nutritionProgramWeek: {
+            nutritionProgramId: Number(id)
+          }
+        }
+      });
+      await prisma.nutritionProgramWeek.deleteMany({
+        where: { nutritionProgramId: Number(id) }
+      });
+
+      // Create new weeks and days
+      for (const weekData of weeks) {
+        const week = await prisma.nutritionProgramWeek.create({
+          data: {
+            nutritionProgramId: Number(id),
+            weekNumber: weekData.weekNumber,
+            name: weekData.name,
+          },
+        });
+
+        // Create days for this week
+        if (weekData.days && weekData.days.length > 0) {
+          for (const dayData of weekData.days) {
+            const day = await prisma.nutritionProgramDay.create({
+              data: {
+                nutritionProgramWeekId: week.id,
+                dayOfWeek: dayData.dayOfWeek,
+                name: dayData.name,
+              },
+            });
+
+            // Create meals for this day
+            if (dayData.meals && dayData.meals.length > 0) {
+              for (const mealData of dayData.meals) {
+                await prisma.nutritionProgramMeal.create({
+                  data: {
+                    nutritionProgramId: Number(id),
+                    nutritionProgramWeekId: week.id,
+                    nutritionProgramDayId: day.id,
+                    mealId: mealData.mealId,
+                    mealType: mealData.mealType,
+                    order: mealData.order || 0,
+                    isCheatMeal: mealData.isCheatMeal || false,
+                    cheatDescription: mealData.cheatDescription,
+                    cheatImageUrl: mealData.cheatImageUrl,
+                    customQuantity: mealData.customQuantity,
+                    customNotes: mealData.customNotes,
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fetch the updated program with all relations
+    const finalProgram = await prisma.nutritionProgram.findUnique({
+      where: { id: Number(id) },
       include: {
         weeks: {
           include: {
@@ -429,7 +520,7 @@ router.put('/:id', async (req, res) => {
       },
     });
 
-    res.json(updatedProgram);
+    res.json(finalProgram);
   } catch (error) {
     console.error('Error updating nutrition program:', error);
     res.status(500).json({ error: 'Failed to update nutrition program' });

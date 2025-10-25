@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Add CSS animations
 const sidePanelStyles = `
@@ -287,19 +287,81 @@ export default function NutritionProgramBuilder() {
   const [tempWeekName, setTempWeekName] = useState<string>('');
   const [tempDayName, setTempDayName] = useState<string>('');
 
+  // Define functions before useEffect to avoid ReferenceError
+  const fetchProgram = useCallback(async (trainerId: number) => {
+    if (!programId) return;
+    
+    try {
+      setLoading(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/nutrition-programs/${programId}?trainerId=${trainerId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setProgram(data);
+        // Expand first week by default
+        if (data.weeks && data.weeks.length > 0) {
+          setExpandedWeeks(new Set([data.weeks[0].weekNumber]));
+        }
+      } else {
+        setError('Failed to fetch program');
+      }
+    } catch (error) {
+      console.error('Error fetching program:', error);
+      setError('Failed to fetch program');
+    } finally {
+      setLoading(false);
+    }
+  }, [programId]);
+
+  const createDefaultWeek = useCallback(() => {
+    const defaultWeek: NutritionProgramWeek = {
+      weekNumber: 1,
+      name: 'Week 1',
+      days: [
+        {
+          id: Math.floor(Date.now() * 1000 + Math.random() * 1000), // Unique ID
+          dayOfWeek: 1,
+          name: 'Day 1',
+          meals: []
+        }
+      ]
+    };
+
+    setProgram(prev => ({
+      ...prev,
+      weeks: [defaultWeek]
+    }));
+  }, []);
+
+  const fetchAvailableMeals = async (trainerId: number) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/meals?trainerId=${trainerId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableMeals(data.meals || []);
+      }
+    } catch (error) {
+      console.error('Error fetching meals:', error);
+    }
+  };
+
   useEffect(() => {
     const storedUser = getStoredUser();
     if (storedUser) {
       setUser(storedUser);
-      if (isEdit) {
+      if (programId) {
+        // Edit mode - fetch existing program
         fetchProgram(storedUser.id);
       } else {
-        // Create default week with 7 days
+        // Create mode - create default week
         createDefaultWeek();
       }
       fetchAvailableMeals(storedUser.id);
     }
-  }, [isEdit, programId]);
+  }, [programId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -323,63 +385,6 @@ export default function NutritionProgramBuilder() {
     };
   }, [openWeekDropdown, openDayDropdown, showMealTypeDropdown]);
 
-  const fetchProgram = async (trainerId: number) => {
-    try {
-      setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/nutrition-programs/${programId}?trainerId=${trainerId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setProgram(data);
-        // Expand first week by default
-        if (data.weeks && data.weeks.length > 0) {
-          setExpandedWeeks(new Set([data.weeks[0].weekNumber]));
-        }
-      } else {
-        setError('Failed to fetch program');
-      }
-    } catch (error) {
-      console.error('Error fetching program:', error);
-      setError('Failed to fetch program');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAvailableMeals = async (trainerId: number) => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/meals?trainerId=${trainerId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setAvailableMeals(data.meals || []);
-      }
-    } catch (error) {
-      console.error('Error fetching meals:', error);
-    }
-  };
-
-  const createDefaultWeek = () => {
-    const defaultWeek: NutritionProgramWeek = {
-      weekNumber: 1,
-      name: 'Week 1',
-      days: [
-        {
-          id: Math.floor(Date.now() * 1000 + Math.random() * 1000), // Unique ID
-          dayOfWeek: 1,
-          name: 'Day 1',
-          meals: []
-        }
-      ]
-    };
-
-    setProgram(prev => ({
-      ...prev,
-      weeks: [defaultWeek]
-    }));
-  };
 
   const addWeek = () => {
     const nextWeekNumber = Math.max(...program.weeks!.map(w => w.weekNumber), 0) + 1;
@@ -646,7 +651,11 @@ export default function NutritionProgramBuilder() {
       mealType: mealEntry.mealType,
       order: index,
       customQuantity: 1,
-      meal: mealEntry.meal
+      isCheatMeal: mealEntry.meal.isCheatMeal || false,
+      cheatDescription: mealEntry.meal.cheatDescription || null,
+      cheatImageUrl: mealEntry.meal.cheatImageUrl || null,
+      customNotes: null,
+      meal: mealEntry.meal // Keep this for frontend display, but it won't be sent to backend
     }));
 
     setProgram(prev => ({
@@ -888,15 +897,38 @@ export default function NutritionProgramBuilder() {
       
       const method = isEdit ? 'PUT' : 'POST';
 
+      // Clean the program data for backend
+      const cleanedProgram = {
+        ...program,
+        trainerId: user.id,
+        weeks: program.weeks?.map(week => ({
+          weekNumber: week.weekNumber,
+          name: week.name,
+          days: week.days?.map(day => ({
+            dayOfWeek: day.dayOfWeek,
+            name: day.name,
+            meals: day.meals?.map(meal => ({
+              mealId: meal.mealId,
+              mealType: meal.mealType,
+              order: meal.order,
+              customQuantity: meal.customQuantity,
+              isCheatMeal: meal.isCheatMeal,
+              cheatDescription: meal.cheatDescription,
+              cheatImageUrl: meal.cheatImageUrl,
+              customNotes: meal.customNotes
+            })) || []
+          })) || []
+        })) || []
+      };
+
+      console.log('Sending program data:', cleanedProgram);
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...program,
-          trainerId: user.id,
-        }),
+        body: JSON.stringify(cleanedProgram),
       });
 
       if (response.ok) {

@@ -24,9 +24,7 @@ import {
   CalendarIcon,
   ClockIcon,
   DocumentDuplicateIcon,
-  EyeIcon,
-  ChartBarIcon,
-  DocumentArrowUpIcon
+  EyeIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -161,22 +159,6 @@ export default function NutritionProgramsPage() {
     return 'Flexible';
   };
 
-  const getGoalText = (program: NutritionProgram) => {
-    if (program.usePercentages) {
-      return `${program.targetCalories} cal | ${program.proteinPercentage}%P | ${program.carbsPercentage}%C | ${program.fatsPercentage}%F`;
-    } else {
-      return `${program.targetCalories} cal | ${program.targetProtein}gP | ${program.targetCarbs}gC | ${program.targetFats}gF`;
-    }
-  };
-
-  const getProgressText = (program: NutritionProgram) => {
-    if (program.calculatedCalories && program.targetCalories) {
-      const percentage = Math.round((program.calculatedCalories / program.targetCalories) * 100);
-      return `${program.calculatedCalories}/${program.targetCalories} cal (${percentage}%)`;
-    }
-    return 'No meals assigned';
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -251,8 +233,6 @@ export default function NutritionProgramsPage() {
                 <TableHeader>Program</TableHeader>
                 <TableHeader>Duration</TableHeader>
                 <TableHeader>Goals</TableHeader>
-                <TableHeader>Progress</TableHeader>
-                <TableHeader>Meals</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
@@ -307,32 +287,6 @@ export default function NutritionProgramsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm">
-                      <Text className="font-medium text-gray-900">
-                        {getProgressText(program)}
-                      </Text>
-                      {program.calculatedCalories && program.targetCalories && (
-                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                          <div 
-                            className="bg-green-600 h-2 rounded-full" 
-                            style={{ 
-                              width: `${Math.min(100, (program.calculatedCalories / program.targetCalories) * 100)}%` 
-                            }}
-                          ></div>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <ChartBarIcon className="w-4 h-4 text-gray-400" />
-                      <Text className="text-sm">
-                        {program.weeks?.reduce((total, week) => total + week.days?.reduce((dayTotal, day) => dayTotal + day.meals?.length || 0, 0) || 0, 0) || 
-                         program.meals?.length || 0} meals
-                      </Text>
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => router.push(`/nutrition-programs/${program.id}`)}
@@ -342,7 +296,7 @@ export default function NutritionProgramsPage() {
                         <EyeIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => router.push(`/nutrition-programs/${program.id}/edit`)}
+                        onClick={() => router.push(`/nutrition-programs/create?id=${program.id}`)}
                         className="text-gray-600 hover:text-gray-800"
                         title="Edit Program"
                       >
@@ -373,30 +327,43 @@ export default function NutritionProgramsPage() {
 
       {/* Delete Confirmation Dialog */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <Heading level={3} className="text-gray-900 mb-4">
-              Delete Nutrition Program
-            </Heading>
-            <Text className="text-gray-600 mb-6">
-              Are you sure you want to delete "{deleteConfirm.name}"? This action cannot be undone.
-            </Text>
-            <div className="flex justify-end space-x-3">
-              <Button
-                onClick={() => setDeleteConfirm(null)}
-                className="bg-gray-100 text-gray-700 hover:bg-gray-200"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="bg-red-600 text-white hover:bg-red-700"
-              >
-                Delete
-              </Button>
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed top-0 left-0 right-0 bg-black/50 z-40 animate-in fade-in duration-200"
+            style={{ height: '100vh' }}
+            onClick={() => setDeleteConfirm(null)}
+          />
+          
+          {/* Dialog */}
+          <div 
+            className="fixed top-0 left-0 right-0 flex items-center justify-center z-50 animate-in fade-in duration-200"
+            style={{ height: '100vh' }}
+          >
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl animate-in zoom-in-95 duration-200">
+              <Heading level={3} className="text-gray-900 mb-4">
+                Delete Nutrition Program
+              </Heading>
+              <Text className="text-gray-600 mb-6">
+                Are you sure you want to delete "{deleteConfirm.name}"? This action cannot be undone.
+              </Text>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  outline
+                  onClick={() => setDeleteConfirm(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="red"
+                  onClick={() => handleDelete(deleteConfirm)}
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
