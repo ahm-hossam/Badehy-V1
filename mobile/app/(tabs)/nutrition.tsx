@@ -362,14 +362,29 @@ export default function NutritionTab() {
                   
                   return (
                     <View key={macro.key} style={styles.macroChartItem}>
-                      <View style={styles.pieChartContainer}>
-                        <View style={[styles.pieChart, { backgroundColor: macro.color }]}>
-                          <View style={styles.pieChartInner}>
-                            <Text style={styles.pieChartText}>{Math.round(percentage)}%</Text>
-                          </View>
-                        </View>
-                        <View style={styles.pieChartCenter}>
-                          <Text style={styles.pieChartPercentage}>{Math.round(percentage)}%</Text>
+                      <View style={styles.chartContainer}>
+                        {/* Background Circle */}
+                        <View style={styles.chartBackground} />
+                        
+                        {/* Progress Circle */}
+                        {percentage > 0 && (
+                          <View 
+                            style={[
+                              styles.chartProgress,
+                              {
+                                borderTopColor: macro.color,
+                                borderRightColor: percentage > 25 ? macro.color : 'transparent',
+                                borderBottomColor: percentage > 50 ? macro.color : 'transparent',
+                                borderLeftColor: percentage > 75 ? macro.color : 'transparent',
+                                transform: [{ rotate: `${-90 + (percentage * 3.6)}deg` }]
+                              }
+                            ]}
+                          />
+                        )}
+                        
+                        {/* Center Content */}
+                        <View style={styles.chartCenter}>
+                          <Text style={styles.chartPercentage}>{Math.round(percentage)}%</Text>
                         </View>
                       </View>
                       <Text style={styles.macroChartLabel}>{macro.label}</Text>
@@ -425,9 +440,9 @@ export default function NutritionTab() {
                           {/* Right: Meal Info - Full Width */}
                           <View style={styles.mealInfoFullWidth}>
                             <Text style={[styles.mealTitle, isCompleted && styles.mealTitleCompleted]}>
-                              {meal.cheatDescription || 'Cheat Meal'}
+                              Cheat Meal
                             </Text>
-                            <Text style={styles.mealSubtitle}>Enjoy your treat!</Text>
+                            <Text style={styles.mealSubtitle}>{meal.cheatDescription || 'Enjoy your treat!'}</Text>
                             {isCompleted && (
                               <View style={styles.completedBadge}>
                                 <Ionicons name="checkmark-circle" size={16} color="#10B981" />
@@ -545,10 +560,10 @@ export default function NutritionTab() {
                   </View>
                   
                   <Text style={styles.bottomSheetMealTitle}>
-                    {selectedMeal.cheatDescription || 'Cheat Meal'}
+                    Cheat Meal
                   </Text>
                   <Text style={styles.bottomSheetMealSubtitle}>
-                    Enjoy your treat! No nutritional tracking needed.
+                    {selectedMeal.cheatDescription || 'Enjoy your treat! No nutritional tracking needed.'}
                   </Text>
                 </View>
               ) : (
@@ -705,7 +720,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#111827',
     marginTop: 16,
     marginBottom: 8,
@@ -743,31 +758,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
   },
-  pieChartContainer: {
+  chartContainer: {
     position: 'relative',
-    marginBottom: 8,
+    width: 56,
+    height: 56,
+    marginBottom: 12,
+    alignSelf: 'center',
   },
-  pieChart: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
+  chartBackground: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 4,
+    borderColor: '#F3F4F6',
   },
-  pieChartInner: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
+  chartProgress: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 4,
+    borderColor: 'transparent',
   },
-  pieChartText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#374151',
-  },
-  pieChartCenter: {
+  chartCenter: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -776,14 +790,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  pieChartPercentage: {
+  chartPercentage: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#111827',
+    color: '#374151',
   },
   macroChartLabel: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
     color: '#111827',
     marginBottom: 4,
     textAlign: 'center',
