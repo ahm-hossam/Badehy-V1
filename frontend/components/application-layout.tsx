@@ -47,6 +47,7 @@ import {
   CurrencyDollarIcon,
   HeartIcon,
   ChartBarIcon,
+  BellIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -475,6 +476,11 @@ export function ApplicationLayout({
               <NutritionCollapsible pathname={pathname} />
               {/* Reports collapsible section */}
               <ReportsCollapsible pathname={pathname} />
+              
+              <SidebarItem href="/notifications" current={pathname === '/notifications'}>
+                <BellIcon />
+                <SidebarLabel>Notifications</SidebarLabel>
+              </SidebarItem>
             </SidebarSection>
 
             <SidebarSection className="max-lg:hidden">

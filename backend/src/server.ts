@@ -28,6 +28,7 @@ import servicesRoute from './routes/services';
 import leadsRoute from './routes/leads';
 import supportRoute from './routes/support';
 import financeRoute from './routes/finance';
+import notificationsRoute from './routes/notifications';
 import mobileAuthRoute from './routes/mobile-auth';
 import mobileProgramsRoute from './routes/mobile-programs';
 import mobileNutritionRoute from './routes/mobile-nutrition';
@@ -86,6 +87,7 @@ app.use('/api/services', servicesRoute);
 app.use('/api/leads', leadsRoute);
 app.use('/api/support', supportRoute);
 app.use('/api/finance', financeRoute);
+app.use('/api/notifications', notificationsRoute);
 // Mobile endpoints
 app.use('/mobile', mobileAuthRoute);
 app.use('/mobile', mobileProgramsRoute);

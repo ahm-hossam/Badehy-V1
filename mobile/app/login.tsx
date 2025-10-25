@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useRouter } from 'expo-router';
+import NotificationService from '../services/NotificationService';
 
-const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
+const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -14,6 +15,22 @@ export default function LoginScreen() {
   const remoteLogo = process.env.EXPO_PUBLIC_LOGO_URL;
   const logoSource: any = remoteLogo ? { uri: remoteLogo } : require('../assets/logo.png');
 
+  const registerPushNotifications = async (clientId: number) => {
+    try {
+      // Register for push notifications
+      const pushToken = await NotificationService.registerForPushNotifications();
+      
+      if (pushToken) {
+        // Register token with backend
+        await NotificationService.registerTokenWithBackend(clientId, pushToken);
+        console.log('Push notifications registered successfully');
+      }
+    } catch (error) {
+      console.error('Error registering push notifications:', error);
+      // Don't block the login flow if push notification registration fails
+    }
+  };
+
   const checkFormCompletion = async () => {
     try {
       const token = (globalThis as any).ACCESS_TOKEN;
@@ -24,6 +41,11 @@ export default function LoginScreen() {
       const data = await response.json();
       
       if (response.ok) {
+        // Register push notifications after successful authentication
+        if (data.clientId) {
+          registerPushNotifications(data.clientId);
+        }
+        
         if (data.completed) {
           // Form already completed, go to main app
           router.replace('/(tabs)/home');

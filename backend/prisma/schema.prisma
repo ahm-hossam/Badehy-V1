@@ -39,6 +39,7 @@ model Registered {
   tasks                      Task[]
   teamMembers                TeamMember[]
   trainerClients             TrainerClient[]
+  notifications              Notification[]
 }
 
 model TrainerClient {
@@ -89,6 +90,9 @@ model TrainerClient {
   workoutSessions       WorkoutSession[]
   // Back relation for ClientAuth one-to-one credentials
   clientAuth            ClientAuth?
+  // Notification relations
+  notificationRecipients NotificationRecipient[]
+  pushToken             PushToken?
 
   @@index([trainerId])
 }
@@ -907,4 +911,51 @@ model ExerciseCompletion {
 
   @@index([sessionId])
   @@index([exerciseId])
+}
+
+model Notification {
+  id          Int                     @id @default(autoincrement())
+  trainerId   Int
+  title       String
+  message     String
+  type        String                  @default("general") // general, workout, nutrition, program_update
+  sentAt      DateTime                @default(now())
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  trainer     Registered              @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  recipients  NotificationRecipient[]
+
+  @@index([trainerId])
+  @@index([sentAt])
+}
+
+model NotificationRecipient {
+  id             Int          @id @default(autoincrement())
+  notificationId Int
+  clientId       Int
+  status         String       @default("sent") // sent, delivered, failed
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model PushToken {
+  id        Int           @id @default(autoincrement())
+  clientId  Int           @unique
+  token     String        @unique
+  platform  String        // ios, android
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  client    TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([token])
 }
