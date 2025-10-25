@@ -11,7 +11,9 @@ import {
   ClockIcon,
   UserGroupIcon,
   MagnifyingGlassIcon,
-  PaperAirplaneIcon
+  PaperAirplaneIcon,
+  ArrowPathIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { Button } from '../../../components/button';
 import { Heading } from '../../../components/heading';
@@ -92,6 +94,9 @@ export default function NotificationsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<Notification | null>(null);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -199,6 +204,79 @@ export default function NotificationsPage() {
     }
   };
 
+  const handleResendNotification = async (notification: Notification) => {
+    if (!user) return;
+
+    setResending(true);
+    setError(null);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/notifications/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainerId: user.id,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          clientIds: notification.recipients.map(r => r.clientId)
+        }),
+      });
+
+      if (response.ok) {
+        console.log('Notification resent successfully');
+        // Refresh notifications
+        fetchNotifications(user.id);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to resend notification');
+      }
+    } catch (error) {
+      console.error('Error resending notification:', error);
+      setError('Failed to resend notification');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleDeleteNotification = async (notification: Notification) => {
+    if (!user) return;
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/notifications/${notification.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainerId: user.id
+        }),
+      });
+
+      if (response.ok) {
+        console.log('Notification deleted successfully');
+        // Refresh notifications
+        fetchNotifications(user.id);
+        setDeleteConfirm(null);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to delete notification');
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      setError('Failed to delete notification');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleSelectAllClients = (checked: boolean) => {
     setSelectAll(checked);
     if (checked) {
@@ -262,18 +340,34 @@ export default function NotificationsPage() {
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <Heading>Notifications</Heading>
-          <Text>Send notifications to your clients and view delivery history</Text>
+      <div className="mb-8">
+        <Heading>Notifications</Heading>
+        <Text>Send notifications to your clients and view delivery history</Text>
+      </div>
+
+      {/* Search and Add Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search notifications..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
         </div>
-        <Button 
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2"
-        >
-          <PlusIcon className="w-4 h-4" />
-          Send Notification
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4"
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Send Notification
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -281,19 +375,6 @@ export default function NotificationsPage() {
           <Text className="text-red-800">{error}</Text>
         </div>
       )}
-
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Search notifications..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
 
       {/* Notifications Table */}
       <div className="bg-white shadow-sm ring-1 ring-gray-950/5 rounded-lg">
@@ -304,13 +385,15 @@ export default function NotificationsPage() {
               <TableHeader>Type</TableHeader>
               <TableHeader>Recipients</TableHeader>
               <TableHeader>Delivery Rate</TableHeader>
+              <TableHeader>Opened Rate</TableHeader>
               <TableHeader>Sent At</TableHeader>
+              <TableHeader className="text-right">Actions</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredNotifications.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12">
+                      <TableCell colSpan={7} className="text-center py-12">
                   <BellIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <Text className="text-gray-500">
                     {searchTerm ? 'No notifications found matching your search.' : 'No notifications sent yet.'}
@@ -328,14 +411,11 @@ export default function NotificationsPage() {
             ) : (
               filteredNotifications.map((notification) => (
                 <TableRow key={notification.id}>
-                  <TableCell>
-                    <div>
-                      <Text className="font-medium">{notification.title}</Text>
-                      <Text className="text-sm text-gray-500 mt-1">
-                        {notification.message.length > 100 
-                          ? `${notification.message.substring(0, 100)}...` 
-                          : notification.message
-                        }
+                  <TableCell className="max-w-md">
+                    <div className="space-y-1">
+                      <Text className="font-medium text-gray-900">{notification.title}</Text>
+                      <Text className="text-sm text-gray-600 break-words whitespace-pre-wrap leading-relaxed">
+                        {notification.message}
                       </Text>
                     </div>
                   </TableCell>
@@ -349,18 +429,36 @@ export default function NotificationsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full" 
-                          style={{ width: `${notification.stats.deliveryRate}%` }}
-                        ></div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-green-500 h-2 rounded-full" 
+                            style={{ width: `${notification.stats.deliveryRate}%` }}
+                          ></div>
+                        </div>
+                        <Text className="text-sm">{notification.stats.deliveryRate}%</Text>
                       </div>
-                      <Text className="text-sm">{notification.stats.deliveryRate}%</Text>
+                      <Text className="text-xs text-gray-500">
+                        {notification.stats.delivered} delivered, {notification.stats.failed} failed
+                      </Text>
                     </div>
-                    <Text className="text-xs text-gray-500 mt-1">
-                      {notification.stats.delivered} delivered, {notification.stats.failed} failed
-                    </Text>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full" 
+                            style={{ width: `${notification.stats.openedRate || 0}%` }}
+                          ></div>
+                        </div>
+                        <Text className="text-sm">{notification.stats.openedRate || 0}%</Text>
+                      </div>
+                      <Text className="text-xs text-gray-500">
+                        {notification.stats.opened || 0} opened, {notification.stats.delivered - (notification.stats.opened || 0)} unopened
+                      </Text>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Text className="text-sm">
@@ -370,6 +468,25 @@ export default function NotificationsPage() {
                         minute: '2-digit' 
                       })}
                     </Text>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end space-x-2">
+                      <button
+                        onClick={() => handleResendNotification(notification)}
+                        disabled={resending}
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded p-1 transition-colors"
+                        title="Resend Notification"
+                      >
+                        <ArrowPathIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(notification)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
+                        title="Delete Notification"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -452,10 +569,8 @@ export default function NotificationsPage() {
                       <Text className="text-sm text-gray-500">{client.email}</Text>
                     </div>
                     <div className="flex items-center gap-2">
-                      {client.pushToken?.isActive ? (
+                      {client.pushToken?.isActive && (
                         <Badge color="green" className="text-xs">Push Enabled</Badge>
-                      ) : (
-                        <Badge color="gray" className="text-xs">No Push Token</Badge>
                       )}
                     </div>
                   </div>
@@ -466,7 +581,7 @@ export default function NotificationsPage() {
         </DialogBody>
         <DialogActions>
           <Button 
-            variant="outline" 
+            outline
             onClick={() => setIsCreateModalOpen(false)}
             disabled={sending}
           >
@@ -491,6 +606,47 @@ export default function NotificationsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed top-0 left-0 right-0 bg-black/50 z-40 animate-in fade-in duration-200"
+            style={{ height: '100vh' }}
+          />
+          
+          {/* Dialog */}
+          <div 
+            className="fixed top-0 left-0 right-0 flex items-center justify-center z-50 animate-in fade-in duration-200"
+            style={{ height: '100vh' }}
+          >
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl animate-in zoom-in-95 duration-200">
+              <Heading level={3} className="text-gray-900 mb-4">
+                Delete Notification
+              </Heading>
+              <Text className="text-gray-600 mb-6">
+                Are you sure you want to delete "{deleteConfirm.title}"? This action cannot be undone.
+              </Text>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  outline
+                  onClick={() => setDeleteConfirm(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="red"
+                  onClick={() => handleDeleteNotification(deleteConfirm)}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

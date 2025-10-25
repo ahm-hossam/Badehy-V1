@@ -44,9 +44,10 @@ router.get('/', async (req, res) => {
     // Calculate delivery statistics for each notification
     const notificationsWithStats = notifications.map(notification => {
       const totalRecipients = notification.recipients.length;
-      const delivered = notification.recipients.filter(r => r.status === 'delivered').length;
+      const delivered = notification.recipients.filter(r => r.status === 'delivered' || r.status === 'sent').length;
       const failed = notification.recipients.filter(r => r.status === 'failed').length;
       const sent = notification.recipients.filter(r => r.status === 'sent').length;
+      const opened = notification.recipients.filter(r => r.readAt !== null).length;
 
       return {
         ...notification,
@@ -55,7 +56,9 @@ router.get('/', async (req, res) => {
           delivered,
           failed,
           sent,
-          deliveryRate: totalRecipients > 0 ? Math.round((delivered / totalRecipients) * 100) : 0
+          opened,
+          deliveryRate: totalRecipients > 0 ? Math.round((delivered / totalRecipients) * 100) : 0,
+          openedRate: delivered > 0 ? Math.round((opened / delivered) * 100) : 0
         }
       };
     });
@@ -418,6 +421,45 @@ router.post('/test-push/:clientId', async (req, res) => {
   } catch (error) {
     console.error('Error simulating push notification:', error);
     res.status(500).json({ error: 'Failed to simulate push notification' });
+  }
+});
+
+// Delete a notification
+router.delete('/:notificationId', async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const { trainerId } = req.body;
+
+    if (!trainerId) {
+      return res.status(400).json({ error: 'Trainer ID is required' });
+    }
+
+    // Verify the notification belongs to the trainer
+    const notification = await prisma.notification.findFirst({
+      where: {
+        id: Number(notificationId),
+        trainerId: Number(trainerId)
+      }
+    });
+
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found or access denied' });
+    }
+
+    // Delete the notification (this will cascade delete recipients due to foreign key constraints)
+    await prisma.notification.delete({
+      where: {
+        id: Number(notificationId)
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Notification deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting notification:', error);
+    res.status(500).json({ error: 'Failed to delete notification' });
   }
 });
 
