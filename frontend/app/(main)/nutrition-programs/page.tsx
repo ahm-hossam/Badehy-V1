@@ -24,7 +24,7 @@ import {
   CalendarIcon,
   ClockIcon,
   DocumentDuplicateIcon,
-  EyeIcon
+  DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -152,6 +152,58 @@ export default function NutritionProgramsPage() {
     }
   };
 
+  const handleExportPDF = async (program: NutritionProgram) => {
+    try {
+      setLoading(true);
+      
+      // Call the backend API to generate PDF
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      console.log('Exporting PDF for program:', program.id, 'API URL:', apiUrl);
+      
+        const response = await fetch(`${apiUrl}/api/nutrition-programs/${program.id}/export-pdf?t=${Date.now()}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+          },
+        });
+
+      console.log('PDF export response status:', response.status);
+
+      if (response.ok) {
+        // Get the HTML content
+        const htmlContent = await response.text();
+        console.log('Received HTML content, length:', htmlContent.length);
+        
+        // Create a new window with the HTML content
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+          newWindow.document.write(htmlContent);
+          newWindow.document.close();
+          
+          // Add print functionality
+          newWindow.onload = () => {
+            newWindow.print();
+          };
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('PDF export error response:', errorText);
+        try {
+          const data = JSON.parse(errorText);
+          setError(data.error || "Failed to export PDF.");
+        } catch {
+          setError(errorText || "Failed to export PDF.");
+        }
+      }
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      setError("Failed to export PDF. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getDurationText = (program: NutritionProgram) => {
     if (program.programDuration && program.durationUnit) {
       return `${program.programDuration} ${program.durationUnit}`;
@@ -194,15 +246,17 @@ export default function NutritionProgramsPage() {
       )}
 
       {/* Search and Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <Input
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="relative flex-1 max-w-sm">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
             type="text"
             placeholder="Search nutrition programs..."
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10"
+            className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
       </div>
@@ -289,11 +343,11 @@ export default function NutritionProgramsPage() {
                   <TableCell>
                     <div className="flex items-center justify-end space-x-2">
                       <button
-                        onClick={() => router.push(`/nutrition-programs/${program.id}`)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="View Program"
+                        onClick={() => handleExportPDF(program)}
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded p-1 transition-colors"
+                        title="Export PDF"
                       >
-                        <EyeIcon className="w-4 h-4" />
+                        <DocumentArrowDownIcon className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => router.push(`/nutrition-programs/create?id=${program.id}`)}
