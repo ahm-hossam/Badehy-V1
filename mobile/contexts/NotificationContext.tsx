@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import NotificationBanner from '../components/NotificationBanner';
+import NotificationEventService from '../services/NotificationEventService';
 
 interface Notification {
   id: string;
@@ -71,38 +71,48 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   const handleNotificationTap = () => {
     if (currentNotification) {
-      console.log('Notification tapped:', currentNotification);
-      // Handle navigation based on notification type
-      switch (currentNotification.type) {
-        case 'workout':
-          // Navigate to workout tab
-          console.log('Navigate to workout');
-          break;
-        case 'nutrition':
-          // Navigate to nutrition tab
-          console.log('Navigate to nutrition');
-          break;
-        default:
-          console.log('General notification tapped');
-          break;
-      }
+      console.log('👆 Notification banner tapped:', currentNotification.title);
+      // Emit event to open notification detail
+      NotificationEventService.emit('openNotificationDetail', {
+        id: parseInt(currentNotification.id),
+        title: currentNotification.title,
+        message: currentNotification.message,
+        type: currentNotification.type,
+        sentAt: new Date().toISOString(),
+        readAt: null
+      });
     }
   };
 
   // Track shown notifications to prevent duplicates
   const [shownNotificationIds, setShownNotificationIds] = useState<Set<number>>(new Set());
+  
+  // Clear shown notifications when app starts (to show banners for existing notifications)
+  useEffect(() => {
+    setShownNotificationIds(new Set());
+  }, []);
 
   // Poll for new notifications and show them as banners
   useEffect(() => {
     const pollForNotifications = async () => {
       try {
-        const token = await AsyncStorage.getItem('clientToken');
-        if (!token) return;
+        const token = (globalThis as any).ACCESS_TOKEN;
+        if (!token) {
+          console.log('🔐 No client token found, skipping notification poll');
+          return;
+        }
 
-        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000'}/api/notifications/client/2`);
+        // Get client ID from token or use default
+        const clientId = 2; // For now, hardcoded to match test client
+        console.log('🔄 Polling for notifications for client:', clientId);
+        
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000'}/api/notifications/client/${clientId}`);
+        console.log('📡 Poll response status:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
           const notifications = data.notifications || [];
+          console.log('📬 Found notifications:', notifications.length);
           
           // Find the latest unread notification
           const latestUnread = notifications
@@ -110,22 +120,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             .sort((a: any, b: any) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())[0];
 
           if (latestUnread && !shownNotificationIds.has(latestUnread.id)) {
-            console.log('📬 Found new notification:', latestUnread.title);
+            console.log('📬 Found unread notification:', latestUnread.title);
             showNotification({
               title: latestUnread.title,
               message: latestUnread.message,
               type: latestUnread.type,
             });
             setShownNotificationIds(prev => new Set([...prev, latestUnread.id]));
+          } else {
+            console.log('📬 No new unread notifications found');
           }
+        } else {
+          console.log('❌ Poll response not ok:', response.status);
         }
       } catch (error) {
         console.error('Error polling for notifications:', error);
       }
     };
 
-    // Poll every 10 seconds
-    const interval = setInterval(pollForNotifications, 10000);
+    // Poll every 30 seconds instead of 5 seconds to reduce lag
+    const interval = setInterval(pollForNotifications, 30000);
     
     // Initial poll
     pollForNotifications();

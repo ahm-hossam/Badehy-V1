@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Notification {
   id: string;
@@ -20,9 +21,17 @@ const { width } = Dimensions.get('window');
 
 export default function NotificationBanner({ notification, isVisible, onDismiss, onTap }: NotificationBannerProps) {
   const [slideAnim] = useState(new Animated.Value(-100));
+  const insets = useSafeAreaInsets();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     console.log('🎨 NotificationBanner useEffect:', { isVisible, hasNotification: !!notification, title: notification?.title });
+    
+    // Clear any existing timer
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
     
     if (isVisible && notification) {
       console.log('📱 Showing notification banner:', notification.title);
@@ -35,12 +44,10 @@ export default function NotificationBanner({ notification, isVisible, onDismiss,
       }).start();
 
       // Auto dismiss after 4 seconds
-      const timer = setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         console.log('⏰ Auto-dismissing notification banner');
         handleDismiss();
       }, 4000);
-
-      return () => clearTimeout(timer);
     } else if (!isVisible) {
       console.log('📱 Hiding notification banner');
       // Slide up when not visible
@@ -51,20 +58,43 @@ export default function NotificationBanner({ notification, isVisible, onDismiss,
         friction: 8,
       }).start();
     }
+
+    // Cleanup function
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
   }, [isVisible, notification]);
 
   const handleDismiss = () => {
+    console.log('🚫 Banner dismiss button pressed');
+    // Clear timer if it exists
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    
     Animated.spring(slideAnim, {
       toValue: -100,
       useNativeDriver: true,
       tension: 100,
       friction: 8,
     }).start(() => {
+      console.log('🚫 Banner animation complete, calling onDismiss');
       onDismiss();
     });
   };
 
   const handleTap = () => {
+    console.log('👆 Banner tapped');
+    // Clear timer if it exists
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    
     if (onTap) {
       onTap();
     }
@@ -84,6 +114,7 @@ export default function NotificationBanner({ notification, isVisible, onDismiss,
         styles.container,
         {
           transform: [{ translateY: slideAnim }],
+          paddingTop: insets.top + 8, // Apply safe area insets
         },
       ]}
     >
@@ -105,13 +136,17 @@ export default function NotificationBanner({ notification, isVisible, onDismiss,
           </Text>
         </View>
 
-        <TouchableOpacity
+        <Pressable
           style={styles.dismissButton}
-          onPress={handleDismiss}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={(e) => {
+            console.log('🚫 Close button pressed!');
+            e.stopPropagation();
+            handleDismiss();
+          }}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         >
           <Ionicons name="close" size={20} color="#fff" />
-        </TouchableOpacity>
+        </Pressable>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -120,7 +155,7 @@ export default function NotificationBanner({ notification, isVisible, onDismiss,
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 60, // Below status bar with more padding
+    top: 0, // Will use paddingTop from insets
     left: 16,
     right: 16,
     zIndex: 99999, // Higher z-index
@@ -166,7 +201,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   dismissButton: {
-    padding: 4,
+    padding: 12,
     marginLeft: 8,
+    borderRadius: 20,
+    backgroundColor: 'transparent', // Removed background
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

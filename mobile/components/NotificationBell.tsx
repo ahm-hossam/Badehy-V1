@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal, ScrollView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import NotificationEventService from '../services/NotificationEventService';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -263,6 +264,20 @@ export default function NotificationBell({ clientId = 2 }: NotificationBellProps
     
     return () => clearInterval(interval);
   }, [clientId]);
+
+  // Listen for banner tap events
+  useEffect(() => {
+    const handleBannerTap = (notificationData: any) => {
+      console.log('🔔 Received banner tap event:', notificationData.title);
+      openNotificationDetail(notificationData);
+    };
+    
+    NotificationEventService.subscribe('openNotificationDetail', handleBannerTap);
+    
+    return () => {
+      NotificationEventService.unsubscribe('openNotificationDetail', handleBannerTap);
+    };
+  }, []);
 
   // Refresh notifications when modal closes to update badge count
   useEffect(() => {
@@ -577,8 +592,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   unreadNotification: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#4F46E5',
+    // Removed left border - no special styling for unread notifications
   },
   processingNotification: {
     opacity: 0.6,
