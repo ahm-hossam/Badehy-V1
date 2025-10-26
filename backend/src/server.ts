@@ -29,6 +29,7 @@ import leadsRoute from './routes/leads';
 import supportRoute from './routes/support';
 import financeRoute from './routes/finance';
 import notificationsRoute from './routes/notifications';
+import workflowsRoute from './routes/workflows';
 import mobileAuthRoute from './routes/mobile-auth';
 import mobileProgramsRoute from './routes/mobile-programs';
 import mobileNutritionRoute from './routes/mobile-nutrition';
@@ -37,6 +38,7 @@ import mobileWorkoutSessionsRoute from './routes/mobile-workout-sessions';
 import ingredientsRoute from './routes/ingredients';
 import mealsRoute from './routes/meals';
 import pdfExportRoute from './routes/pdf-export';
+import workflowProcessor from './jobs/workflowProcessor';
 
 // Always load .env from the project root
 const envPath = path.resolve(__dirname, '../../.env');
@@ -88,6 +90,7 @@ app.use('/api/leads', leadsRoute);
 app.use('/api/support', supportRoute);
 app.use('/api/finance', financeRoute);
 app.use('/api/notifications', notificationsRoute);
+app.use('/api/workflows', workflowsRoute);
 // Mobile endpoints
 app.use('/mobile', mobileAuthRoute);
 app.use('/mobile', mobileProgramsRoute);
@@ -113,8 +116,23 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`Server is running on 127.0.0.1:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on 0.0.0.0:${PORT}`);
+  console.log(`Server accessible at http://localhost:${PORT} and http://[your-local-ip]:${PORT}`);
+  
+  // Start workflow processor
+  workflowProcessor.start();
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  workflowProcessor.stop();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  workflowProcessor.stop();
+  process.exit(0);
 }); 

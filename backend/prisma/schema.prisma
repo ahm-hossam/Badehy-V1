@@ -40,6 +40,7 @@ model Registered {
   teamMembers                TeamMember[]
   trainerClients             TrainerClient[]
   notifications              Notification[]
+  workflows                  Workflow[]
 }
 
 model TrainerClient {
@@ -93,6 +94,7 @@ model TrainerClient {
   // Notification relations
   notificationRecipients NotificationRecipient[]
   pushToken             PushToken?
+  workflowExecutions    WorkflowExecution[]
 
   @@index([trainerId])
 }
@@ -108,10 +110,14 @@ model Package {
   discountType    String?
   discountValue   Float?
   priceAfterDisc  Float?
+  // Workflow fields
+  followUpDays    Int?           // Days between follow-ups
+  followUpFormId  Int?           // Form to send for follow-ups
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   trainer         Registered     @relation(fields: [trainerId], references: [id])
   subscriptions   Subscription[]
+  workflows       Workflow[]     // Workflows associated with this package
 
   @@unique([trainerId, name])
   @@index([trainerId])
@@ -958,4 +964,60 @@ model PushToken {
 
   @@index([clientId])
   @@index([token])
+}
+
+// ===== WORKFLOW SYSTEM =====
+
+model Workflow {
+  id          Int                @id @default(autoincrement())
+  trainerId   Int
+  packageId   Int?
+  name        String
+  description String?
+  isActive    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  
+  trainer     Registered         @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  package     Package?          @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  steps       WorkflowStep[]
+  executions  WorkflowExecution[]
+
+  @@index([trainerId])
+  @@index([packageId])
+  @@index([isActive])
+}
+
+model WorkflowStep {
+  id          Int                @id @default(autoincrement())
+  workflowId  Int
+  stepType    String             // 'form', 'wait', 'notification'
+  stepOrder   Int                // Order of execution (1, 2, 3...)
+  config      String             // JSON configuration for the step
+  createdAt   DateTime           @default(now())
+  
+  workflow    Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  executions  WorkflowExecution[] // Current executions at this step
+
+  @@index([workflowId])
+  @@index([stepOrder])
+}
+
+model WorkflowExecution {
+  id            Int           @id @default(autoincrement())
+  workflowId    Int
+  clientId      Int
+  currentStepId Int?
+  status        String        // 'active', 'paused', 'completed', 'cancelled'
+  startedAt     DateTime      @default(now())
+  completedAt   DateTime?
+  lastStepAt    DateTime?     // When last step was executed
+  
+  workflow      Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  currentStep   WorkflowStep? @relation(fields: [currentStepId], references: [id])
+
+  @@index([workflowId])
+  @@index([clientId])
+  @@index([status])
 }
