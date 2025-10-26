@@ -48,6 +48,7 @@ import {
   HeartIcon,
   ChartBarIcon,
   BellIcon,
+  CogIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -480,6 +481,10 @@ export function ApplicationLayout({
               <SidebarItem href="/notifications" current={pathname === '/notifications'}>
                 <BellIcon />
                 <SidebarLabel>Notifications</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/workflows" current={pathname === '/workflows'}>
+                <CogIcon />
+                <SidebarLabel>Workflows</SidebarLabel>
               </SidebarItem>
             </SidebarSection>
 

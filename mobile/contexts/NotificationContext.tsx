@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import NotificationBanner from '../components/NotificationBanner';
 import NotificationEventService from '../services/NotificationEventService';
 
@@ -33,7 +33,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const [isVisible, setIsVisible] = useState(false);
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
 
-  const showNotification = (notification: Omit<Notification, 'id'>) => {
+  const showNotification = useCallback((notification: Omit<Notification, 'id'>) => {
     console.log('🎯 showNotification called:', notification.title);
     
     const id = Date.now().toString();
@@ -58,7 +58,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       setCurrentNotification(null);
     }, 4000);
     setTimeoutId(newTimeoutId);
-  };
+  }, [timeoutId]);
 
   const clearNotification = () => {
     setIsVisible(false);
@@ -102,11 +102,31 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           return;
         }
 
-        // Get client ID from token or use default
-        const clientId = 2; // For now, hardcoded to match test client
-        console.log('🔄 Polling for notifications for client:', clientId);
+        // Get client ID from /mobile/me endpoint
+        const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.6.126:4000';
+        let clientId: number | undefined;
         
-        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000'}/api/notifications/client/${clientId}`);
+        try {
+          const meRes = await fetch(`${API_URL}/mobile/me`, { 
+            headers: { Authorization: `Bearer ${token}` } 
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            clientId = meData.client?.id;
+            console.log('🔄 Got client ID from /mobile/me:', clientId);
+          }
+        } catch (e) {
+          console.log('⚠️ Failed to get client ID from /mobile/me, using fallback');
+          clientId = 1; // Fallback for testing
+        }
+
+        if (!clientId) {
+          console.log('⚠️ No client ID available, skipping notification poll');
+          return;
+        }
+
+        console.log('🔄 Polling for notifications for client:', clientId);
+        const response = await fetch(`${API_URL}/api/notifications/client/${clientId}`);
         console.log('📡 Poll response status:', response.status);
         
         if (response.ok) {
@@ -115,20 +135,32 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           console.log('📬 Found notifications:', notifications.length);
           
           // Find the latest unread notification
-          const latestUnread = notifications
-            .filter((n: any) => !n.readAt)
+          const unreadNotifications = notifications.filter((n: any) => !n.readAt);
+          console.log('📬 Unread notifications count:', unreadNotifications.length);
+          
+          const latestUnread = unreadNotifications
             .sort((a: any, b: any) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())[0];
 
-          if (latestUnread && !shownNotificationIds.has(latestUnread.id)) {
-            console.log('📬 Found unread notification:', latestUnread.title);
-            showNotification({
+          if (latestUnread) {
+            console.log('📬 Latest unread notification:', {
+              id: latestUnread.id,
               title: latestUnread.title,
-              message: latestUnread.message,
-              type: latestUnread.type,
+              alreadyShown: shownNotificationIds.has(latestUnread.id)
             });
-            setShownNotificationIds(prev => new Set([...prev, latestUnread.id]));
+            
+            if (!shownNotificationIds.has(latestUnread.id)) {
+              console.log('📬 Showing notification banner:', latestUnread.title);
+              showNotification({
+                title: latestUnread.title,
+                message: latestUnread.message,
+                type: latestUnread.type,
+              });
+              setShownNotificationIds(prev => new Set([...prev, latestUnread.id]));
+            } else {
+              console.log('📬 Notification already shown, skipping banner');
+            }
           } else {
-            console.log('📬 No new unread notifications found');
+            console.log('📬 No unread notifications found');
           }
         } else {
           console.log('❌ Poll response not ok:', response.status);
@@ -145,7 +177,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     pollForNotifications();
 
     return () => clearInterval(interval);
-  }, [shownNotificationIds]);
+  }, [shownNotificationIds, showNotification]);
 
   return (
     <NotificationContext.Provider value={{ showNotification, clearNotification }}>
