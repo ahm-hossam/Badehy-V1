@@ -45,6 +45,7 @@ const CORE_QUESTIONS = [
   { key: 'fullName', label: 'Full Name', type: 'text', required: true },
   { key: 'email', label: 'Email', type: 'email', required: true },
   { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
+  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female'] },
 ];
 
 // Legacy GROUPS structure (kept for reference but not used in client creation)
@@ -92,7 +93,8 @@ export default function CreateClientPage() {
   const [basicInfo, setBasicInfo] = useState({
     fullName: '',
     email: '',
-    phone: ''
+    phone: '',
+    gender: ''
   });
   
   // Additional state variables needed for the new flow
@@ -893,8 +895,8 @@ export default function CreateClientPage() {
   };
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+    <div>
+      <div className="max-w-4xl">
         <h1 className="text-2xl font-bold mb-2">Create Client</h1>
         
 
