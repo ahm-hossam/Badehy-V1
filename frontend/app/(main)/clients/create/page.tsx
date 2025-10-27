@@ -523,6 +523,14 @@ export default function CreateClientPage() {
       if (!user) throw new Error("Not authenticated");
       
       // Create client with ALL form data (basic info + subscription + labels + notes)
+      console.log('=== NOTES DEBUG ===');
+      console.log('Notes being sent:', notes);
+      console.log('Notes type:', typeof notes);
+      console.log('Notes is array:', Array.isArray(notes));
+      console.log('Notes length:', notes.length);
+      if (notes.length > 0) {
+        console.log('First note:', notes[0]);
+      }
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -859,7 +867,12 @@ export default function CreateClientPage() {
       isTemp: true // Flag to identify temporary notes
     };
     
-    setNotes(prev => [tempNote, ...prev]);
+    console.log('Adding note:', tempNote);
+    setNotes(prev => {
+      const updated = [tempNote, ...prev];
+      console.log('Updated notes array:', updated);
+      return updated;
+    });
     setNewNote('');
   };
 
