@@ -45,7 +45,6 @@ const CORE_QUESTIONS = [
   { key: 'fullName', label: 'Full Name', type: 'text', required: true },
   { key: 'email', label: 'Email', type: 'email', required: true },
   { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
-  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female'] },
 ];
 
 // Legacy GROUPS structure (kept for reference but not used in client creation)
@@ -93,8 +92,7 @@ export default function CreateClientPage() {
   const [basicInfo, setBasicInfo] = useState({
     fullName: '',
     email: '',
-    phone: '',
-    gender: ''
+    phone: ''
   });
   
   // Additional state variables needed for the new flow
@@ -182,10 +180,7 @@ export default function CreateClientPage() {
     if (!user) return;
     fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/team-members?trainerId=${user.id}`)
       .then(res => res.json())
-      .then(data => {
-        console.log('Loaded team members:', data);
-        setTeamMembers(data || []);
-      })
+      .then(data => setTeamMembers(data || []))
       .catch(() => console.error("Failed to load team members."));
   }, [user]);
 
@@ -525,14 +520,6 @@ export default function CreateClientPage() {
       if (!user) throw new Error("Not authenticated");
       
       // Create client with ALL form data (basic info + subscription + labels + notes)
-      console.log('=== NOTES DEBUG ===');
-      console.log('Notes being sent:', notes);
-      console.log('Notes type:', typeof notes);
-      console.log('Notes is array:', Array.isArray(notes));
-      console.log('Notes length:', notes.length);
-      if (notes.length > 0) {
-        console.log('First note:', notes[0]);
-      }
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/clients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -559,51 +546,6 @@ export default function CreateClientPage() {
       
       if (res.ok) {
         const data = await res.json();
-        console.log('Client created successfully, selectedTeamMembers:', selectedTeamMembers);
-        
-        // Create team member assignments if any are selected
-        if (selectedTeamMembers.length > 0) {
-          console.log('Creating team assignments for:', selectedTeamMembers);
-          console.log('Available team members:', teamMembers);
-          for (const teamMemberId of selectedTeamMembers) {
-            // Handle 'me' case by sending -1 as a special marker (not the trainer's ID!)
-            const actualTeamMemberId = teamMemberId === 'me' ? -1 : Number(teamMemberId);
-            console.log('=== ASSIGNMENT DEBUG ===');
-            console.log('Raw teamMemberId from selectedTeamMembers:', teamMemberId);
-            console.log('Is "me"?:', teamMemberId === 'me');
-            console.log('User ID (trainer ID):', user.id);
-            console.log('Final actualTeamMemberId:', actualTeamMemberId);
-            console.log('Creating assignment for client:', data.client.id);
-            
-            const assignmentResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                clientId: data.client.id,
-                teamMemberId: actualTeamMemberId,
-                assignedBy: user.id,
-              }),
-            });
-            
-            if (assignmentResponse.ok) {
-              const assignmentData = await assignmentResponse.json();
-              console.log('Assignment created successfully:', assignmentData);
-            } else {
-              const errorData = await assignmentResponse.json();
-              console.error('Failed to create assignment:', errorData);
-              console.error('Error details:', {
-                teamMemberId: actualTeamMemberId,
-                clientId: data.client.id,
-                assignedBy: user.id,
-                responseStatus: assignmentResponse.status
-              });
-            }
-          }
-          console.log('All team assignments created successfully');
-        } else {
-          console.log('No team members selected for assignment');
-        }
-        
         // Redirect to clients list with success message
         router.push('/clients?success=Client created successfully!');
       } else {
@@ -722,7 +664,6 @@ export default function CreateClientPage() {
       });
               if (res.ok) {
           const data = await res.json();
-          console.log('Client created successfully, selectedTeamMembers:', selectedTeamMembers);
           
           // Create team member assignments if any are selected
           if (selectedTeamMembers.length > 0) {
@@ -748,12 +689,8 @@ export default function CreateClientPage() {
               } else {
                 const errorData = await assignmentResponse.json();
                 console.error('Failed to create assignment:', errorData);
-                throw new Error(`Failed to create assignment: ${errorData.error || 'Unknown error'}`);
               }
             }
-            console.log('All team assignments created successfully');
-          } else {
-            console.log('No team members selected for assignment');
           }
           
           // If a transaction image was selected and payment status is paid, upload it
@@ -766,17 +703,13 @@ export default function CreateClientPage() {
               body: formDataImg,
             });
           }
-          
-          console.log('Redirecting to clients list...');
           router.push("/clients?created=1");
         } else {
         const data = await res.json();
         setError(data.error || "Failed to create client.");
       }
     } catch (err) {
-      console.error('Error creating client or assignments:', err);
-      const errorMessage = err instanceof Error ? err.message : "Network error. Please try again.";
-      setError(errorMessage);
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -869,12 +802,7 @@ export default function CreateClientPage() {
       isTemp: true // Flag to identify temporary notes
     };
     
-    console.log('Adding note:', tempNote);
-    setNotes(prev => {
-      const updated = [tempNote, ...prev];
-      console.log('Updated notes array:', updated);
-      return updated;
-    });
+    setNotes(prev => [tempNote, ...prev]);
     setNewNote('');
   };
 
@@ -895,8 +823,8 @@ export default function CreateClientPage() {
   };
 
   return (
-    <div>
-      <div className="max-w-full">
+    <div className="py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-2">Create Client</h1>
         
 
@@ -1184,50 +1112,47 @@ export default function CreateClientPage() {
             )}
 
             {/* Assign to Team Members */}
-            <div className="bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Assign to Team Members</h2>
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 mb-2">
-                  Select team members who should be assigned to this client
-                </p>
-                <div className="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto">
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded p-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedTeamMembers.includes('me')}
-                        onChange={(e) => {
-                          console.log('Me checkbox clicked, checked:', e.target.checked);
-                          if (e.target.checked) {
-                            setSelectedTeamMembers([...selectedTeamMembers, 'me']);
-                          } else {
-                            setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== 'me'));
-                          }
-                        }}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">Me (Owner)</span>
-                    </label>
-                    {teamMembers.length > 0 && teamMembers.map((member: any) => (
-                      <label key={member.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded p-2">
+            {teamMembers.length > 0 && (
+              <div className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">Assign to Team Members</h2>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Select team members who should be assigned to this client
+                  </p>
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto">
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded p-2">
                         <input
                           type="checkbox"
-                          checked={selectedTeamMembers.includes(member.id)}
+                          checked={selectedTeamMembers.includes('me')}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedTeamMembers([...selectedTeamMembers, member.id]);
+                              setSelectedTeamMembers([...selectedTeamMembers, 'me']);
                             } else {
-                              setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== member.id));
+                              setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== 'me'));
                             }
                           }}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="text-sm text-gray-700">{member.fullName || member.email}</span>
+                        <span className="text-sm text-gray-700">Me (Owner)</span>
                       </label>
-                    ))}
-                    {teamMembers.length === 0 && (
-                      <p className="text-sm text-gray-500 pt-2">No other team members available. Create team members from the Team Members section.</p>
-                    )}
+                      {teamMembers.map((member: any) => (
+                        <label key={member.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded p-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedTeamMembers.includes(member.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTeamMembers([...selectedTeamMembers, member.id]);
+                              } else {
+                                setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== member.id));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{member.fullName || member.email}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
                   {selectedTeamMembers.length > 0 && (
@@ -1239,6 +1164,7 @@ export default function CreateClientPage() {
                   )}
                 </div>
               </div>
+            )}
 
             {/* Labels */}
             <div className="bg-white rounded-xl shadow p-6">
@@ -1289,6 +1215,60 @@ export default function CreateClientPage() {
               </div>
             </div>
 
+            {/* Assign to Team Members */}
+            {teamMembers.length > 0 && (
+              <div className="bg-white rounded-xl shadow p-6">
+                <h2 className="text-lg font-semibold mb-4">Assign to Team Members</h2>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Select team members who should be assigned to this client
+                  </p>
+                  <div className="border border-gray-200 rounded-lg p-3 max-h-60 overflow-y-auto">
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded p-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedTeamMembers.includes('me')}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTeamMembers([...selectedTeamMembers, 'me']);
+                            } else {
+                              setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== 'me'));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Me (Owner)</span>
+                      </label>
+                      {teamMembers.map((member: any) => (
+                        <label key={member.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 rounded p-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedTeamMembers.includes(member.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTeamMembers([...selectedTeamMembers, member.id]);
+                              } else {
+                                setSelectedTeamMembers(selectedTeamMembers.filter(id => id !== member.id));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{member.fullName || member.email}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {selectedTeamMembers.length > 0 && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        {selectedTeamMembers.length} team member{selectedTeamMembers.length > 1 ? 's' : ''} will be assigned to this client
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Notes */}
             <div className="bg-white rounded-xl shadow p-6">

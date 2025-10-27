@@ -370,20 +370,25 @@ export default function ClientsPage() {
   }, [clients.length]);
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
           <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
           <p className="text-sm text-gray-600 mt-1">
             Manage your client relationships and information
           </p>
         </div>
+        <Button onClick={handleAddClient} className="flex items-center gap-2">
+          <PlusIcon className="h-5 w-5" />
+          Add Client
+        </Button>
+      </div>
 
-        {/* Search and Add Button */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <div className="relative flex-1 max-w-sm">
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+          <div className="relative flex-1 max-w-sm">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -407,15 +412,11 @@ export default function ClientsPage() {
               <span>Filters</span>
             </button>
           </div>
-          <Button onClick={handleAddClient} className="px-4">
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Client
-          </Button>
-        </div>
+      </div>
 
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Subscription Status</label>
@@ -484,10 +485,10 @@ export default function ClientsPage() {
               </div>
             </div>
           </div>
-        )}
+      )}
 
-        {/* Table */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+      {/* Table */}
+      <div className="bg-white shadow rounded-lg overflow-hidden">
           <Table>
             <TableHead>
               <TableRow>
@@ -647,7 +648,6 @@ export default function ClientsPage() {
             <span className="px-2 py-1 text-sm">Page {page}</span>
             <Button outline disabled={page * pageSize >= total} onClick={() => setPage(page + 1)}>Next</Button>
           </div>
-        </div>
       </div>
       {confirmDelete && (
         <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>

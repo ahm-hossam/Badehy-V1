@@ -54,7 +54,7 @@ class WorkflowExecutor {
     }
 
     // Execute the current step
-    await this.executeStep(currentStep, config, client);
+    await this.executeStep(currentStep, config, client, execution);
 
     // Check if this step should repeat
     if (await this.shouldRepeat(config, execution)) {
@@ -92,14 +92,14 @@ class WorkflowExecutor {
   }
 
   // Execute a single step based on its type
-  private async executeStep(step: any, config: StepConfig, client: any): Promise<void> {
+  private async executeStep(step: any, config: StepConfig, client: any, execution: any): Promise<void> {
     switch (step.stepType) {
       case 'audience':
         // Audience step is informational only - no action needed
         break;
 
       case 'form':
-        await this.sendForm(client, config);
+        await this.sendForm(client, config, execution);
         break;
 
       case 'notification':
@@ -120,7 +120,7 @@ class WorkflowExecutor {
   }
 
   // Send a form to the client
-  private async sendForm(client: any, config: StepConfig): Promise<void> {
+  private async sendForm(client: any, config: StepConfig, execution: any): Promise<void> {
     try {
       const formId = config.formId;
       if (!formId) {
@@ -129,7 +129,7 @@ class WorkflowExecutor {
       }
 
       // Check if form exists
-      const form = await prisma.checkIn.findUnique({
+      const form = await prisma.checkInForm.findUnique({
         where: { id: Number(formId) }
       });
 
@@ -138,28 +138,20 @@ class WorkflowExecutor {
         return;
       }
 
-      // Create a notification to tell the client to complete the form
+      // Create message
       const message = config.message || `Please complete the form: ${form.name}`;
       
-      const notification = await prisma.notification.create({
+      // Create assigned form record
+      await prisma.assignedForm.create({
         data: {
-          trainerId: client.trainerId,
-          title: 'New Form Available',
-          message: message,
-          type: 'workflow'
-        }
-      });
-
-      // Create notification recipient
-      await prisma.notificationRecipient.create({
-        data: {
-          notificationId: notification.id,
+          workflowExecutionId: execution.id,
+          formId: Number(formId),
           clientId: client.id,
-          status: 'sent'
+          message: message
         }
       });
 
-      console.log(`Form ${formId} notification sent to client ${client.id}`);
+      console.log(`Form ${formId} assigned to client ${client.id}`);
     } catch (error) {
       console.error('Error sending form:', error);
     }

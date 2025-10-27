@@ -229,6 +229,24 @@ router.post('/submit', authMiddleware, async (req: any, res: any) => {
       }
     });
 
+    // Mark any assigned forms as completed
+    try {
+      await prisma.assignedForm.updateMany({
+        where: {
+          clientId: clientId,
+          formId: formId,
+          completedAt: null
+        },
+        data: {
+          completedAt: new Date()
+        }
+      });
+      console.log(`Marked assigned forms as completed for client ${clientId}, form ${formId}`);
+    } catch (error) {
+      console.error('Error marking assigned form as completed:', error);
+      // Don't fail the submission if this fails
+    }
+
     // Trigger workflow processing for any workflows waiting for this form submission
     try {
       const activeExecutions = await prisma.workflowExecution.findMany({
@@ -292,6 +310,47 @@ router.post('/draft', authMiddleware, async (req: any, res: any) => {
   } catch (error) {
     console.error('Error saving draft:', error);
     res.status(500).json({ error: 'Failed to save draft' });
+  }
+});
+
+// GET /mobile/forms/assigned - Get pending assigned forms for the client
+router.get('/assigned', authMiddleware, async (req: any, res: any) => {
+  try {
+    const clientId = req.user.clientId;
+    
+    // Get all pending assigned forms for this client
+    const assignedForms = await prisma.assignedForm.findMany({
+      where: {
+        clientId: clientId,
+        completedAt: null // Only pending forms
+      },
+      include: {
+        form: {
+          include: {
+            questions: {
+              orderBy: { order: 'asc' }
+            }
+          }
+        },
+        workflowExecution: {
+          include: {
+            workflow: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        assignedAt: 'asc' // Oldest first
+      }
+    });
+    
+    res.json({ forms: assignedForms });
+  } catch (error) {
+    console.error('Error fetching assigned forms:', error);
+    res.status(500).json({ error: 'Failed to fetch assigned forms' });
   }
 });
 

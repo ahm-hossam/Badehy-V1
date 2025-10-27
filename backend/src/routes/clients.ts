@@ -181,7 +181,9 @@ router.post('/', async (req: Request, res: Response) => {
         }
       }
       // 1b. Create notes if provided
+      console.log('Notes received in backend:', notes);
       if (Array.isArray(notes) && notes.length > 0) {
+        console.log('Creating', notes.length, 'notes');
         for (const note of notes) {
           await tx.note.create({
             data: {
@@ -412,13 +414,23 @@ router.post('/', async (req: Request, res: Response) => {
           }
         } catch (e) { console.warn('Failed to create summed income for installments (create client):', e) }
       }
+      // Fetch the client with all relations to return complete data
+      const clientWithRelations = await tx.trainerClient.findUnique({
+        where: { id: createdClient.id },
+        include: {
+          notes: true,
+          labels: true,
+        },
+      });
+      
       return {
-        client: createdClient,
+        client: clientWithRelations,
         subscription: createdSubscription,
         installments: createdInstallments,
         appAccessTempPassword: tempPassword,
       };
     });
+    console.log('Client creation result - notes count:', result.client?.notes?.length || 0);
     res.status(201).json(result);
   } catch (error) {
     // Robust error logging
@@ -1033,24 +1045,24 @@ router.put('/:id', async (req: Request, res: Response) => {
           level: client.level,
           registrationDate: client.registrationDate ? new Date(client.registrationDate) : null,
           selectedFormId: client.selectedFormId ? Number(client.selectedFormId) : null,
-          injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes) ? client.injuriesHealthNotes : [],
-          goals: Array.isArray(client.goals) ? client.goals : [],
+          injuriesHealthNotes: Array.isArray(client.injuriesHealthNotes) && client.injuriesHealthNotes.length > 0 ? client.injuriesHealthNotes : null,
+          goals: Array.isArray(client.goals) && client.goals.length > 0 ? client.goals : null,
           // --- Added fields for full profile support ---
           goal: client.goal,
           workoutPlace: client.workoutPlace,
           height: client.height ? Number(client.height) : null,
           weight: client.weight ? Number(client.weight) : null,
-          preferredTrainingDays: client.preferredTrainingDays,
-          preferredTrainingTime: client.preferredTrainingTime,
-          equipmentAvailability: client.equipmentAvailability,
-          favoriteTrainingStyle: client.favoriteTrainingStyle,
-          weakAreas: client.weakAreas,
-          nutritionGoal: client.nutritionGoal,
-          dietPreference: client.dietPreference,
+          preferredTrainingDays: client.preferredTrainingDays || null,
+          preferredTrainingTime: client.preferredTrainingTime || null,
+          equipmentAvailability: client.equipmentAvailability || null,
+          favoriteTrainingStyle: client.favoriteTrainingStyle || null,
+          weakAreas: client.weakAreas || null,
+          nutritionGoal: client.nutritionGoal || null,
+          dietPreference: client.dietPreference || null,
           mealCount: client.mealCount ? Number(client.mealCount) : null,
-          foodAllergies: client.foodAllergies,
-          dislikedIngredients: client.dislikedIngredients,
-          currentNutritionPlan: client.currentNutritionPlan,
+          foodAllergies: client.foodAllergies || null,
+          dislikedIngredients: client.dislikedIngredients || null,
+          currentNutritionPlan: client.currentNutritionPlan || null,
           // --- End added fields ---
           labels: client.labels && Array.isArray(client.labels) ? { set: client.labels.map((id: number) => ({ id })) } : undefined,
         },

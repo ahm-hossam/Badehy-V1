@@ -45,26 +45,9 @@ const CORE_QUESTIONS = [
   { key: 'fullName', label: 'Full Name', type: 'text', required: true },
   { key: 'email', label: 'Email', type: 'email', required: true },
   { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
-  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
-  { key: 'age', label: 'Age', type: 'number', required: true },
-  { key: 'source', label: 'Source', type: 'text', required: true },
+  { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female'] },
 ];
 const coreKeys = new Set(CORE_QUESTIONS.map(q => q.key));
-
-// Grouped fields (should match backend and create page)
-const GROUPS = [
-  {
-    label: 'Basic Data',
-    fields: [
-      { key: 'fullName', label: 'Full Name', type: 'text', required: true },
-      { key: 'email', label: 'Email', type: 'email', required: true },
-      { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
-      { key: 'gender', label: 'Gender', type: 'select', required: true, options: ['Male', 'Female', 'Other'] },
-      { key: 'age', label: 'Age', type: 'number', required: true },
-      { key: 'source', label: 'Source', type: 'text', required: true },
-    ],
-  },
-];
 
 export default function EditClientPage() {
   // Helper function to map check-in form types to client form types
@@ -227,6 +210,18 @@ export default function EditClientPage() {
         if (data?.labels && Array.isArray(data.labels)) {
           setSelectedLabels(data.labels.map((label: any) => label.id));
         }
+        // Initialize team member assignments from client data
+        if (data?.teamAssignments && Array.isArray(data.teamAssignments)) {
+          const teamMemberIds = data.teamAssignments.map((assignment: any) => {
+            // Convert owner role to 'me' for compatibility
+            if (assignment.teamMember.role === 'Owner') {
+              return 'me';
+            }
+            return assignment.teamMember.id;
+          });
+          console.log('Loading team assignments:', teamMemberIds);
+          setSelectedTeamMembers(teamMemberIds);
+        }
         // Load subscription data
         if (data?.subscriptions && data.subscriptions.length > 0) {
           const latestSubscription = data.subscriptions[0];
@@ -304,27 +299,24 @@ export default function EditClientPage() {
         'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
       };
       
-      // Check if this question exists in GROUPS (with label variations)
-      let groupField: any = null;
-      for (const group of GROUPS) {
-        for (const field of group.fields) {
-          const fieldVariations = labelMapping[field.label] || [field.label];
-          if (fieldVariations.includes(q.label)) {
-            groupField = field;
-            break;
-          }
+      // Check if this question exists in CORE_QUESTIONS (with label variations)
+      let coreField: any = null;
+      for (const field of CORE_QUESTIONS) {
+        const fieldVariations = labelMapping[field.label] || [field.label];
+        if (fieldVariations.includes(q.label)) {
+          coreField = field;
+          break;
         }
-        if (groupField) break;
       }
       
-      if (groupField) {
-        // Question is from GROUPS - use form configuration but keep original key
+      if (coreField) {
+        // Question is from CORE_QUESTIONS - use form configuration but keep original key
         return {
-          ...groupField,
+          ...coreField,
           id: q.id, // Ensure id is set
-          type: mapFormTypeToInputType(q.type || groupField.type),
-          options: q.options || groupField.options || [],
-          required: groupField.required,
+          type: mapFormTypeToInputType(q.type || coreField.type),
+          options: q.options || coreField.options || [],
+          required: coreField.required,
           isCustom: false,
         };
       } else {
@@ -410,15 +402,13 @@ export default function EditClientPage() {
     'Disliked Ingredients': ['Disliked Foods', 'Disliked Ingredients'],
   };
   
-  GROUPS.forEach(group => {
-    group.fields.forEach(field => {
-      // Map the main label
-      staticLabelToKey[field.label] = field.key;
-      // Map all variations
-      const variations = labelMapping[field.label] || [];
-      variations.forEach(variation => {
-        staticLabelToKey[variation] = field.key;
-      });
+  CORE_QUESTIONS.forEach(field => {
+    // Map the main label
+    staticLabelToKey[field.label] = field.key;
+    // Map all variations
+    const variations = labelMapping[field.label] || [];
+    variations.forEach(variation => {
+      staticLabelToKey[variation] = field.key;
     });
   });
 
@@ -987,8 +977,8 @@ export default function EditClientPage() {
           console.log('Adding new assignments for team members:', selectedTeamMembers);
           for (const teamMemberId of selectedTeamMembers) {
             console.log('Adding assignment for team member ID:', teamMemberId);
-            // Handle 'me' case by sending trainer's ID instead
-            const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
+            // Handle 'me' case by sending -1 as a special marker (not the trainer's ID!)
+            const actualTeamMemberId = teamMemberId === 'me' ? -1 : teamMemberId;
             console.log('Actual team member ID for assignment:', actualTeamMemberId);
             try {
               const addRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments`, {
@@ -1514,21 +1504,63 @@ export default function EditClientPage() {
   }, []);
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div>
+      <div className="max-w-4xl">
         <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
-        <p className="mb-6 text-zinc-600">Update the client profile. Complete all fields to mark as completed.</p>
-      {error && (
-        <Alert open={!!error} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-      {/* Always show the form, but conditionally show check-in data */}
-        <form onSubmit={handleSubmit} className="space-y-8">
+        
+        <div className="space-y-6">
+          {error && (
+            <Alert open={!!error} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+          
+          {/* Client Information */}
+          <div className="bg-white rounded-xl shadow p-6">
+            <h2 className="text-lg font-semibold mb-4">Client Information</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Enter the client's information, subscription details, and preferences. They will complete the detailed check-in form themselves in the mobile app.
+            </p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {CORE_QUESTIONS.map(field => (
+                <div key={field.key} className="flex flex-col">
+                  <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                    {field.label}
+                    {field.required && <span className="text-red-500">*</span>}
+                  </label>
+                  {field.type === 'select' ? (
+                    <Select
+                      value={formData[field.key] || ''}
+                      onChange={e => setFormData((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                      required={field.required}
+                      className="w-full"
+                    >
+                      <option value="">Select {field.label}</option>
+                      {field.options?.map((option: string) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <Input
+                      type={field.type}
+                      value={formData[field.key] || ''}
+                      onChange={e => setFormData((prev: any) => ({ ...prev, [field.key]: e.target.value }))}
+                      required={field.required}
+                      className="w-full"
+                      placeholder={`Enter ${field.label}`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
 
           
-          {/* Check-In Data Section (only if checkInFields exist) */}
-          {checkInFields.length > 0 ? (
+          {/* Check-In Data Section (removed to match create page) */}
+          {/*
             <div className="mb-6 bg-white rounded-xl shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Check-In Data</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1633,7 +1665,7 @@ export default function EditClientPage() {
                       </div>
                     );
                   }
-                  // Render normal fields (GROUPS fields that are in the check-in form)
+                  // Render normal fields (CORE_QUESTIONS fields that are in the check-in form)
                   return (
                     <div key={checkinFieldKey} className="flex flex-col">
                       <label className="text-sm font-medium mb-1 flex items-center gap-1">
@@ -1692,18 +1724,13 @@ export default function EditClientPage() {
           </div>
             </div>
           ) : (
-            // Show message when no check-in data is available
-            <div className="mb-6 bg-white rounded-xl shadow p-6">
-              <div className="text-center text-zinc-500 py-4">
-                <div className="mb-2">No check-in submission data available for this client.</div>
-                <div className="text-sm">(This client was not created via a check-in form, or the data is missing.)</div>
-          </div>
-            </div>
+            <></>
           )}
+          */}
 
           {/* Core Questions Section */}
-          {/* Core Information Section - ALWAYS SHOW */}
-          <div className="mb-6 bg-white rounded-xl shadow p-6">
+          {/* Core Information Section - HIDDEN TO MATCH CREATE PAGE */}
+          {false && <div className="mb-6 bg-white rounded-xl shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Core Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {coreFieldsNotInForm.map((field) => (
@@ -1736,7 +1763,7 @@ export default function EditClientPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </div>}
 
           {/* Subscription Details Section */}
           <div className="mb-6 bg-white rounded-xl shadow p-6">
@@ -1952,7 +1979,7 @@ export default function EditClientPage() {
               <label className="text-sm font-medium mb-1">Assign to Team Members</label>
               <div className="border rounded-lg p-3 border-zinc-950/10">
                 {/* Main Trainer (Account Owner) */}
-                {/* <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
+                <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
                   <input
                     type="checkbox"
                     checked={selectedTeamMembers.includes('me')}
@@ -1966,7 +1993,7 @@ export default function EditClientPage() {
                     className="rounded border-zinc-950/20"
                   />
                   <span className="text-sm font-medium text-blue-600">{user?.fullName || 'You'} (Main Trainer)</span>
-                </label> */}
+                </label>
                 
                 {/* Team Members */}
                 {teamMembers.length === 0 ? (
@@ -2179,9 +2206,10 @@ export default function EditClientPage() {
           <div className="flex gap-4 justify-end mt-8">
             <Button outline type="button" onClick={() => router.push('/clients')}>Cancel</Button>
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
-        </div>
-      </form>
+          </div>
+        </form>
         </div>
       </div>
+    </div>
   );
 } 
