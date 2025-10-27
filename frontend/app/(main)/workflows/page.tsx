@@ -25,6 +25,7 @@ import {
   ChevronUpIcon
 } from '@heroicons/react/24/outline';
 import { Switch } from '../../../components/switch';
+import { ConfirmDialog } from '../../../components/confirm-dialog';
 
 interface Workflow {
   id: number;
@@ -154,7 +155,144 @@ function StepConfiguration({ step, onUpdate, checkInForms, packages, clients }: 
             rows={3}
           />
         </div>
-        {renderRepeatField()}
+        <div>
+          <Text className="text-sm font-medium text-gray-700 mb-2">Send Timing</Text>
+          <Select
+            value={config.sendTiming || 'immediate'}
+            onChange={(e) => handleConfigChange('sendTiming', e.target.value)}
+          >
+            <option value="immediate">Immediate (after previous step)</option>
+            <option value="delay_days">After X days</option>
+            <option value="after_form_submission">After form submission</option>
+            <option value="before_subscription_end">Before subscription ends</option>
+            <option value="specific_day">On specific day of week</option>
+            <option value="specific_time">At specific time</option>
+          </Select>
+        </div>
+        {(config.sendTiming === 'delay_days' || config.sendTiming === 'after_form_submission' || config.sendTiming === 'before_subscription_end' || config.sendTiming === 'specific_day' || config.sendTiming === 'specific_time') && (
+          <div>
+            {config.sendTiming === 'delay_days' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Days to wait</Text>
+                <Input
+                  type="number"
+                  value={config.delayDays || ''}
+                  onChange={(e) => handleConfigChange('delayDays', parseInt(e.target.value) || 0)}
+                  placeholder="e.g., 3"
+                />
+              </>
+            )}
+            {config.sendTiming === 'after_form_submission' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Wait for form</Text>
+                <Select
+                  value={config.triggerFormId || ''}
+                  onChange={(e) => handleConfigChange('triggerFormId', e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Select a form</option>
+                  {checkInForms.map((form) => (
+                    <option key={form.id} value={form.id}>
+                      {form.name}
+                    </option>
+                  ))}
+                </Select>
+                <div className="mt-3">
+                  <Text className="text-sm font-medium text-gray-700 mb-2">Days to wait after submission</Text>
+                  <Input
+                    type="number"
+                    value={config.submissionDelayDays || ''}
+                    onChange={(e) => handleConfigChange('submissionDelayDays', parseInt(e.target.value) || 0)}
+                    placeholder="e.g., 3"
+                  />
+                </div>
+              </>
+            )}
+            {config.sendTiming === 'before_subscription_end' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Days before subscription ends</Text>
+                <Input
+                  type="number"
+                  value={config.daysBeforeEnd || ''}
+                  onChange={(e) => handleConfigChange('daysBeforeEnd', parseInt(e.target.value) || 0)}
+                  placeholder="e.g., 7"
+                />
+              </>
+            )}
+            {config.sendTiming === 'specific_day' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Day of week</Text>
+                <Select
+                  value={config.dayOfWeek || 'monday'}
+                  onChange={(e) => handleConfigChange('dayOfWeek', e.target.value)}
+                >
+                  <option value="monday">Monday</option>
+                  <option value="tuesday">Tuesday</option>
+                  <option value="wednesday">Wednesday</option>
+                  <option value="thursday">Thursday</option>
+                  <option value="friday">Friday</option>
+                  <option value="saturday">Saturday</option>
+                  <option value="sunday">Sunday</option>
+                </Select>
+              </>
+            )}
+            {config.sendTiming === 'specific_time' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Time</Text>
+                <Input
+                  type="time"
+                  value={config.specificTime || '09:00'}
+                  onChange={(e) => handleConfigChange('specificTime', e.target.value)}
+                />
+              </>
+            )}
+          </div>
+        )}
+        {/* Repeat options for specific day/time and after form submission */}
+        {(config.sendTiming === 'specific_day' || config.sendTiming === 'specific_time' || config.sendTiming === 'after_form_submission') && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Repeat</Text>
+            <Select
+              value={config.repeat || 'until_subscription_ends'}
+              onChange={(e) => handleConfigChange('repeat', e.target.value)}
+            >
+              <option value="until_subscription_ends">Until subscription ends</option>
+              <option value="custom">Custom number of times</option>
+            </Select>
+          </div>
+        )}
+        {config.sendTiming === 'specific_day' && config.repeat === 'custom' && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Number of times</Text>
+            <Input
+              type="number"
+              value={config.repeatCount || ''}
+              onChange={(e) => handleConfigChange('repeatCount', parseInt(e.target.value) || 0)}
+              placeholder="e.g., 10 (will send 10 Mondays in a row)"
+            />
+          </div>
+        )}
+        {config.sendTiming === 'specific_time' && config.repeat === 'custom' && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Number of times</Text>
+            <Input
+              type="number"
+              value={config.repeatCount || ''}
+              onChange={(e) => handleConfigChange('repeatCount', parseInt(e.target.value) || 0)}
+              placeholder="e.g., 10 (will send 10 times at this time)"
+            />
+          </div>
+        )}
+        {config.sendTiming === 'after_form_submission' && config.repeat === 'custom' && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Number of times</Text>
+            <Input
+              type="number"
+              value={config.repeatCount || ''}
+              onChange={(e) => handleConfigChange('repeatCount', parseInt(e.target.value) || 0)}
+              placeholder="e.g., 5 (will send 5 times after each form submission)"
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -205,29 +343,148 @@ function StepConfiguration({ step, onUpdate, checkInForms, packages, clients }: 
             rows={4}
           />
         </div>
-        {renderRepeatField()}
+        <div>
+          <Text className="text-sm font-medium text-gray-700 mb-2">Send Timing</Text>
+          <Select
+            value={config.sendTiming || 'immediate'}
+            onChange={(e) => handleConfigChange('sendTiming', e.target.value)}
+          >
+            <option value="immediate">Immediate (after previous step)</option>
+            <option value="delay_days">After X days</option>
+            <option value="after_form_submission">After form submission</option>
+            <option value="before_subscription_end">Before subscription ends</option>
+            <option value="specific_day">On specific day of week</option>
+            <option value="specific_time">At specific time</option>
+          </Select>
+        </div>
+        {(config.sendTiming === 'delay_days' || config.sendTiming === 'after_form_submission' || config.sendTiming === 'before_subscription_end' || config.sendTiming === 'specific_day' || config.sendTiming === 'specific_time') && (
+          <div>
+            {config.sendTiming === 'delay_days' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Days to wait</Text>
+                <Input
+                  type="number"
+                  value={config.delayDays || ''}
+                  onChange={(e) => handleConfigChange('delayDays', parseInt(e.target.value) || 0)}
+                  placeholder="e.g., 3"
+                />
+              </>
+            )}
+            {config.sendTiming === 'after_form_submission' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Wait for form</Text>
+                <Select
+                  value={config.triggerFormId || ''}
+                  onChange={(e) => handleConfigChange('triggerFormId', e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Select a form</option>
+                  {checkInForms.map((form) => (
+                    <option key={form.id} value={form.id}>
+                      {form.name}
+                    </option>
+                  ))}
+                </Select>
+                <div className="mt-3">
+                  <Text className="text-sm font-medium text-gray-700 mb-2">Days to wait after submission</Text>
+                  <Input
+                    type="number"
+                    value={config.submissionDelayDays || ''}
+                    onChange={(e) => handleConfigChange('submissionDelayDays', parseInt(e.target.value) || 0)}
+                    placeholder="e.g., 3"
+                  />
+                </div>
+              </>
+            )}
+            {config.sendTiming === 'before_subscription_end' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Days before subscription ends</Text>
+                <Input
+                  type="number"
+                  value={config.daysBeforeEnd || ''}
+                  onChange={(e) => handleConfigChange('daysBeforeEnd', parseInt(e.target.value) || 0)}
+                  placeholder="e.g., 7"
+                />
+              </>
+            )}
+            {config.sendTiming === 'specific_day' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Day of week</Text>
+                <Select
+                  value={config.dayOfWeek || 'monday'}
+                  onChange={(e) => handleConfigChange('dayOfWeek', e.target.value)}
+                >
+                  <option value="monday">Monday</option>
+                  <option value="tuesday">Tuesday</option>
+                  <option value="wednesday">Wednesday</option>
+                  <option value="thursday">Thursday</option>
+                  <option value="friday">Friday</option>
+                  <option value="saturday">Saturday</option>
+                  <option value="sunday">Sunday</option>
+                </Select>
+              </>
+            )}
+            {config.sendTiming === 'specific_time' && (
+              <>
+                <Text className="text-sm font-medium text-gray-700 mb-2">Time</Text>
+                <Input
+                  type="time"
+                  value={config.specificTime || '09:00'}
+                  onChange={(e) => handleConfigChange('specificTime', e.target.value)}
+                />
+              </>
+            )}
+          </div>
+        )}
+        {/* Repeat options for specific day/time and after form submission */}
+        {(config.sendTiming === 'specific_day' || config.sendTiming === 'specific_time' || config.sendTiming === 'after_form_submission') && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Repeat</Text>
+            <Select
+              value={config.repeat || 'until_subscription_ends'}
+              onChange={(e) => handleConfigChange('repeat', e.target.value)}
+            >
+              <option value="until_subscription_ends">Until subscription ends</option>
+              <option value="custom">Custom number of times</option>
+            </Select>
+          </div>
+        )}
+        {config.sendTiming === 'specific_day' && config.repeat === 'custom' && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Number of times</Text>
+            <Input
+              type="number"
+              value={config.repeatCount || ''}
+              onChange={(e) => handleConfigChange('repeatCount', parseInt(e.target.value) || 0)}
+              placeholder="e.g., 10 (will send 10 Mondays in a row)"
+            />
+          </div>
+        )}
+        {config.sendTiming === 'specific_time' && config.repeat === 'custom' && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Number of times</Text>
+            <Input
+              type="number"
+              value={config.repeatCount || ''}
+              onChange={(e) => handleConfigChange('repeatCount', parseInt(e.target.value) || 0)}
+              placeholder="e.g., 10 (will send 10 times at this time)"
+            />
+          </div>
+        )}
+        {config.sendTiming === 'after_form_submission' && config.repeat === 'custom' && (
+          <div>
+            <Text className="text-sm font-medium text-gray-700 mb-2">Number of times</Text>
+            <Input
+              type="number"
+              value={config.repeatCount || ''}
+              onChange={(e) => handleConfigChange('repeatCount', parseInt(e.target.value) || 0)}
+              placeholder="e.g., 5 (will send 5 times after each form submission)"
+            />
+          </div>
+        )}
       </div>
     );
   }
 
-  if (step.type === 'condition') {
-    return (
-      <div className="space-y-4">
-        <div>
-          <Text className="text-sm font-medium text-gray-700 mb-2">Condition Type</Text>
-          <Select
-            value={config.conditionType || 'any'}
-            onChange={(e) => handleConfigChange('conditionType', e.target.value)}
-          >
-            <option value="any">Any condition</option>
-            <option value="all">All conditions</option>
-          </Select>
-        </div>
-        <Text className="text-sm text-gray-600 mt-4">Condition configuration coming soon...</Text>
-        {renderRepeatField()}
-      </div>
-    );
-  }
 
   if (step.type === 'audience') {
     const selectedPackageIds = config.selectedPackageIds || [];
@@ -335,6 +592,32 @@ export default function WorkflowsPage() {
   // Workflow steps state
   const [workflowSteps, setWorkflowSteps] = useState<any[]>([]);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+
+  // Delete confirmation state
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; workflow: { id: number; name: string } | null }>({
+    open: false,
+    workflow: null
+  });
+
+  // Execution cancel confirmation state
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; executionId: number | null }>({
+    open: false,
+    executionId: null
+  });
+
+  // Success/Error message dialogs
+  const [messageDialog, setMessageDialog] = useState<{ open: boolean; type: 'success' | 'error'; title: string; message: string }>({
+    open: false,
+    type: 'success',
+    title: '',
+    message: ''
+  });
+
+  // Toast notifications
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [showErrorToast, setShowErrorToast] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     const storedUser = getStoredUser();
@@ -543,24 +826,155 @@ export default function WorkflowsPage() {
         // Refresh executions to see the new ones
         await fetchExecutions();
         
-        alert(`Workflow started for ${data.started || data.results?.length || 0} clients!`);
+        showToast('success', `Workflow started for ${data.started || data.results?.length || 0} clients!`);
       } else {
         const errorData = await response.json();
-        alert(errorData.error || 'Failed to start workflow');
+        showToast('error', errorData.error || 'Failed to start workflow');
       }
     } catch (error) {
       console.error('Error starting workflow:', error);
-      alert('Failed to start workflow');
+      showToast('error', 'Failed to start workflow');
+    }
+  };
+
+  const handleDeleteWorkflow = (workflowId: number, workflowName: string) => {
+    setDeleteDialog({ open: true, workflow: { id: workflowId, name: workflowName } });
+  };
+
+  const confirmDeleteWorkflow = async () => {
+    if (!user || !deleteDialog.workflow) return;
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/workflows/${deleteDialog.workflow.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainerId: user.id,
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh workflows list
+        await fetchWorkflows();
+        setDeleteDialog({ open: false, workflow: null });
+        // Show toast notification
+        showToast('success', 'Workflow deleted successfully');
+      } else {
+        const errorData = await response.json();
+        showToast('error', errorData.error || 'Failed to delete workflow');
+      }
+    } catch (error) {
+      console.error('Error deleting workflow:', error);
+      showToast('error', 'Failed to delete workflow');
+    }
+  };
+
+  const handleEditWorkflow = (workflow: Workflow) => {
+    // Set form fields with existing workflow data
+    setWorkflowName(workflow.name);
+    setWorkflowDescription(workflow.description || '');
+    setIsActive(workflow.isActive);
+    
+    // Convert workflow steps to editor format
+    const formattedSteps = workflow.steps.map((step, index) => ({
+      id: `step-${step.id}-${index}`,
+      type: step.stepType,
+      order: step.stepOrder,
+      config: typeof step.config === 'string' ? JSON.parse(step.config) : step.config
+    }));
+    
+    setWorkflowSteps(formattedSteps);
+    setExpandedSteps(new Set());
+    
+    // Open the create modal (which will be used for editing)
+    setIsCreateModalOpen(true);
+    
+    // TODO: Add separate edit mode or use the modal for editing
+    console.log('Edit workflow:', workflow);
+  };
+
+  const handleExecutionStatusChange = async (executionId: number, newStatus: string) => {
+    if (!user) return;
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const response = await fetch(`${apiUrl}/api/workflows/executions/${executionId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          trainerId: user.id,
+          status: newStatus,
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh executions list
+        await fetchExecutions();
+        const statusText = newStatus === 'active' ? 'resumed' : newStatus === 'paused' ? 'paused' : newStatus;
+        showToast('success', `Execution ${statusText} successfully`);
+      } else {
+        const errorData = await response.json();
+        showToast('error', errorData.error || 'Failed to update execution status');
+      }
+    } catch (error) {
+      console.error('Error updating execution status:', error);
+      showToast('error', 'Failed to update execution status');
+    }
+  };
+
+  const confirmCancelExecution = async () => {
+    if (!cancelDialog.executionId) return;
+    
+    await handleExecutionStatusChange(cancelDialog.executionId, 'cancelled');
+    setCancelDialog({ open: false, executionId: null });
+  };
+
+  // Helper function to show toast notifications
+  const showToast = (type: 'success' | 'error', message: string) => {
+    if (type === 'success') {
+      setSuccessMessage(message);
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 2000);
+    } else {
+      setErrorMessage(message);
+      setShowErrorToast(true);
+      setTimeout(() => setShowErrorToast(false), 2000);
     }
   };
 
   const addStep = (stepType: string) => {
     console.log('Adding step:', stepType, 'Current steps:', workflowSteps);
+    
+    // Set default config based on step type
+    let defaultConfig = {};
+    if (stepType === 'audience') {
+      defaultConfig = { audienceType: 'all' };
+    } else if (stepType === 'notification') {
+      defaultConfig = { 
+        sendTiming: 'immediate',
+        message: '',
+        title: ''
+      };
+    } else if (stepType === 'form') {
+      defaultConfig = { 
+        sendTiming: 'immediate',
+        formId: null,
+        message: ''
+      };
+    } else if (stepType === 'wait') {
+      defaultConfig = { days: 1 };
+    }
+    
     const newStep = {
       id: `step-${Date.now()}`,
       type: stepType,
       order: workflowSteps.length + 1,
-      config: {}
+      config: defaultConfig
     };
     const updatedSteps = [...workflowSteps, newStep];
     console.log('Updated steps:', updatedSteps);
@@ -613,6 +1027,46 @@ export default function WorkflowsPage() {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const getAudienceDisplay = (workflow: Workflow) => {
+    const audienceStep = workflow.steps.find(step => step.stepType === 'audience');
+    if (!audienceStep) return 'No Audience';
+    
+    try {
+      const config = typeof audienceStep.config === 'string' ? JSON.parse(audienceStep.config) : audienceStep.config;
+      
+      if (config.audienceType === 'all') {
+        return 'All Clients';
+      } else if (config.audienceType === 'packages') {
+        const packageIds = config.selectedPackageIds || [];
+        if (packageIds.length === 0) return 'No Packages Selected';
+        const packageNames = packageIds.map((id: number) => {
+          const pkg = packages.find(p => p.id === id);
+          return pkg?.name || `Package ${id}`;
+        });
+        return packageNames.join(', ');
+      } else if (config.audienceType === 'clients') {
+        const clientIds = config.selectedClientIds || [];
+        if (clientIds.length === 0) return 'No Clients Selected';
+        
+        // Get client names from the clients array
+        const clientNames = clientIds.map((id: number) => {
+          const client = clients.find(c => c.id === id);
+          return client?.fullName || client?.email || `Client ${id}`;
+        });
+        
+        // If more than 3 clients, show first 3 and count
+        if (clientNames.length > 3) {
+          return `${clientNames.slice(0, 3).join(', ')} +${clientNames.length - 3} more`;
+        }
+        return clientNames.join(', ');
+      }
+      
+      return 'Unknown';
+    } catch (error) {
+      return 'Error';
+    }
   };
 
   if (loading) {
@@ -685,7 +1139,7 @@ export default function WorkflowsPage() {
             <TableHead>
               <TableRow>
                 <TableHeader>Name</TableHeader>
-                <TableHeader>Package</TableHeader>
+                <TableHeader>Audience</TableHeader>
                 <TableHeader>Steps</TableHeader>
                 <TableHeader>Executions</TableHeader>
                 <TableHeader>Status</TableHeader>
@@ -707,7 +1161,7 @@ export default function WorkflowsPage() {
                       <Text className="text-gray-600 mb-4">
                         Create your first workflow to automate client journeys
                       </Text>
-                      <Button>
+                      <Button onClick={openCreateModal}>
                         <PlusIcon className="w-5 h-5 mr-2" />
                         Create Workflow
                       </Button>
@@ -731,7 +1185,7 @@ export default function WorkflowsPage() {
                     </TableCell>
                     <TableCell>
                       <Text className="text-gray-900">
-                        {workflow.package?.name || 'No Package'}
+                        {getAudienceDisplay(workflow)}
                       </Text>
                     </TableCell>
                     <TableCell>
@@ -767,12 +1221,14 @@ export default function WorkflowsPage() {
                           </svg>
                         </button>
                         <button
+                          onClick={() => handleEditWorkflow(workflow)}
                           className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded p-1 transition-colors"
                           title="Edit Workflow"
                         >
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => handleDeleteWorkflow(workflow.id, workflow.name)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
                           title="Delete Workflow"
                         >
@@ -869,6 +1325,7 @@ export default function WorkflowsPage() {
                       <div className="flex items-center justify-end space-x-2">
                         {execution.status === 'active' && (
                           <button
+                            onClick={() => handleExecutionStatusChange(execution.id, 'paused')}
                             className="text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded p-1 transition-colors"
                             title="Pause Execution"
                           >
@@ -877,18 +1334,25 @@ export default function WorkflowsPage() {
                         )}
                         {execution.status === 'paused' && (
                           <button
+                            onClick={() => handleExecutionStatusChange(execution.id, 'active')}
                             className="text-green-600 hover:text-green-800 hover:bg-green-50 rounded p-1 transition-colors"
                             title="Resume Execution"
                           >
                             <PlayIcon className="w-4 h-4" />
                           </button>
                         )}
-                        <button
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
-                          title="Cancel Execution"
-                        >
-                          <XCircleIcon className="w-4 h-4" />
-                        </button>
+                        {(execution.status === 'active' || execution.status === 'paused') && (
+                          <button
+                            onClick={() => setCancelDialog({ open: true, executionId: execution.id })}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
+                            title="Cancel Execution"
+                          >
+                            <XCircleIcon className="w-4 h-4" />
+                          </button>
+                        )}
+                        {(execution.status === 'completed' || execution.status === 'cancelled') && (
+                          <span className="text-gray-400 text-sm">-</span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -919,7 +1383,7 @@ export default function WorkflowsPage() {
               </div>
               <div className="flex items-center space-x-3">
                 <Button
-                  variant="secondary"
+                  outline
                   onClick={closeCreateModal}
                   disabled={createLoading}
                 >
@@ -1017,23 +1481,6 @@ export default function WorkflowsPage() {
                   </div>
                 </div>
 
-                {/* Condition Step */}
-                <div 
-                  onClick={() => addStep('condition')}
-                  className="p-4 border border-gray-200 rounded-lg cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <div>
-                      <Text className="font-medium">Condition</Text>
-                      <Text className="text-sm text-gray-600">Branch workflow based on conditions</Text>
-                    </div>
-                  </div>
-                </div>
 
               </div>
             </div>
@@ -1085,7 +1532,6 @@ export default function WorkflowsPage() {
                               step.type === 'form' ? 'bg-blue-100' :
                               step.type === 'wait' ? 'bg-yellow-100' :
                               step.type === 'notification' ? 'bg-green-100' :
-                              step.type === 'condition' ? 'bg-purple-100' :
                               'bg-indigo-100'
                             }`}>
                               {step.type === 'form' && (
@@ -1103,11 +1549,6 @@ export default function WorkflowsPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4.828 7l2.586-2.586a2 2 0 012.828 0L12.828 7H4.828zM4.828 17h8l-2.586 2.586a2 2 0 01-2.828 0L4.828 17z" />
                                 </svg>
                               )}
-                              {step.type === 'condition' && (
-                                <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
-                              )}
                               {step.type === 'audience' && (
                                 <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1119,7 +1560,6 @@ export default function WorkflowsPage() {
                                 {step.type === 'form' ? 'Send Form' :
                                  step.type === 'wait' ? 'Wait' :
                                  step.type === 'notification' ? 'Send Notification' :
-                                 step.type === 'condition' ? 'Condition' :
                                  'Set Audience'}
                               </Text>
                               <Text className="text-sm text-gray-600">Step {step.order}</Text>
@@ -1210,6 +1650,49 @@ export default function WorkflowsPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        title="Delete Workflow"
+        message="Are you sure you want to delete this workflow? This action cannot be undone."
+        itemName={deleteDialog.workflow?.name}
+        onCancel={() => setDeleteDialog({ open: false, workflow: null })}
+        onConfirm={confirmDeleteWorkflow}
+      />
+
+      {/* Cancel Execution Confirmation Dialog */}
+      <ConfirmDialog
+        open={cancelDialog.open}
+        title="Cancel Execution"
+        message="Are you sure you want to cancel this workflow execution?"
+        onCancel={() => setCancelDialog({ open: false, executionId: null })}
+        onConfirm={confirmCancelExecution}
+      />
+
+      {/* Success Toast Notification */}
+      {showSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            {successMessage}
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast Notification */}
+      {showErrorToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            {errorMessage}
           </div>
         </div>
       )}

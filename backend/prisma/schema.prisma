@@ -1012,6 +1012,7 @@ model WorkflowExecution {
   startedAt     DateTime      @default(now())
   completedAt   DateTime?
   lastStepAt    DateTime?     // When last step was executed
+  data          String?       // JSON metadata for tracking repeats, etc.
   
   workflow      Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
