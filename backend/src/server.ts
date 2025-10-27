@@ -38,6 +38,7 @@ import mobileWorkoutSessionsRoute from './routes/mobile-workout-sessions';
 import ingredientsRoute from './routes/ingredients';
 import mealsRoute from './routes/meals';
 import pdfExportRoute from './routes/pdf-export';
+import dashboardRoute from './routes/dashboard';
 import workflowProcessor from './jobs/workflowProcessor';
 
 // Always load .env from the project root
@@ -91,6 +92,7 @@ app.use('/api/support', supportRoute);
 app.use('/api/finance', financeRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/workflows', workflowsRoute);
+app.use('/api/dashboard', dashboardRoute);
 // Mobile endpoints
 app.use('/mobile', mobileAuthRoute);
 app.use('/mobile', mobileProgramsRoute);

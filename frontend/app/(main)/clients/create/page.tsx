@@ -896,7 +896,7 @@ export default function CreateClientPage() {
 
   return (
     <div>
-      <div className="max-w-4xl">
+      <div className="max-w-full">
         <h1 className="text-2xl font-bold mb-2">Create Client</h1>
         
 
