@@ -27,6 +27,7 @@ export default function HomeScreen() {
   const [data, setData] = useState<any>(null);
   const [client, setClient] = useState<any>(null);
   const [activeSession, setActiveSession] = useState<any>(null);
+  const [assignedForms, setAssignedForms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +69,15 @@ export default function HomeScreen() {
       const sessionJson = await sessionRes.json();
       if (sessionRes.ok) {
         setActiveSession(sessionJson.session);
+      }
+
+      // Fetch assigned forms
+      const formsRes = await fetch(`${API}/mobile/forms/assigned`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const formsJson = await formsRes.json();
+      if (formsRes.ok) {
+        setAssignedForms(formsJson.forms || []);
       }
 
     } catch (e: any) {
@@ -226,6 +236,36 @@ export default function HomeScreen() {
             <Text style={styles.statLabel}>Progress</Text>
           </View>
         </View>
+
+        {/* Assigned Forms Section */}
+        {assignedForms.length > 0 && (
+          <View style={styles.assignedFormsCard}>
+            <View style={styles.assignedFormsHeader}>
+              <Ionicons name="document-text" size={24} color="#4F46E5" />
+              <Text style={styles.assignedFormsTitle}>Forms to Complete</Text>
+            </View>
+            {assignedForms.map((form) => (
+              <Pressable
+                key={form.id}
+                style={styles.assignedFormItem}
+                onPress={() => router.push(`/form/${form.form.id}?assignedId=${form.id}`)}
+              >
+                <View style={styles.assignedFormInfo}>
+                  <View style={styles.assignedFormIcon}>
+                    <Ionicons name="clipboard-outline" size={20} color="#4F46E5" />
+                  </View>
+                  <View style={styles.assignedFormContent}>
+                    <Text style={styles.assignedFormName}>{form.form.name}</Text>
+                    {form.message && (
+                      <Text style={styles.assignedFormMessage}>{form.message}</Text>
+                    )}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         {/* Active Session Card */}
         {activeSession && (
@@ -693,6 +733,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 8,
     flex: 1,
+  },
+  assignedFormsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  assignedFormsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  assignedFormsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    marginLeft: 8,
+  },
+  assignedFormItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  assignedFormInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  assignedFormIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  assignedFormContent: {
+    flex: 1,
+  },
+  assignedFormName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  assignedFormMessage: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });
 

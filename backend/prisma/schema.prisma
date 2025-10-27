@@ -95,6 +95,7 @@ model TrainerClient {
   notificationRecipients NotificationRecipient[]
   pushToken             PushToken?
   workflowExecutions    WorkflowExecution[]
+  assignedForms         AssignedForm[]
 
   @@index([trainerId])
 }
@@ -346,6 +347,7 @@ model CheckInForm {
   questions         CheckInQuestion[]
   submissions       CheckInSubmission[]
   selectedByClients TrainerClient[]      @relation("ClientSelectedForm")
+  assignedForms     AssignedForm[]
 }
 
 model CheckInQuestion {
@@ -1017,8 +1019,27 @@ model WorkflowExecution {
   workflow      Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
   currentStep   WorkflowStep? @relation(fields: [currentStepId], references: [id])
+  assignedForms AssignedForm[]
 
   @@index([workflowId])
   @@index([clientId])
   @@index([status])
+}
+
+model AssignedForm {
+  id              Int               @id @default(autoincrement())
+  workflowExecutionId Int?
+  formId           Int
+  clientId         Int
+  assignedAt       DateTime          @default(now())
+  completedAt      DateTime?
+  message          String?           // Message sent with the form
+  
+  workflowExecution WorkflowExecution? @relation(fields: [workflowExecutionId], references: [id], onDelete: SetNull)
+  form             CheckInForm       @relation(fields: [formId], references: [id], onDelete: Cascade)
+  client           TrainerClient     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([formId])
+  @@index([clientId])
+  @@index([workflowExecutionId])
 }
