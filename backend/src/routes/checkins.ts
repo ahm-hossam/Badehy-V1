@@ -251,21 +251,18 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
       }
       clientIdToUse = forcedClient.id;
     } else if (!form.isMainForm) {
-      // Secondary forms: require phone to find existing client
-      if (!phoneNumber) {
-        return res.status(400).json({ 
-          error: 'Phone number is required for this form. Please fill the main form first to create your profile.' 
+      // Secondary forms: optionally use phone to find existing client
+      if (phoneNumber) {
+        const existingClient = await prisma.trainerClient.findFirst({
+          where: { trainerId: form.trainerId, phone: phoneNumber }
         });
+        if (existingClient) {
+          clientIdToUse = existingClient.id;
+        }
+        // If no client found with phone, submission will be created without client linking
+        // This allows workflow-assigned forms to work via mobile app
       }
-      const existingClient = await prisma.trainerClient.findFirst({
-        where: { trainerId: form.trainerId, phone: phoneNumber }
-      });
-      if (!existingClient) {
-        return res.status(400).json({ 
-          error: 'No client found with this phone number. Please fill the main form first to create your profile.' 
-        });
-      }
-      clientIdToUse = existingClient.id;
+      // If no phone number provided and no clientId, submission will be created without client linking
     } else {
       // Main form without explicit clientId: create new client
       let fullName = getAnswer(nameLabels);
