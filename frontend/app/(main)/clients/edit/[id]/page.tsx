@@ -227,6 +227,18 @@ export default function EditClientPage() {
         if (data?.labels && Array.isArray(data.labels)) {
           setSelectedLabels(data.labels.map((label: any) => label.id));
         }
+        // Initialize team member assignments from client data
+        if (data?.teamAssignments && Array.isArray(data.teamAssignments)) {
+          const teamMemberIds = data.teamAssignments.map((assignment: any) => {
+            // Convert owner role to 'me' for compatibility
+            if (assignment.teamMember.role === 'Owner') {
+              return 'me';
+            }
+            return assignment.teamMember.id;
+          });
+          console.log('Loading team assignments:', teamMemberIds);
+          setSelectedTeamMembers(teamMemberIds);
+        }
         // Load subscription data
         if (data?.subscriptions && data.subscriptions.length > 0) {
           const latestSubscription = data.subscriptions[0];
@@ -987,8 +999,8 @@ export default function EditClientPage() {
           console.log('Adding new assignments for team members:', selectedTeamMembers);
           for (const teamMemberId of selectedTeamMembers) {
             console.log('Adding assignment for team member ID:', teamMemberId);
-            // Handle 'me' case by sending trainer's ID instead
-            const actualTeamMemberId = teamMemberId === 'me' ? user.id : teamMemberId;
+            // Handle 'me' case by sending -1 as a special marker (not the trainer's ID!)
+            const actualTeamMemberId = teamMemberId === 'me' ? -1 : teamMemberId;
             console.log('Actual team member ID for assignment:', actualTeamMemberId);
             try {
               const addRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/client-assignments`, {
@@ -1952,7 +1964,7 @@ export default function EditClientPage() {
               <label className="text-sm font-medium mb-1">Assign to Team Members</label>
               <div className="border rounded-lg p-3 border-zinc-950/10">
                 {/* Main Trainer (Account Owner) */}
-                {/* <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
+                <label className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200">
                   <input
                     type="checkbox"
                     checked={selectedTeamMembers.includes('me')}
@@ -1966,7 +1978,7 @@ export default function EditClientPage() {
                     className="rounded border-zinc-950/20"
                   />
                   <span className="text-sm font-medium text-blue-600">{user?.fullName || 'You'} (Main Trainer)</span>
-                </label> */}
+                </label>
                 
                 {/* Team Members */}
                 {teamMembers.length === 0 ? (

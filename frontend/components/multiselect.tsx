@@ -2,7 +2,6 @@
 
 import * as Headless from '@headlessui/react'
 import clsx from 'clsx'
-import { Fragment } from 'react'
 
 export function MultiSelect<T>({
   className,
@@ -12,6 +11,7 @@ export function MultiSelect<T>({
   children: options,
   value,
   onChange,
+  getLabel,
   ...props
 }: {
   className?: string
@@ -21,9 +21,10 @@ export function MultiSelect<T>({
   children?: React.ReactNode
   value?: T[]
   onChange?: (value: T[]) => void
-} & Omit<Headless.ListboxProps<typeof Fragment, T>, 'as' | 'multiple' | 'value' | 'onChange'>) {
+  getLabel?: (value: T) => string
+} & Omit<Headless.ListboxProps<'div', T>, 'as' | 'multiple' | 'value' | 'onChange'>) {
   return (
-    <Headless.Listbox {...props} multiple={true} value={value || []} onChange={onChange}>
+    <Headless.Listbox as="div" {...props} multiple={true} value={value || []} onChange={onChange}>
       <Headless.ListboxButton
         autoFocus={autoFocus}
         data-slot="control"
@@ -49,7 +50,7 @@ export function MultiSelect<T>({
             <div className="flex flex-wrap gap-1">
               {value.map((item, index) => (
                 <span key={index} className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-md">
-                  {String(item)}
+                  {getLabel ? getLabel(item) : String(item)}
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
@@ -111,7 +112,7 @@ export function MultiSelect<T>({
           'transition-opacity duration-100 ease-in data-closed:data-leave:opacity-0 data-transition:pointer-events-none'
         )}
       >
-        {options}
+        {options as React.ReactNode}
       </Headless.ListboxOptions>
     </Headless.Listbox>
   )
