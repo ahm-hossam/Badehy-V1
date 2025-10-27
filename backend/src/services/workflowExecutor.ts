@@ -46,11 +46,18 @@ class WorkflowExecutor {
 
     const config: StepConfig = JSON.parse(currentStep.config);
 
+    // Check if step should be executed based on timing configuration
+    const shouldExecute = await this.shouldExecuteStep(config, client, execution);
+    if (!shouldExecute) {
+      console.log(`Step ${currentStep.id} waiting for timing condition`);
+      return; // Don't execute yet, wait for the right time
+    }
+
     // Execute the current step
     await this.executeStep(currentStep, config, client);
 
     // Check if this step should repeat
-    if (this.shouldRepeat(config)) {
+    if (await this.shouldRepeat(config, execution)) {
       // Keep at current step for repeat
       await prisma.workflowExecution.update({
         where: { id: executionId },
@@ -186,8 +193,95 @@ class WorkflowExecutor {
     }
   }
 
+  // Check if step should execute based on timing configuration
+  private async shouldExecuteStep(config: StepConfig, client: any, execution: any): Promise<boolean> {
+    const sendTiming = config.sendTiming || 'immediate';
+
+    // Immediate steps always execute
+    if (sendTiming === 'immediate') {
+      return true;
+    }
+
+    // After X days - check if enough time has passed
+    if (sendTiming === 'delay_days') {
+      const delayDays = config.delayDays || 0;
+      const startDate = execution.startedAt;
+      const daysSinceStart = Math.floor((Date.now() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24));
+      return daysSinceStart >= delayDays;
+    }
+
+    // After form submission - check if the trigger form has been submitted and delay passed
+    if (sendTiming === 'after_form_submission') {
+      const triggerFormId = config.triggerFormId;
+      if (!triggerFormId) return true; // No form specified, allow execution
+
+      const submissionDelayDays = config.submissionDelayDays || 0;
+
+      // Check if client has submitted this form
+      const submission = await prisma.checkInSubmission.findFirst({
+        where: {
+          clientId: client.id,
+          formId: Number(triggerFormId)
+        },
+        orderBy: {
+          submittedAt: 'desc'
+        }
+      });
+
+      // Only execute if form has been submitted after workflow started
+      if (submission) {
+        const submissionTime = new Date(submission.submittedAt).getTime();
+        const workflowStartTime = new Date(execution.startedAt).getTime();
+        
+        if (submissionTime >= workflowStartTime) {
+          // Check if delay period has passed
+          const timeSinceSubmission = Date.now() - submissionTime;
+          const daysSinceSubmission = timeSinceSubmission / (1000 * 60 * 60 * 24);
+          return daysSinceSubmission >= submissionDelayDays;
+        }
+      }
+
+      return false; // Form not submitted yet or delay not passed
+    }
+
+    // Before subscription ends - check if we're at the right time
+    if (sendTiming === 'before_subscription_end') {
+      const daysBefore = config.daysBeforeEnd || 7;
+      
+      // Get client's subscription
+      const subscription = await prisma.subscription.findFirst({
+        where: {
+          clientId: client.id,
+          isCanceled: false
+        },
+        orderBy: {
+          endDate: 'desc'
+        }
+      });
+
+      if (!subscription || !subscription.endDate) {
+        return false; // No subscription found
+      }
+
+      const endDate = new Date(subscription.endDate);
+      const targetDate = new Date(endDate.getTime() - (daysBefore * 24 * 60 * 60 * 1000));
+      const now = new Date();
+
+      // Execute if we're at or past the target date
+      return now >= targetDate;
+    }
+
+    // Specific day/time - handled separately by scheduler
+    if (sendTiming === 'specific_day' || sendTiming === 'specific_time') {
+      // For now, allow execution - these should be handled by a separate scheduler
+      return true;
+    }
+
+    return true; // Default: allow execution
+  }
+
   // Check if step should repeat
-  private shouldRepeat(config: StepConfig): boolean {
+  private async shouldRepeat(config: StepConfig, execution: any): Promise<boolean> {
     const repeat = config.repeat || 'once';
 
     if (repeat === 'once') {
@@ -201,8 +295,32 @@ class WorkflowExecutor {
     }
 
     if (repeat === 'custom') {
-      // TODO: Track repeat count and check against limit
-      return false;
+      const repeatCount = config.repeatCount || 1;
+      
+      // Get current repeat count from execution data
+      const executionData = execution.data ? JSON.parse(execution.data) : {};
+      const stepRepeatKey = `step_${execution.currentStepId}_repeat`;
+      const currentRepeatCount = executionData[stepRepeatKey] || 0;
+      
+      // Check if we've reached the repeat limit
+      if (currentRepeatCount >= repeatCount) {
+        return false; // Stop repeating, move to next step
+      }
+      
+      // Increment repeat count in execution data
+      const updatedData = { 
+        ...executionData, 
+        [stepRepeatKey]: currentRepeatCount + 1 
+      };
+      
+      await prisma.workflowExecution.update({
+        where: { id: execution.id },
+        data: {
+          data: JSON.stringify(updatedData)
+        }
+      });
+      
+      return true; // Continue repeating at current step
     }
 
     return false;

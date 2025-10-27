@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import workflowExecutor from '../services/workflowExecutor';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -227,6 +228,32 @@ router.post('/submit', authMiddleware, async (req: any, res: any) => {
         submittedAt: new Date()
       }
     });
+
+    // Trigger workflow processing for any workflows waiting for this form submission
+    try {
+      const activeExecutions = await prisma.workflowExecution.findMany({
+        where: {
+          clientId: clientId,
+          status: 'active'
+        },
+        include: {
+          currentStep: true
+        }
+      });
+
+      for (const execution of activeExecutions) {
+        if (execution.currentStep) {
+          const config = JSON.parse(execution.currentStep.config);
+          // If this step is waiting for form submission, process it
+          if (config.sendTiming === 'after_form_submission') {
+            workflowExecutor.processExecution(execution.id).catch(console.error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing workflows after form submission:', error);
+      // Don't fail the submission if workflow processing fails
+    }
     
     res.json({ 
       success: true, 
