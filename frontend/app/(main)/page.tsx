@@ -62,6 +62,30 @@ interface DashboardData {
     totalWorkflows: number;
     recentExecutions: any[];
   };
+  clientActivity: {
+    mostActiveWorkouts: Array<{ client: any; workoutCount: number }>;
+    mostActiveMeals: Array<{ client: any; submissionCount: number }>;
+    inactiveClients: Array<{ id: number; fullName: string; email: string }>;
+    programsFinishingSoon: Array<{ client: any; program: { id: number; name: string; type?: string }; endDate: string }>;
+  };
+  clientActivities: Array<{
+    type: string;
+    client: any;
+    timestamp: string;
+    details: string;
+  }>;
+}
+
+// Helper function to get time ago
+function getTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  return date.toLocaleDateString();
 }
 
 export default function HomePage() {
@@ -128,7 +152,7 @@ export default function HomePage() {
       </div>
 
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <MetricCard
           title="Total Clients"
           value={data.keyMetrics.totalClients}
@@ -149,14 +173,6 @@ export default function HomePage() {
           icon={ClipboardDocumentListIcon}
           iconColor="text-orange-600"
           bgColor="bg-orange-50"
-        />
-        <MetricCard
-          title="Revenue (This Month)"
-          value={`$${data.keyMetrics.monthlyRevenue.toFixed(2)}`}
-          icon={CurrencyDollarIcon}
-          iconColor="text-purple-600"
-          bgColor="bg-purple-50"
-          subtitle={revenueChange !== 0 && `${revenueChange > 0 ? '+' : ''}${revenueChange.toFixed(1)}% vs last month`}
         />
       </div>
 
@@ -234,34 +250,111 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Recent Activity */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-4">Recent Activity</h2>
-            <div className="space-y-4">
-              {data.recentActivity.checkins.slice(0, 3).map((checkin, index) => 
-                checkin.client ? (
-                  <ActivityItem
-                    key={index}
-                    icon={CheckIcon}
-                    iconColor="text-green-600"
-                    title={`${checkin.client.fullName} completed check-in`}
-                    subtitle={checkin.form?.name || 'Check-in'}
-                    time={new Date(checkin.submittedAt).toLocaleDateString()}
-                  />
-                ) : null
+          {/* Most Active (Workouts) & Most Active (Meals) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Most Active (Workouts) */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                <FireIcon className="w-5 h-5 text-orange-600" />
+                Most Active (Workouts)
+              </h2>
+              {data.clientActivity.mostActiveWorkouts && data.clientActivity.mostActiveWorkouts.length > 0 ? (
+                <div className="space-y-2">
+                  {data.clientActivity.mostActiveWorkouts.map((item, index) => (
+                    <div key={index} className="text-sm">
+                      <p className="font-medium text-zinc-900">{item.client?.fullName || 'Unknown'}</p>
+                      <p className="text-zinc-600">{item.workoutCount} workouts this week</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 text-center py-4">No workout activity this week</p>
               )}
-              {data.recentActivity.leads.slice(0, 2).map((lead, index) => (
-                <ActivityItem
-                  key={index}
-                  icon={UserPlusIcon}
-                  iconColor="text-blue-600"
-                  title={`New lead: ${lead.fullName || 'Unknown'}`}
-                  subtitle={lead.email || ''}
-                  time={new Date(lead.createdAt).toLocaleDateString()}
-                />
-              ))}
+            </div>
+
+            {/* Most Active (Meals) */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                <HeartIcon className="w-5 h-5 text-red-600" />
+                Most Active (Meals)
+              </h2>
+              {data.clientActivity.mostActiveMeals && data.clientActivity.mostActiveMeals.length > 0 ? (
+                <div className="space-y-2">
+                  {data.clientActivity.mostActiveMeals.map((item, index) => (
+                    <div key={index} className="text-sm">
+                      <p className="font-medium text-zinc-900">{item.client?.fullName || 'Unknown'}</p>
+                      <p className="text-zinc-600">{item.submissionCount} check-ins this week</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 text-center py-4">No meal check-ins this week</p>
+              )}
             </div>
           </div>
+
+          {/* Inactive Clients & Programs Finishing Soon */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Inactive Clients */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                <ExclamationTriangleIcon className="w-5 h-5 text-red-600" />
+                Inactive Clients
+              </h2>
+              {data.clientActivity.inactiveClients && data.clientActivity.inactiveClients.length > 0 ? (
+                <div className="space-y-2">
+                  {data.clientActivity.inactiveClients.slice(0, 5).map((client, index) => (
+                    <div key={index} className="text-sm">
+                      <button
+                        onClick={() => router.push(`/clients/${client.id}`)}
+                        className="font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors text-left"
+                      >
+                        {client.fullName}
+                      </button>
+                      <p className="text-zinc-600">{client.email}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 text-center py-4">No inactive clients</p>
+              )}
+            </div>
+
+            {/* Programs Finishing Soon */}
+            <div className="bg-white rounded-xl shadow-sm p-4">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-blue-600" />
+                Programs Finishing Soon
+              </h2>
+              {data.clientActivity.programsFinishingSoon && data.clientActivity.programsFinishingSoon.length > 0 ? (
+                <div className="space-y-2">
+                  {data.clientActivity.programsFinishingSoon.slice(0, 5).map((item, index) => (
+                    <div key={index} className="text-sm">
+                      <p className="font-medium text-zinc-900">{item.client?.fullName || 'Unknown'}</p>
+                      <p className="text-zinc-600 flex items-center gap-2">
+                        {item.program?.name || 'Unknown Program'}
+                        {item.program?.type && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            item.program.type === 'workout' 
+                              ? 'bg-orange-100 text-orange-700' 
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {item.program.type === 'workout' ? '💪 Workout' : '🥗 Nutrition'}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-zinc-500 text-xs mt-0.5">
+                        Ends: {new Date(item.endDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-zinc-500 text-center py-4">No programs finishing soon</p>
+              )}
+            </div>
+          </div>
+
         </div>
 
         {/* Right Column - 1/3 */}
@@ -271,40 +364,41 @@ export default function HomePage() {
             <h2 className="text-lg font-semibold text-zinc-900 mb-4">Upcoming & Alerts</h2>
             <div className="space-y-4">
               {data.upcomingAlerts.renewals.length > 0 && (
-                <AlertSection
-                  icon={CalendarDaysIcon}
-                  iconColor="text-orange-600"
-                  title={`${data.upcomingAlerts.renewals.length} Renewals This Month`}
-                  items={data.upcomingAlerts.renewals.slice(0, 3).map(r => ({
-                    name: r.client.fullName,
-                    detail: r.package.name
-                  }))}
-                />
-              )}
-              {data.upcomingAlerts.clientsNeedingFollowup.length > 0 && (
-                <AlertSection
-                  icon={ExclamationTriangleIcon}
-                  iconColor="text-yellow-600"
-                  title={`${data.upcomingAlerts.clientsNeedingFollowup.length} Clients Need Follow-up`}
-                  items={data.upcomingAlerts.clientsNeedingFollowup.slice(0, 3).map(c => ({
-                    name: c.fullName,
-                    detail: 'No check-in in 30 days'
-                  }))}
-                />
-              )}
-              {data.upcomingAlerts.uncompletedTasks.length > 0 && (
-                <AlertSection
-                  icon={ClipboardDocumentListIcon}
-                  iconColor="text-red-600"
-                  title={`${data.upcomingAlerts.uncompletedTasks.length} Open Tasks`}
-                  items={data.upcomingAlerts.uncompletedTasks
-                    .filter(t => t.client) // Only show tasks with clients
-                    .slice(0, 3)
-                    .map(t => ({
-                      name: t.client?.fullName || 'Unknown',
-                      detail: t.title
-                    }))}
-                />
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <CalendarDaysIcon className="w-5 h-5 text-orange-600" />
+                    <h3 className="font-semibold text-zinc-900 text-sm">
+                      {data.upcomingAlerts.renewals.length} Subscriptions Expiring Soon
+                    </h3>
+                  </div>
+                  <div className="space-y-2 ml-7">
+                    {data.upcomingAlerts.renewals.slice(0, 3).map((r, index) => {
+                      const daysUntilRenewal = Math.ceil(
+                        (new Date(r.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+                      );
+                      return (
+                        <div key={index} className="text-sm">
+                          <button
+                            onClick={() => router.push(`/clients/${r.client.id}`)}
+                            className="font-medium text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors text-left"
+                          >
+                            {r.client.fullName}
+                          </button>
+                          <p className="text-zinc-600">{r.package.name}</p>
+                          <p className={`text-xs mt-0.5 ${
+                            daysUntilRenewal <= 7 ? 'text-red-600 font-medium' : 
+                            daysUntilRenewal <= 14 ? 'text-orange-600' : 
+                            'text-zinc-500'
+                          }`}>
+                            {daysUntilRenewal === 0 ? 'Expires today' :
+                             daysUntilRenewal === 1 ? 'Expires tomorrow' :
+                             `Expires in ${daysUntilRenewal} days`}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
               {data.upcomingAlerts.newLeads.length > 0 && (
                 <AlertSection
@@ -318,25 +412,51 @@ export default function HomePage() {
                 />
               )}
               {data.upcomingAlerts.renewals.length === 0 && 
-               data.upcomingAlerts.clientsNeedingFollowup.length === 0 && 
-               data.upcomingAlerts.uncompletedTasks.length === 0 && 
                data.upcomingAlerts.newLeads.length === 0 && (
                 <p className="text-sm text-zinc-500 text-center py-4">No alerts at this time</p>
               )}
             </div>
           </div>
 
-          {/* Quick Stats */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-4">Quick Stats</h2>
-            <div className="space-y-3">
-              <StatRow label="Total Leads" value={data.quickStats.totalLeads} icon={UsersIcon} />
-              <StatRow label="Check-ins This Week" value={data.quickStats.checkinsThisWeek} icon={CheckIcon} />
-              <StatRow label="Team Members" value={data.quickStats.totalTeamMembers} icon={UserCircleIcon} />
-              <StatRow label="Active Programs" value={data.quickStats.activePrograms} icon={FireIcon} />
-              <StatRow label="Active Forms" value={data.quickStats.activeForms} icon={ClipboardDocumentListIcon} />
-            </div>
+          {/* Clients Activity */}
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-4">Clients Activity</h2>
+            {data.clientActivities && data.clientActivities.length > 0 ? (
+              <div className="space-y-3">
+                {data.clientActivities.slice(0, 10).map((activity, index) => {
+                  const timeAgo = getTimeAgo(new Date(activity.timestamp));
+                  const getIcon = () => {
+                    if (activity.type === 'workout_completed') return FireIcon;
+                    if (activity.type === 'form_submitted') return ClipboardDocumentListIcon;
+                    return CheckIcon;
+                  };
+                  const getIconColor = () => {
+                    if (activity.type === 'workout_completed') return 'text-orange-600';
+                    if (activity.type === 'form_submitted') return 'text-blue-600';
+                    return 'text-green-600';
+                  };
+                  const Icon = getIcon();
+                  
+                  return (
+                    <div key={index} className="flex items-start gap-3 pb-3 border-b border-zinc-100 last:border-0">
+                      <div className={`${getIconColor()} p-2 bg-zinc-50 rounded-lg`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-zinc-Level 900">
+                          <span className="font-medium">{activity.client?.fullName || 'Unknown'}</span> {activity.details}
+                        </p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{timeAgo}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500 text-center py-4">No recent activity</p>
+            )}
           </div>
+
         </div>
       </div>
     </div>

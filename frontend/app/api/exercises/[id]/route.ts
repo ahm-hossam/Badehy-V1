@@ -4,8 +4,9 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const body = await request.json();
     const response = await fetch(`${BACKEND_URL}/api/exercises/${params.id}`, {
@@ -23,8 +24,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const response = await fetch(`${BACKEND_URL}/api/exercises/${params.id}`, {
       method: 'DELETE',
