@@ -51,7 +51,12 @@ router.get('/stats', async (req: Request, res: Response) => {
       subscriptionStatusBreakdown,
       revenueComparison,
       totalWorkflows,
-      recentWorkflowExecutions
+      recentWorkflowExecutions,
+      mostActiveWorkouts,
+      mostActiveMeals,
+      inactiveClients,
+      programsFinishingSoon,
+      clientActivities
     ] = await Promise.all([
       // Total clients
       trainerClients.length,
@@ -75,14 +80,22 @@ router.get('/stats', async (req: Request, res: Response) => {
         }
       }),
       
-      // Monthly revenue (sum of priceAfterDisc from subscriptions of trainer's clients)
-      prisma.subscription.aggregate({
+      // Monthly revenue (sum of all income records including refunds for this month)
+      prisma.financialRecord.aggregate({
         where: {
-          clientId: { in: clientIds },
-          startDate: { gte: firstDayOfMonth, lte: lastDayOfMonth }
+          trainerId: id,
+          type: 'income',
+          date: { 
+            gte: firstDayOfMonth, 
+            lte: lastDayOfMonth 
+          }
         },
-        _sum: { priceAfterDisc: true }
-      }).then(result => result._sum.priceAfterDisc || 0),
+        _sum: { amount: true }
+      }).then(result => {
+        const total = result._sum.amount || 0;
+        // Return 0 if negative (refunds exceed income)
+        return Math.max(0, total);
+      }),
       
       // Clients by gender
       prisma.trainerClient.groupBy({
@@ -298,7 +311,209 @@ router.get('/stats', async (req: Request, res: Response) => {
         include: {
           workflow: { select: { id: true, name: true } }
         }
-      })
+      }),
+      
+      // Most active clients (who complete workouts) - last 7 days
+      (async () => {
+        const workoutSessions = await prisma.workoutSession.groupBy({
+          by: ['clientId'],
+          where: {
+            clientId: { in: clientIds },
+            completedAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            }
+          },
+          _count: { clientId: true },
+          orderBy: { _count: { clientId: 'desc' } },
+          take: 5
+        });
+        
+        const clientDetails = await Promise.all(
+          workoutSessions.map(async (session) => {
+            const client = await prisma.trainerClient.findUnique({
+              where: { id: session.clientId },
+              select: { id: true, fullName: true }
+            });
+            return {
+              client: client,
+              workoutCount: session._count.clientId
+            };
+          })
+        );
+        return clientDetails;
+      })(),
+      
+      // Most active clients (who complete meals) - last 7 days
+      (async () => {
+        // Using check-in submissions as a proxy for meal completion
+        const recentSubmissions = await prisma.checkInSubmission.findMany({
+          where: {
+            clientId: { in: clientIds },
+            submittedAt: {
+              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            }
+          },
+          include: {
+            client: { select: { id: true, fullName: true } }
+          }
+        });
+        
+        // Group by client and count submissions
+        const clientCounts = new Map();
+        recentSubmissions.forEach(submission => {
+          const count = clientCounts.get(submission.clientId) || 0;
+          clientCounts.set(submission.clientId, count + 1);
+        });
+        
+        // Sort and get top 5
+        return Array.from(clientCounts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([clientId, count]) => {
+            const submission = recentSubmissions.find(s => s.clientId === clientId);
+            return {
+              client: submission?.client,
+              submissionCount: count
+            };
+          });
+      })(),
+      
+      // InhibitedClients who haven't opened the app - no push token or last active > 30 days ago
+      (async () => {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        
+        const clientsWithoutTokens = await prisma.trainerClient.findMany({
+          where: {
+            trainerId: id,
+            pushToken: null
+          },
+          select: { id: true, fullName: true, email: true },
+          take: 10
+        });
+        
+        return clientsWithoutTokens;
+      })(),
+      
+      // Clients whose programs finish soon (within 7 days)
+      (async () => {
+        const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        
+        const [workoutPrograms, nutritionPrograms] = await Promise.all([
+          prisma.clientProgramAssignment.findMany({
+            where: {
+              trainerId: id,
+              endDate: {
+                lte: sevenDaysFromNow,
+                gte: new Date()
+              },
+              isActive: true
+            },
+            include: {
+              client: { select: { id: true, fullName: true } },
+              program: { select: { id: true, name: true } }
+            },
+            orderBy: { endDate: 'asc' },
+            take: 10
+          }),
+          prisma.clientNutritionAssignment.findMany({
+            where: {
+              trainerId: id,
+              endDate: {
+                lte: sevenDaysFromNow,
+                gte: new Date()
+              },
+              isActive: true
+            },
+            include: {
+              client: { select: { id: true, fullName: true } },
+              nutritionProgram: { select: { id: true, name: true } }
+            },
+            orderBy: { endDate: 'asc' },
+            take: 10
+          })
+        ]);
+        
+        const programs = [
+          ...workoutPrograms.map(w => ({
+            client: w.client,
+            program: { id: w.program.id, name: w.program.name, type: 'workout' },
+            endDate: w.endDate
+          })),
+          ...nutritionPrograms.map(n => ({
+            client: n.client,
+            program: { id: n.nutritionProgram.id, name: n.nutritionProgram.name, type: 'nutrition' },
+            endDate: n.endDate
+          }))
+        ].sort((a, b) => (a.endDate?.getTime() || 0) - (b.endDate?.getTime() || 0)).slice(0, 10);
+        
+        return programs;
+      })(),
+      
+      // Client Activities (recent activities from last 24 hours)
+      (async () => {
+        const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const activities: Array<{
+          type: string;
+          client: any;
+          timestamp: Date;
+          details: string;
+        }> = [];
+        
+        // Get recent workout completions
+        const recentWorkouts = await prisma.workoutSession.findMany({
+          where: {
+            clientId: { in: clientIds },
+            completedAt: { gte: last24Hours }
+          },
+          orderBy: { completedAt: 'desc' },
+          take: 10,
+          include: {
+            client: { select: { id: true, fullName: true } }
+          }
+        });
+        
+        // Get recent form submissions
+        const recentForms = await prisma.checkInSubmission.findMany({
+          where: {
+            clientId: { in: clientIds },
+            submittedAt: { gte: last24Hours }
+          },
+          orderBy: { submittedAt: 'desc' },
+          take: 10,
+          include: {
+            client: { select: { id: true, fullName: true } },
+            form: { select: { id: true, name: true } }
+          }
+        });
+        
+        // Combine and format activities
+        recentWorkouts.forEach(workout => {
+          if (workout.completedAt) {
+            activities.push({
+              type: 'workout_completed',
+              client: workout.client,
+              timestamp: workout.completedAt,
+              details: 'completed workout'
+            });
+          }
+        });
+        
+        recentForms.forEach(form => {
+          if (form.submittedAt) {
+            activities.push({
+              type: 'form_submitted',
+              client: form.client,
+              timestamp: form.submittedAt,
+              details: form.form?.name || 'check-in form'
+            });
+          }
+        });
+        
+        // Sort by timestamp and return latest 15
+        return activities
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 15);
+      })()
     ]);
 
     res.json({
@@ -336,7 +551,14 @@ router.get('/stats', async (req: Request, res: Response) => {
       workflowStats: {
         totalWorkflows,
         recentExecutions: recentWorkflowExecutions
-      }
+      },
+      clientActivity: {
+        mostActiveWorkouts,
+        mostActiveMeals,
+        inactiveClients,
+        programsFinishingSoon
+      },
+      clientActivities
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
