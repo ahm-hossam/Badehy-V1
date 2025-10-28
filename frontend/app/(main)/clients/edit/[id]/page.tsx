@@ -1505,7 +1505,7 @@ export default function EditClientPage() {
 
   return (
     <div>
-      <div className="max-w-4xl">
+      <div className="max-w-full">
         <h1 className="text-2xl font-bold mb-2">Edit Client</h1>
         
         <div className="space-y-6">

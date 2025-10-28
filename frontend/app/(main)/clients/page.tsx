@@ -39,7 +39,9 @@ interface Client {
     priceAfterDisc: number;
     endDate: string;
     isCanceled?: boolean;
+    canceledAt?: string;
     isOnHold?: boolean;
+    renewalHistory?: any[];
     installments: Array<{
       id: number;
       amount: number;
@@ -208,6 +210,22 @@ export default function ClientsPage() {
     const latestSubscription = client.subscriptions[0];
     
     if (latestSubscription.isCanceled) {
+      // If there's renewal history, treat it as active (renewed subscription)
+      if (latestSubscription.renewalHistory && Array.isArray(latestSubscription.renewalHistory) && latestSubscription.renewalHistory.length > 0) {
+        // Check if subscription is expired
+        if (latestSubscription.endDate) {
+          const endDate = new Date(latestSubscription.endDate);
+          const currentDate = new Date();
+          
+          if (endDate < currentDate) {
+            return { status: 'Expired', color: 'orange' };
+          }
+        }
+        
+        return { status: 'Active', color: 'green' };
+      }
+      
+      // No renewal history, so it's truly canceled
       return { status: 'Canceled', color: 'red' };
     }
     

@@ -449,12 +449,28 @@ export default function ClientDetailsPage() {
     console.log('Latest subscription:', latestSubscription);
     console.log('Payment status:', latestSubscription.paymentStatus);
     console.log('End date:', latestSubscription.endDate);
+    console.log('Renewal history:', latestSubscription.renewalHistory);
 
     // Normalize payment status to uppercase for comparison
     const paymentStatus = latestSubscription.paymentStatus?.toUpperCase();
 
     // Check if subscription is canceled first
     if (latestSubscription.isCanceled && latestSubscription.canceledAt) {
+      // If there's renewal history, treat it as active (renewed subscription)
+      if (latestSubscription.renewalHistory && Array.isArray(latestSubscription.renewalHistory) && latestSubscription.renewalHistory.length > 0) {
+        // Subscription has been renewed, so it's active
+        if (paymentStatus === 'PAID') {
+          return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
+        } else if (paymentStatus === 'PENDING') {
+          return { status: 'Pending', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', isActive: true };
+        } else if (paymentStatus === 'FREE') {
+          return { status: 'Free', color: 'bg-blue-100 text-blue-700 border-blue-200', isActive: true };
+        } else {
+          return { status: paymentStatus || 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
+        }
+      }
+      
+      // No renewal history, so it's truly canceled
       const cancelDate = new Date(latestSubscription.canceledAt);
       const currentDate = new Date();
       
@@ -1904,9 +1920,16 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     let effectiveEndDate;
     
     if (subscription.isCanceled && subscription.canceledAt) {
-      effectiveEndDate = new Date(subscription.canceledAt);
-      console.log('=== Subscription Canceled ===');
-      console.log('Using canceledAt date:', subscription.canceledAt);
+      // Check if there's renewal history - if yes, use the current endDate (renewed subscription)
+      if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory) && subscription.renewalHistory.length > 0) {
+        effectiveEndDate = new Date(subscription.endDate);
+        console.log('=== Canceled but Renewed Subscription ===');
+        console.log('Using endDate (renewed):', subscription.endDate);
+      } else {
+        effectiveEndDate = new Date(subscription.canceledAt);
+        console.log('=== Subscription Canceled ===');
+        console.log('Using canceledAt date:', subscription.canceledAt);
+      }
     } else {
       effectiveEndDate = new Date(subscription.endDate);
       console.log('=== Active Subscription ===');
@@ -1915,6 +1938,7 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     
     console.log('Is on hold:', subscription.isOnHold);
     console.log('Is canceled:', subscription.isCanceled);
+    console.log('Renewal history:', subscription.renewalHistory);
     console.log('Effective end date:', effectiveEndDate.toISOString());
     
     return effectiveEndDate;
