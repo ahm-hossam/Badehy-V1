@@ -175,6 +175,7 @@ export default function ClientDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -978,8 +979,36 @@ export default function ClientDetailsPage() {
   ];
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <>
+      {/* Client Details Sub-Sidebar - Fixed position next to main sidebar */}
+      <div className="fixed inset-y-0 left-64 w-48 bg-white border-r border-gray-200 overflow-y-auto z-20">
+        <div className="p-4">
+          <nav className="space-y-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full py-3 px-4 rounded-lg font-medium text-sm flex items-center transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <tab.icon className="h-5 w-5 mr-3 flex-shrink-0" />
+                <span className="flex-1 text-left">{tab.name}</span>
+                {tab.count !== null && tab.count > 0 && (
+                  <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="ml-[185px] overflow-auto px-1 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
@@ -1099,33 +1128,8 @@ export default function ClientDetailsPage() {
           </span>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex flex-wrap gap-x-6 gap-y-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-2 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="flex-shrink-0">{tab.name}</span>
-                {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs flex-shrink-0">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-
         {/* Tab Content */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div>
           {activeTab === 'overview' && <OverviewTab client={client} onHoldSubscription={handleHoldSubscription} onCancelSubscription={handleCancelSubscription} onAddRenew={handleAddRenew} getDisplayName={getDisplayName} />}
           {activeTab === 'profile' && <ProfileTab key={`profile-${client.id}-${clientDataVersion}`} client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
           {activeTab === 'subscriptions' && <SubscriptionsTab client={client} getPaymentStatusColor={getPaymentStatusColor} />}
@@ -1438,9 +1442,6 @@ export default function ClientDetailsPage() {
                   </Select>
                 </div>
                 
-                {/* Show renewal fields only after package is selected */}
-                {showRenewalFields && (
-                  <>
                     <div className="flex flex-col">
                       <label className="text-sm font-medium mb-1">Subscription Duration</label>
                       <div className="flex gap-2">
@@ -1584,8 +1585,6 @@ export default function ClientDetailsPage() {
                         )}
                       </div>
                     )}
-                  </>
-                )}
               </div>
             </div>
 
@@ -1690,7 +1689,7 @@ export default function ClientDetailsPage() {
         type={toast.type}
         onClose={() => setToast({ open: false, message: '', type: 'success' })}
       />
-    </div>
+    </>
   );
 }
 
@@ -1958,10 +1957,10 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
   const daysSinceRegistration = Math.floor((Date.now() - new Date(client.registrationDate).getTime()) / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="p-6">
+    <div>
       <h3 className="text-lg font-semibold mb-6">Client Overview</h3>
       
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {/* Contact Card */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
           <div className="flex items-start">
@@ -2177,8 +2176,6 @@ function ProfileTab({ client, editing, onSave, saving }: {
                 { label: 'Mobile Number', value: client.phone || '', key: 'phone' },
                 { label: 'Email', value: client.email || '', key: 'email' },
                 { label: 'Gender', value: client.gender || '', key: 'gender' },
-                { label: 'Age', value: client.age || '', key: 'age' },
-                { label: 'Source', value: client.source || '', key: 'source' },
                 { label: 'Registration Date', value: client.registrationDate ? new Date(client.registrationDate).toLocaleDateString() : '', key: 'registrationDate' },
               ].map((field) => {
                 const hasValue = field.value && field.value !== '' && field.value !== null && field.value !== 'undefined';
@@ -2212,7 +2209,7 @@ function ProfileTab({ client, editing, onSave, saving }: {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {formData.form.questions?.map((question: any) => {
                 // Skip core questions that are already displayed above
-                const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender', 'Age', 'Source'];
+                const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender'];
                 if (coreQuestionLabels.includes(question.label)) {
                   return null; // Skip this question as it's already shown in core fields
                 }
