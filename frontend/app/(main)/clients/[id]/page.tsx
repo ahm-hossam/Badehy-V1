@@ -1904,6 +1904,30 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     return activeSub;
   };
 
+  const getEffectiveEndDate = (subscription: any) => {
+    if (!subscription) return null;
+    
+    // If subscription is canceled, use the canceledAt date as the effective end date
+    // Otherwise, use the endDate (which already accounts for hold duration)
+    let effectiveEndDate;
+    
+    if (subscription.isCanceled && subscription.canceledAt) {
+      effectiveEndDate = new Date(subscription.canceledAt);
+      console.log('=== Subscription Canceled ===');
+      console.log('Using canceledAt date:', subscription.canceledAt);
+    } else {
+      effectiveEndDate = new Date(subscription.endDate);
+      console.log('=== Active Subscription ===');
+      console.log('Using endDate:', subscription.endDate);
+    }
+    
+    console.log('Is on hold:', subscription.isOnHold);
+    console.log('Is canceled:', subscription.isCanceled);
+    console.log('Effective end date:', effectiveEndDate.toISOString());
+    
+    return effectiveEndDate;
+  };
+
   const getActiveSubscriptionsCount = () => {
     if (!client.subscriptions || client.subscriptions.length === 0) {
       return 0;
@@ -2006,47 +2030,21 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
               <p className="text-sm font-medium text-red-900">Remaining Days</p>
               <p className="text-lg font-semibold text-red-700">
                 {(() => {
-                  // Calculate total subscription duration across all active subscriptions
-                  let totalSubscriptionDays = 0;
+                  const activeSub = getActiveSubscription();
+                  if (!activeSub) return 'No active subscription';
                   
-                  if (client.subscriptions && Array.isArray(client.subscriptions) && client.subscriptions.length > 0) {
-                    // Get all active (non-canceled) subscriptions
-                    const activeSubscriptions = client.subscriptions.filter(sub => 
-                      sub && !sub.isCanceled
-                    );
-                    
-                    console.log('=== Subscription Duration DEBUG ===');
-                    console.log('All subscriptions:', client.subscriptions);
-                    console.log('Active subscriptions:', activeSubscriptions);
-                    
-                    // Calculate total duration for each active subscription
-                    if (Array.isArray(activeSubscriptions)) {
-                      activeSubscriptions.forEach((sub, index) => {
-                        console.log(`Subscription ${index + 1}:`, {
-                          id: sub.id,
-                          durationValue: sub.durationValue,
-                          durationUnit: sub.durationUnit,
-                          startDate: sub.startDate,
-                          endDate: sub.endDate,
-                          isCanceled: sub.isCanceled
-                        });
-                        
-                        if (sub.durationValue && sub.durationUnit) {
-                          // Convert duration to days and sum
-                          const durationInDays = sub.durationUnit === 'month' ? sub.durationValue * 30 : 
-                                                sub.durationUnit === 'week' ? sub.durationValue * 7 : 
-                                                sub.durationValue;
-                          console.log(`Subscription ${index + 1} duration in days:`, durationInDays);
-                          totalSubscriptionDays += durationInDays;
-                        }
-                      });
-                    }
-                  }
+                  const effectiveEndDate = getEffectiveEndDate(activeSub);
+                  const currentDate = new Date();
+                  const remainingDays = Math.floor((effectiveEndDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                   
-                  console.log('Total subscription days:', totalSubscriptionDays);
-                  const displayText = totalSubscriptionDays > 0 ? `${totalSubscriptionDays} days` : 'No active subscriptions';
+                  console.log('=== Remaining Days Calculation ===');
+                  console.log('Active subscription:', activeSub);
+                  console.log('Original end date:', activeSub.endDate);
+                  console.log('Effective end date:', effectiveEndDate.toISOString());
+                  console.log('Current date:', currentDate.toISOString());
+                  console.log('Remaining days:', remainingDays);
                   
-                  return displayText;
+                  return remainingDays > 0 ? `${remainingDays} days` : 'Subscription ended';
                 })()}
               </p>
               <p className="text-sm text-red-600">
@@ -2054,9 +2052,9 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
                   const activeSub = getActiveSubscription();
                   if (!activeSub || !activeSub.endDate) return 'no active plan';
                   
-                  const endDate = new Date(activeSub.endDate);
+                  const effectiveEndDate = getEffectiveEndDate(activeSub);
                   const currentDate = new Date();
-                  const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const remainingDays = Math.floor((effectiveEndDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                   return remainingDays > 0 ? 'until expiration' : 'subscription ended';
                 })()}
               </p>
