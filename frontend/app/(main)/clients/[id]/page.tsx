@@ -681,12 +681,28 @@ export default function ClientDetailsPage() {
     // Get the latest subscription to pre-populate data
     const latestSubscription = client?.subscriptions?.[0];
     if (latestSubscription) {
+      // Calculate default end date based on today's date and duration
+      const today = new Date();
+      const durationValue = latestSubscription.durationValue || 1;
+      const durationUnit = latestSubscription.durationUnit || 'month';
+      const startDateStr = today.toISOString().split('T')[0];
+      
+      const endDateObj = new Date(today);
+      if (durationUnit === 'month') {
+        endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+      } else if (durationUnit === 'week') {
+        endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+      } else if (durationUnit === 'day') {
+        endDateObj.setDate(endDateObj.getDate() + durationValue);
+      }
+      const endDateStr = endDateObj.toISOString().split('T')[0];
+      
       // Pre-populate with current subscription data as defaults
       setRenewalData({
-        startDate: new Date().toISOString().split('T')[0], // Today's date
+        startDate: startDateStr, // Today's date
         durationValue: latestSubscription.durationValue?.toString() || '1',
         durationUnit: latestSubscription.durationUnit || 'month',
-        endDate: '', // Will be calculated
+        endDate: endDateStr, // Automatically calculated
         paymentStatus: latestSubscription.paymentStatus || 'paid',
         paymentMethod: latestSubscription.paymentMethod || 'instapay',
         priceBeforeDisc: latestSubscription.priceBeforeDisc?.toString() || '',
@@ -730,30 +746,33 @@ export default function ClientDetailsPage() {
   };
 
   const handleRenewalDataChange = (key: string, value: any) => {
-    setRenewalData((prev: any) => ({ ...prev, [key]: value }));
+    setRenewalData((prev: any) => {
+      const updated = { ...prev, [key]: value };
+      
+      // Calculate end date whenever startDate, durationValue, or durationUnit changes
+      if (updated.startDate && updated.durationValue && updated.durationUnit) {
+        const startDate = new Date(updated.startDate);
+        const durationValue = parseInt(updated.durationValue);
+        const durationUnit = updated.durationUnit;
+        
+        const endDateObj = new Date(startDate);
+        if (durationUnit === 'month') {
+          endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+        } else if (durationUnit === 'week') {
+          endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+        } else if (durationUnit === 'day') {
+          endDateObj.setDate(endDateObj.getDate() + durationValue);
+        }
+        updated.endDate = endDateObj.toISOString().split('T')[0];
+      }
+      
+      return updated;
+    });
     
     // Handle package selection
     if (key === 'packageId' && value) {
       const selectedPackage = packages.find((pkg: any) => pkg.id === Number(value));
       if (selectedPackage) {
-        // Calculate end date based on start date and package duration
-        let endDate = '';
-        if (renewalData.startDate && selectedPackage.durationValue) {
-          const startDate = new Date(renewalData.startDate);
-          const durationValue = selectedPackage.durationValue;
-          const durationUnit = selectedPackage.durationUnit || 'month';
-          
-          const endDateObj = new Date(startDate);
-          if (durationUnit === 'month') {
-            endDateObj.setMonth(endDateObj.getMonth() + durationValue);
-          } else if (durationUnit === 'week') {
-            endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
-          } else if (durationUnit === 'day') {
-            endDateObj.setDate(endDateObj.getDate() + durationValue);
-          }
-          endDate = endDateObj.toISOString().split('T')[0];
-        }
-        
         setRenewalData((prev: any) => ({
           ...prev,
           durationValue: selectedPackage.durationValue?.toString() || '',
@@ -763,7 +782,6 @@ export default function ClientDetailsPage() {
           discountType: selectedPackage.discountType || 'fixed',
           discountValue: selectedPackage.discountValue?.toString() || '',
           priceAfterDisc: selectedPackage.priceAfterDisc?.toString() || '',
-          endDate: endDate,
         }));
         
         // Set discount type in local state
@@ -776,31 +794,6 @@ export default function ClientDetailsPage() {
         setShowDiscountFields(selectedPackage.discountApplied || false);
         setShowTransactionImage(selectedPackage.paymentStatus === 'paid');
         setShowDiscountValue(selectedPackage.discountApplied || false);
-      }
-    }
-    
-    // Handle start date change to recalculate end date if package is selected
-    if (key === 'startDate' && value && packageSelected) {
-      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(renewalData.packageId));
-      if (selectedPackage && selectedPackage.durationValue) {
-        const startDate = new Date(value);
-        const durationValue = selectedPackage.durationValue;
-        const durationUnit = selectedPackage.durationUnit || 'month';
-        
-        const endDateObj = new Date(startDate);
-        if (durationUnit === 'month') {
-          endDateObj.setMonth(endDateObj.getMonth() + durationValue);
-        } else if (durationUnit === 'week') {
-          endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
-        } else if (durationUnit === 'day') {
-          endDateObj.setDate(endDateObj.getDate() + durationValue);
-        }
-        const endDate = endDateObj.toISOString().split('T')[0];
-        
-        setRenewalData((prev: any) => ({
-          ...prev,
-          endDate: endDate,
-        }));
       }
     }
     
