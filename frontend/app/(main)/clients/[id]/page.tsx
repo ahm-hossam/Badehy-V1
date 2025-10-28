@@ -175,6 +175,7 @@ export default function ClientDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -448,12 +449,28 @@ export default function ClientDetailsPage() {
     console.log('Latest subscription:', latestSubscription);
     console.log('Payment status:', latestSubscription.paymentStatus);
     console.log('End date:', latestSubscription.endDate);
+    console.log('Renewal history:', latestSubscription.renewalHistory);
 
     // Normalize payment status to uppercase for comparison
     const paymentStatus = latestSubscription.paymentStatus?.toUpperCase();
 
     // Check if subscription is canceled first
     if (latestSubscription.isCanceled && latestSubscription.canceledAt) {
+      // If there's renewal history, treat it as active (renewed subscription)
+      if (latestSubscription.renewalHistory && Array.isArray(latestSubscription.renewalHistory) && latestSubscription.renewalHistory.length > 0) {
+        // Subscription has been renewed, so it's active
+        if (paymentStatus === 'PAID') {
+          return { status: 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
+        } else if (paymentStatus === 'PENDING') {
+          return { status: 'Pending', color: 'bg-yellow-100 text-yellow-700 border-yellow-200', isActive: true };
+        } else if (paymentStatus === 'FREE') {
+          return { status: 'Free', color: 'bg-blue-100 text-blue-700 border-blue-200', isActive: true };
+        } else {
+          return { status: paymentStatus || 'Active', color: 'bg-green-100 text-green-700 border-green-200', isActive: true };
+        }
+      }
+      
+      // No renewal history, so it's truly canceled
       const cancelDate = new Date(latestSubscription.canceledAt);
       const currentDate = new Date();
       
@@ -680,12 +697,28 @@ export default function ClientDetailsPage() {
     // Get the latest subscription to pre-populate data
     const latestSubscription = client?.subscriptions?.[0];
     if (latestSubscription) {
+      // Calculate default end date based on today's date and duration
+      const today = new Date();
+      const durationValue = latestSubscription.durationValue || 1;
+      const durationUnit = latestSubscription.durationUnit || 'month';
+      const startDateStr = today.toISOString().split('T')[0];
+      
+      const endDateObj = new Date(today);
+      if (durationUnit === 'month') {
+        endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+      } else if (durationUnit === 'week') {
+        endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+      } else if (durationUnit === 'day') {
+        endDateObj.setDate(endDateObj.getDate() + durationValue);
+      }
+      const endDateStr = endDateObj.toISOString().split('T')[0];
+      
       // Pre-populate with current subscription data as defaults
       setRenewalData({
-        startDate: new Date().toISOString().split('T')[0], // Today's date
+        startDate: startDateStr, // Today's date
         durationValue: latestSubscription.durationValue?.toString() || '1',
         durationUnit: latestSubscription.durationUnit || 'month',
-        endDate: '', // Will be calculated
+        endDate: endDateStr, // Automatically calculated
         paymentStatus: latestSubscription.paymentStatus || 'paid',
         paymentMethod: latestSubscription.paymentMethod || 'instapay',
         priceBeforeDisc: latestSubscription.priceBeforeDisc?.toString() || '',
@@ -729,30 +762,33 @@ export default function ClientDetailsPage() {
   };
 
   const handleRenewalDataChange = (key: string, value: any) => {
-    setRenewalData((prev: any) => ({ ...prev, [key]: value }));
+    setRenewalData((prev: any) => {
+      const updated = { ...prev, [key]: value };
+      
+      // Calculate end date whenever startDate, durationValue, or durationUnit changes
+      if (updated.startDate && updated.durationValue && updated.durationUnit) {
+        const startDate = new Date(updated.startDate);
+        const durationValue = parseInt(updated.durationValue);
+        const durationUnit = updated.durationUnit;
+        
+        const endDateObj = new Date(startDate);
+        if (durationUnit === 'month') {
+          endDateObj.setMonth(endDateObj.getMonth() + durationValue);
+        } else if (durationUnit === 'week') {
+          endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
+        } else if (durationUnit === 'day') {
+          endDateObj.setDate(endDateObj.getDate() + durationValue);
+        }
+        updated.endDate = endDateObj.toISOString().split('T')[0];
+      }
+      
+      return updated;
+    });
     
     // Handle package selection
     if (key === 'packageId' && value) {
       const selectedPackage = packages.find((pkg: any) => pkg.id === Number(value));
       if (selectedPackage) {
-        // Calculate end date based on start date and package duration
-        let endDate = '';
-        if (renewalData.startDate && selectedPackage.durationValue) {
-          const startDate = new Date(renewalData.startDate);
-          const durationValue = selectedPackage.durationValue;
-          const durationUnit = selectedPackage.durationUnit || 'month';
-          
-          const endDateObj = new Date(startDate);
-          if (durationUnit === 'month') {
-            endDateObj.setMonth(endDateObj.getMonth() + durationValue);
-          } else if (durationUnit === 'week') {
-            endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
-          } else if (durationUnit === 'day') {
-            endDateObj.setDate(endDateObj.getDate() + durationValue);
-          }
-          endDate = endDateObj.toISOString().split('T')[0];
-        }
-        
         setRenewalData((prev: any) => ({
           ...prev,
           durationValue: selectedPackage.durationValue?.toString() || '',
@@ -762,7 +798,6 @@ export default function ClientDetailsPage() {
           discountType: selectedPackage.discountType || 'fixed',
           discountValue: selectedPackage.discountValue?.toString() || '',
           priceAfterDisc: selectedPackage.priceAfterDisc?.toString() || '',
-          endDate: endDate,
         }));
         
         // Set discount type in local state
@@ -775,31 +810,6 @@ export default function ClientDetailsPage() {
         setShowDiscountFields(selectedPackage.discountApplied || false);
         setShowTransactionImage(selectedPackage.paymentStatus === 'paid');
         setShowDiscountValue(selectedPackage.discountApplied || false);
-      }
-    }
-    
-    // Handle start date change to recalculate end date if package is selected
-    if (key === 'startDate' && value && packageSelected) {
-      const selectedPackage = packages.find((pkg: any) => pkg.id === Number(renewalData.packageId));
-      if (selectedPackage && selectedPackage.durationValue) {
-        const startDate = new Date(value);
-        const durationValue = selectedPackage.durationValue;
-        const durationUnit = selectedPackage.durationUnit || 'month';
-        
-        const endDateObj = new Date(startDate);
-        if (durationUnit === 'month') {
-          endDateObj.setMonth(endDateObj.getMonth() + durationValue);
-        } else if (durationUnit === 'week') {
-          endDateObj.setDate(endDateObj.getDate() + (durationValue * 7));
-        } else if (durationUnit === 'day') {
-          endDateObj.setDate(endDateObj.getDate() + durationValue);
-        }
-        const endDate = endDateObj.toISOString().split('T')[0];
-        
-        setRenewalData((prev: any) => ({
-          ...prev,
-          endDate: endDate,
-        }));
       }
     }
     
@@ -978,8 +988,36 @@ export default function ClientDetailsPage() {
   ];
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <>
+      {/* Client Details Sub-Sidebar - Fixed position next to main sidebar */}
+      <div className="fixed inset-y-0 left-64 w-48 bg-white border-r border-gray-200 overflow-y-auto z-20">
+        <div className="p-4">
+          <nav className="space-y-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full py-3 px-4 rounded-lg font-medium text-sm flex items-center transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <tab.icon className="h-5 w-5 mr-3 flex-shrink-0" />
+                <span className="flex-1 text-left">{tab.name}</span>
+                {tab.count !== null && tab.count > 0 && (
+                  <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="ml-[185px] overflow-auto px-1 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
@@ -1099,33 +1137,8 @@ export default function ClientDetailsPage() {
           </span>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex flex-wrap gap-x-6 gap-y-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-2 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span className="flex-shrink-0">{tab.name}</span>
-                {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-2 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs flex-shrink-0">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-
         {/* Tab Content */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div>
           {activeTab === 'overview' && <OverviewTab client={client} onHoldSubscription={handleHoldSubscription} onCancelSubscription={handleCancelSubscription} onAddRenew={handleAddRenew} getDisplayName={getDisplayName} />}
           {activeTab === 'profile' && <ProfileTab key={`profile-${client.id}-${clientDataVersion}`} client={client} editing={editing} onSave={handleSaveProfile} saving={saving} />}
           {activeTab === 'subscriptions' && <SubscriptionsTab client={client} getPaymentStatusColor={getPaymentStatusColor} />}
@@ -1438,9 +1451,6 @@ export default function ClientDetailsPage() {
                   </Select>
                 </div>
                 
-                {/* Show renewal fields only after package is selected */}
-                {showRenewalFields && (
-                  <>
                     <div className="flex flex-col">
                       <label className="text-sm font-medium mb-1">Subscription Duration</label>
                       <div className="flex gap-2">
@@ -1584,8 +1594,6 @@ export default function ClientDetailsPage() {
                         )}
                       </div>
                     )}
-                  </>
-                )}
               </div>
             </div>
 
@@ -1690,7 +1698,7 @@ export default function ClientDetailsPage() {
         type={toast.type}
         onClose={() => setToast({ open: false, message: '', type: 'success' })}
       />
-    </div>
+    </>
   );
 }
 
@@ -1904,6 +1912,38 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
     return activeSub;
   };
 
+  const getEffectiveEndDate = (subscription: any) => {
+    if (!subscription) return null;
+    
+    // If subscription is canceled, use the canceledAt date as the effective end date
+    // Otherwise, use the endDate (which already accounts for hold duration)
+    let effectiveEndDate;
+    
+    if (subscription.isCanceled && subscription.canceledAt) {
+      // Check if there's renewal history - if yes, use the current endDate (renewed subscription)
+      if (subscription.renewalHistory && Array.isArray(subscription.renewalHistory) && subscription.renewalHistory.length > 0) {
+        effectiveEndDate = new Date(subscription.endDate);
+        console.log('=== Canceled but Renewed Subscription ===');
+        console.log('Using endDate (renewed):', subscription.endDate);
+      } else {
+        effectiveEndDate = new Date(subscription.canceledAt);
+        console.log('=== Subscription Canceled ===');
+        console.log('Using canceledAt date:', subscription.canceledAt);
+      }
+    } else {
+      effectiveEndDate = new Date(subscription.endDate);
+      console.log('=== Active Subscription ===');
+      console.log('Using endDate:', subscription.endDate);
+    }
+    
+    console.log('Is on hold:', subscription.isOnHold);
+    console.log('Is canceled:', subscription.isCanceled);
+    console.log('Renewal history:', subscription.renewalHistory);
+    console.log('Effective end date:', effectiveEndDate.toISOString());
+    
+    return effectiveEndDate;
+  };
+
   const getActiveSubscriptionsCount = () => {
     if (!client.subscriptions || client.subscriptions.length === 0) {
       return 0;
@@ -1934,10 +1974,10 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
   const daysSinceRegistration = Math.floor((Date.now() - new Date(client.registrationDate).getTime()) / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="p-6">
+    <div>
       <h3 className="text-lg font-semibold mb-6">Client Overview</h3>
       
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {/* Contact Card */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 border border-green-200">
           <div className="flex items-start">
@@ -2006,47 +2046,21 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
               <p className="text-sm font-medium text-red-900">Remaining Days</p>
               <p className="text-lg font-semibold text-red-700">
                 {(() => {
-                  // Calculate total subscription duration across all active subscriptions
-                  let totalSubscriptionDays = 0;
+                  const activeSub = getActiveSubscription();
+                  if (!activeSub) return 'No active subscription';
                   
-                  if (client.subscriptions && Array.isArray(client.subscriptions) && client.subscriptions.length > 0) {
-                    // Get all active (non-canceled) subscriptions
-                    const activeSubscriptions = client.subscriptions.filter(sub => 
-                      sub && !sub.isCanceled
-                    );
-                    
-                    console.log('=== Subscription Duration DEBUG ===');
-                    console.log('All subscriptions:', client.subscriptions);
-                    console.log('Active subscriptions:', activeSubscriptions);
-                    
-                    // Calculate total duration for each active subscription
-                    if (Array.isArray(activeSubscriptions)) {
-                      activeSubscriptions.forEach((sub, index) => {
-                        console.log(`Subscription ${index + 1}:`, {
-                          id: sub.id,
-                          durationValue: sub.durationValue,
-                          durationUnit: sub.durationUnit,
-                          startDate: sub.startDate,
-                          endDate: sub.endDate,
-                          isCanceled: sub.isCanceled
-                        });
-                        
-                        if (sub.durationValue && sub.durationUnit) {
-                          // Convert duration to days and sum
-                          const durationInDays = sub.durationUnit === 'month' ? sub.durationValue * 30 : 
-                                                sub.durationUnit === 'week' ? sub.durationValue * 7 : 
-                                                sub.durationValue;
-                          console.log(`Subscription ${index + 1} duration in days:`, durationInDays);
-                          totalSubscriptionDays += durationInDays;
-                        }
-                      });
-                    }
-                  }
+                  const effectiveEndDate = getEffectiveEndDate(activeSub);
+                  const currentDate = new Date();
+                  const remainingDays = Math.floor((effectiveEndDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                   
-                  console.log('Total subscription days:', totalSubscriptionDays);
-                  const displayText = totalSubscriptionDays > 0 ? `${totalSubscriptionDays} days` : 'No active subscriptions';
+                  console.log('=== Remaining Days Calculation ===');
+                  console.log('Active subscription:', activeSub);
+                  console.log('Original end date:', activeSub.endDate);
+                  console.log('Effective end date:', effectiveEndDate.toISOString());
+                  console.log('Current date:', currentDate.toISOString());
+                  console.log('Remaining days:', remainingDays);
                   
-                  return displayText;
+                  return remainingDays > 0 ? `${remainingDays} days` : 'Subscription ended';
                 })()}
               </p>
               <p className="text-sm text-red-600">
@@ -2054,9 +2068,9 @@ function OverviewTab({ client, onHoldSubscription, onCancelSubscription, onAddRe
                   const activeSub = getActiveSubscription();
                   if (!activeSub || !activeSub.endDate) return 'no active plan';
                   
-                  const endDate = new Date(activeSub.endDate);
+                  const effectiveEndDate = getEffectiveEndDate(activeSub);
                   const currentDate = new Date();
-                  const remainingDays = Math.floor((endDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const remainingDays = Math.floor((effectiveEndDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
                   return remainingDays > 0 ? 'until expiration' : 'subscription ended';
                 })()}
               </p>
@@ -2179,8 +2193,6 @@ function ProfileTab({ client, editing, onSave, saving }: {
                 { label: 'Mobile Number', value: client.phone || '', key: 'phone' },
                 { label: 'Email', value: client.email || '', key: 'email' },
                 { label: 'Gender', value: client.gender || '', key: 'gender' },
-                { label: 'Age', value: client.age || '', key: 'age' },
-                { label: 'Source', value: client.source || '', key: 'source' },
                 { label: 'Registration Date', value: client.registrationDate ? new Date(client.registrationDate).toLocaleDateString() : '', key: 'registrationDate' },
               ].map((field) => {
                 const hasValue = field.value && field.value !== '' && field.value !== null && field.value !== 'undefined';
@@ -2214,7 +2226,7 @@ function ProfileTab({ client, editing, onSave, saving }: {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {formData.form.questions?.map((question: any) => {
                 // Skip core questions that are already displayed above
-                const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender', 'Age', 'Source'];
+                const coreQuestionLabels = ['Full Name', 'Email', 'Mobile Number', 'Gender'];
                 if (coreQuestionLabels.includes(question.label)) {
                   return null; // Skip this question as it's already shown in core fields
                 }
