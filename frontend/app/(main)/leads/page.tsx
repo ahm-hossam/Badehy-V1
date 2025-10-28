@@ -52,7 +52,6 @@ export default function LeadsPage() {
   const [selectedFormId, setSelectedFormId] = useState<string>('')
   const [converting, setConverting] = useState(false)
   const [convertSuccessInfo, setConvertSuccessInfo] = useState<{ clientId: number, formId?: number } | null>(null)
-  const [copiedFormLink, setCopiedFormLink] = useState(false)
 
   const load = async () => {
     if (!user?.id) return
@@ -101,7 +100,13 @@ export default function LeadsPage() {
         const data = await res.json().catch(() => ([]))
         const list = Array.isArray(data) ? data : []
         setConvertForms(list)
-        if (list.length > 0) setSelectedFormId(String(list[0].id))
+        // Default to main form (ID 1), or first form if main form doesn't exist
+        const mainForm = list.find((f: any) => f.id === 1)
+        if (mainForm) {
+          setSelectedFormId('1')
+        } else if (list.length > 0) {
+          setSelectedFormId(String(list[0].id))
+        }
       } catch {
         setConvertForms([])
       }
@@ -337,25 +342,22 @@ export default function LeadsPage() {
         </Dialog>
       )}
 
-      {/* Post-convert success dialog for sharing form link and navigating */}
+      {/* Post-convert success dialog */}
       {convertSuccessInfo && (
-        <Dialog open={!!convertSuccessInfo} onClose={() => { setConvertSuccessInfo(null); setCopiedFormLink(false) }}>
+        <Dialog open={!!convertSuccessInfo} onClose={() => { setConvertSuccessInfo(null) }}>
           <DialogBody className="bg-white">
             <DialogTitle>Lead Converted</DialogTitle>
             <div className="mt-2 space-y-3">
               <div className="text-sm text-gray-700">The lead has been converted to a client.</div>
-              {convertSuccessInfo.formId && (
-                <div className="space-y-2">
-                  <div className="text-sm text-gray-700">Share this form link with the client:</div>
-                  <div className="flex items-center gap-2">
-                    <input readOnly className="flex-1 px-3 py-2 border border-gray-300 rounded-md" value={`${window.location.origin}/check-ins/${convertSuccessInfo.formId}?clientId=${convertSuccessInfo.clientId}`} />
-                    <Button type="button" outline onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/check-ins/${convertSuccessInfo.formId}?clientId=${convertSuccessInfo.clientId}`); setCopiedFormLink(true); setTimeout(() => setCopiedFormLink(false), 1500); }}>{copiedFormLink ? 'Copied' : 'Copy'}</Button>
-                  </div>
-                </div>
-              )}
+              <div className="text-sm text-gray-500">
+                The client can now log in through the mobile app using their email address.
+              </div>
+              <div className="text-sm font-medium text-blue-600 mt-2">
+                Click below to complete the client's data in the edit page.
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" onClick={() => { const id = convertSuccessInfo.clientId; setConvertSuccessInfo(null); window.location.href = `/clients/${id}` }}>Go to Client</Button>
+              <Button type="button" onClick={() => { const id = convertSuccessInfo.clientId; setConvertSuccessInfo(null); window.location.href = `/clients/edit/${id}` }}>Go to Edit Client</Button>
             </div>
           </DialogBody>
         </Dialog>
