@@ -152,7 +152,7 @@ export default function HomePage() {
       </div>
 
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <MetricCard
           title="Total Clients"
           value={data.keyMetrics.totalClients}
@@ -173,14 +173,6 @@ export default function HomePage() {
           icon={ClipboardDocumentListIcon}
           iconColor="text-orange-600"
           bgColor="bg-orange-50"
-        />
-        <MetricCard
-          title="Revenue (This Month)"
-          value={`$${data.keyMetrics.monthlyRevenue.toFixed(2)}`}
-          icon={CurrencyDollarIcon}
-          iconColor="text-purple-600"
-          bgColor="bg-purple-50"
-          subtitle={revenueChange !== 0 && `${revenueChange > 0 ? '+' : ''}${revenueChange.toFixed(1)}% vs last month`}
         />
       </div>
 
