@@ -3286,6 +3286,7 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
     nextUpdateDate: '',
     notes: ''
   });
+  const [assignMode, setAssignMode] = useState<'direct' | 'customize' | null>(null);
 
   useEffect(() => {
     loadProgramAssignments();
@@ -3514,7 +3515,10 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
       <div className="bg-white rounded-xl shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Current Program</h3>
-          <Button onClick={() => setShowAssignModal(true)}>
+          <Button onClick={() => {
+            setShowAssignModal(true);
+            setAssignMode(null);
+          }}>
             <PlusIcon className="h-4 w-4 mr-2" />
             Assign Program
           </Button>
@@ -3580,7 +3584,10 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
           <div className="text-center py-8 text-gray-500">
             <FireIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p>No program currently assigned</p>
-            <Button onClick={() => setShowAssignModal(true)} className="mt-4">
+            <Button onClick={() => {
+              setShowAssignModal(true);
+              setAssignMode(null);
+            }} className="mt-4">
               <PlusIcon className="h-4 w-4 mr-2" />
               Assign Program
             </Button>
@@ -3727,21 +3734,66 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
               />
             </div>
             
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                type="button"
-                outline
-                onClick={() => setShowAssignModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!assignmentData.programId || !assignmentData.startDate || assignLoading}
-              >
-                {assignLoading ? 'Assigning...' : 'Assign Program'}
-              </Button>
-            </div>
+            {assignMode === null ? (
+              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+                <Button
+                  type="button"
+                  outline
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setAssignMode(null);
+                    setAssignmentData({
+                      programId: '',
+                      startDate: '',
+                      endDate: '',
+                      nextUpdateDate: '',
+                      notes: ''
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setAssignMode('direct')}
+                  disabled={!assignmentData.programId}
+                >
+                  Assign as Is
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setAssignMode('customize')}
+                  disabled={!assignmentData.programId}
+                >
+                  Customize for Client
+                </Button>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+                {assignMode === 'customize' ? (
+                  <Button
+                    type="button"
+                    outline
+                    onClick={() => {
+                      const user = getStoredUser();
+                      if (user && assignmentData.programId) {
+                        window.location.href = `/workout-programs/${assignmentData.programId}/edit?customize=true&clientId=${client.id}&trainerId=${user.id}`;
+                      }
+                    }}
+                    disabled={!assignmentData.programId}
+                  >
+                    Continue to Edit
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={!assignmentData.programId || !assignmentData.startDate || assignLoading}
+                  >
+                    {assignLoading ? 'Assigning...' : 'Confirm Assignment'}
+                  </Button>
+                )}
+              </div>
+            )}
           </form>
         </div>
       </Dialog>

@@ -94,8 +94,10 @@ model TrainerClient {
   // Notification relations
   notificationRecipients NotificationRecipient[]
   pushToken             PushToken?
-  workflowExecutions    WorkflowExecution[]
-  assignedForms         AssignedForm[]
+  workflowExecutions      WorkflowExecution[]
+  assignedForms           AssignedForm[]
+  customizedPrograms      Program[]                   @relation("CustomizedProgram")
+  customizedNutritionPrograms NutritionProgram[]      @relation("CustomizedNutritionProgram")
 
   @@index([trainerId])
 }
@@ -462,56 +464,66 @@ model Ingredient {
 }
 
 model Program {
-  id                Int                       @id @default(autoincrement())
-  trainerId         Int
-  name              String
-  description       String?
-  pdfUrl            String?
-  isImported        Boolean                   @default(false)
-  isDefault         Boolean                   @default(false) // Mark default programs
-  importedPdfUrl    String?
-  programDuration   Int?
-  durationUnit      String?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  clientAssignments ClientProgramAssignment[]
-  trainer           Registered                @relation(fields: [trainerId], references: [id])
-  weeks             ProgramWeek[]
+  id                      Int                       @id @default(autoincrement())
+  trainerId               Int
+  name                    String
+  description             String?
+  pdfUrl                  String?
+  isImported              Boolean                   @default(false)
+  isDefault               Boolean                   @default(false) // Mark default programs
+  importedPdfUrl          String?
+  programDuration         Int?
+  durationUnit            String?
+  originalProgramId       Int?                      // ID of the original program if this is a customized version
+  customizedForClientId   Int?                      // Client ID for whom this program was customized
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  clientAssignments       ClientProgramAssignment[]
+  trainer                 Registered                @relation(fields: [trainerId], references: [id])
+  weeks                   ProgramWeek[]
+  customizedFor           TrainerClient?            @relation("CustomizedProgram", fields: [customizedForClientId], references: [id])
 
   @@index([trainerId])
+  @@index([originalProgramId])
+  @@index([customizedForClientId])
 }
 
 model NutritionProgram {
-  id                Int                         @id @default(autoincrement())
-  trainerId         Int
-  name              String
-  description       String?
-  pdfUrl            String?
-  isImported        Boolean                     @default(false)
-  importedPdfUrl    String?
-  programDuration   Int?                        // Number of weeks
-  durationUnit      String?                     @default("weeks")
-  repeatCount       Int?                        @default(1) // How many times to repeat the program
+  id                        Int                         @id @default(autoincrement())
+  trainerId                 Int
+  name                      String
+  description               String?
+  pdfUrl                    String?
+  isImported                Boolean                     @default(false)
+  importedPdfUrl            String?
+  programDuration           Int?                        // Number of weeks
+  durationUnit              String?                     @default("weeks")
+  repeatCount               Int?                        @default(1) // How many times to repeat the program
   
   // Goal settings
-  targetCalories    Float?                      // Daily calorie target
-  targetProtein     Float?                      // Daily protein target (grams)
-  targetCarbs       Float?                      // Daily carbs target (grams)
-  targetFats        Float?                      // Daily fats target (grams)
-  proteinPercentage Float?                     // Protein percentage (if using %)
-  carbsPercentage   Float?                      // Carbs percentage (if using %)
-  fatsPercentage    Float?                      // Fats percentage (if using %)
-  usePercentages    Boolean                     @default(false) // Whether to use % or grams
+  targetCalories            Float?                      // Daily calorie target
+  targetProtein             Float?                      // Daily protein target (grams)
+  targetCarbs               Float?                      // Daily carbs target (grams)
+  targetFats                Float?                      // Daily fats target (grams)
+  proteinPercentage         Float?                     // Protein percentage (if using %)
+  carbsPercentage           Float?                      // Carbs percentage (if using %)
+  fatsPercentage            Float?                      // Fats percentage (if using %)
+  usePercentages            Boolean                     @default(false) // Whether to use % or grams
   
-  isActive          Boolean                     @default(true)
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  clientAssignments ClientNutritionAssignment[]
-  trainer           Registered                  @relation(fields: [trainerId], references: [id])
-  meals             NutritionProgramMeal[]
-  weeks             NutritionProgramWeek[]
+  isActive                  Boolean                     @default(true)
+  originalNutritionProgramId Int?                      // ID of the original program if this is a customized version
+  customizedForClientId     Int?                      // Client ID for whom this program was customized
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  clientAssignments         ClientNutritionAssignment[]
+  trainer                   Registered                  @relation(fields: [trainerId], references: [id])
+  meals                     NutritionProgramMeal[]
+  weeks                     NutritionProgramWeek[]
+  customizedFor             TrainerClient?              @relation("CustomizedNutritionProgram", fields: [customizedForClientId], references: [id])
 
   @@index([trainerId])
+  @@index([originalNutritionProgramId])
+  @@index([customizedForClientId])
 }
 
 model Meal {

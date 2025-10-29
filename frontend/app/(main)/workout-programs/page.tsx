@@ -207,13 +207,17 @@ export default function ProgramsPage() {
         const data = await response.json();
         setErrorMessage(data.error || "Failed to delete program.");
         setShowErrorToast(true);
-        setTimeout(() => setShowErrorToast(false), 2000);
+        setTimeout(() => setShowErrorToast(false), 3000);
+        // Refresh the programs list to ensure it doesn't disappear
+        await fetchPrograms(user.id);
       }
     } catch (error) {
       console.error('Error deleting program:', error);
       setErrorMessage("Error deleting program.");
       setShowErrorToast(true);
-      setTimeout(() => setShowErrorToast(false), 2000);
+      setTimeout(() => setShowErrorToast(false), 3000);
+      // Refresh the programs list to ensure it doesn't disappear
+      await fetchPrograms(user.id);
     } finally {
       setConfirmDelete(null);
     }

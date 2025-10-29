@@ -860,7 +860,7 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
                             const tempoText = ex.sets && ex.sets.length > 0 
                               ? ex.sets.map(set => set.tempo || '-').join(', ')
                               : '-';
-                            const groupText = ex.groupType === 'none' ? 'Single' : ex.groupType.charAt(0).toUpperCase() + ex.groupType.slice(1);
+                            const groupText = ex.groupType === 'none' || !ex.groupType ? 'Single' : ex.groupType.charAt(0).toUpperCase() + ex.groupType.slice(1);
                             
                             return (
                               <ExerciseRow 
