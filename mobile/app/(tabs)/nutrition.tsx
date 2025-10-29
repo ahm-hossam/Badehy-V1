@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { MealCompletionStorage, TokenStorage } from '../../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 const { width } = Dimensions.get('window');
@@ -33,7 +34,11 @@ export default function NutritionTab() {
     try {
       setErr('');
       setLoading(true);
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
       // Fetch client info
@@ -41,6 +46,13 @@ export default function NutritionTab() {
       const meJson = await meRes.json();
       if (meRes.ok) {
         setClient(meJson.client);
+        // Load saved meal completions from AsyncStorage (only today's completions)
+        if (meJson.client?.id) {
+          const savedCompletions = await MealCompletionStorage.getMealCompletions(meJson.client.id); // Automatically filters to today
+          setCompletedMeals(savedCompletions);
+          // Clean up old completions periodically
+          await MealCompletionStorage.cleanupOldCompletions(meJson.client.id);
+        }
       }
 
       // Fetch nutrition plan
@@ -50,6 +62,16 @@ export default function NutritionTab() {
       const json = await res.json();
       if (res.ok) {
         setAssignment(json.assignment);
+        
+        // Auto-select today's day when assignment loads
+        if (json.assignment?.nutritionProgram?.weeks?.[0]?.days) {
+          const todayDayOfWeek = new Date().getDay();
+          const today = todayDayOfWeek === 0 ? 7 : todayDayOfWeek; // Map Sunday(0) to 7
+          const todayDayIndex = json.assignment.nutritionProgram.weeks[0].days.findIndex((day: any) => day.dayOfWeek === today);
+          if (todayDayIndex !== -1) {
+            setSelectedDay(todayDayIndex);
+          }
+        }
       } else {
         // If no nutrition plan, that's okay - show empty state
         setAssignment(null);
@@ -154,7 +176,7 @@ export default function NutritionTab() {
     return times[mealType.toLowerCase()] || '12:00 PM';
   };
 
-  const toggleMealCompletion = (meal: any) => {
+  const toggleMealCompletion = async (meal: any) => {
     const mealKey = `${selectedWeek}-${selectedDay}-${meal.id}`;
     const newCompletedMeals = new Set(completedMeals);
     
@@ -165,6 +187,11 @@ export default function NutritionTab() {
     }
     
     setCompletedMeals(newCompletedMeals);
+    
+    // Persist to AsyncStorage (now includes date automatically)
+    if (client?.id) {
+      await MealCompletionStorage.saveMealCompletions(client.id, newCompletedMeals);
+    }
   };
 
   const isMealCompleted = (meal: any) => {

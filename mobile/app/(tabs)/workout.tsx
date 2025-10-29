@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { TokenStorage } from '../../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 const { width } = Dimensions.get('window');
@@ -33,7 +34,11 @@ export default function WorkoutTab() {
     try {
       setError('');
       setLoading(true);
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
       // Fetch client info and subscription status

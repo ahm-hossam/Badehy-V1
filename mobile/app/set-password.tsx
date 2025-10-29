@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SafeAreaView, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { TokenStorage } from '../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 
@@ -82,7 +83,8 @@ export default function SetPasswordScreen() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed');
       if (data?.accessToken) {
-        (globalThis as any).ACCESS_TOKEN = data.accessToken;
+        // Save tokens to persistent storage
+        await TokenStorage.saveTokens(data.accessToken, data.refreshToken);
       }
       // Check if client needs to complete main form
       checkFormCompletion();

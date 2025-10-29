@@ -11,11 +11,12 @@ import {
   ActivityIndicator,
   Dimensions
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 import NotificationBell from '../../components/NotificationBell';
+import { TokenStorage, MealCompletionStorage } from '../../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 const { width } = Dimensions.get('window');
@@ -25,9 +26,11 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   const [data, setData] = useState<any>(null);
+  const [nutritionData, setNutritionData] = useState<any>(null);
   const [client, setClient] = useState<any>(null);
-  const [activeSession, setActiveSession] = useState<any>(null);
+  const [subscription, setSubscription] = useState<any>(null);
   const [assignedForms, setAssignedForms] = useState<any[]>([]);
+  const [completedMeals, setCompletedMeals] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -39,36 +42,50 @@ export default function HomeScreen() {
   const fetchAll = useCallback(async () => {
     try {
       setError('');
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
-      // Fetch client info
+      // Fetch client info and subscription
       const meRes = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
       const meJson = await meRes.json();
       if (meRes.ok) {
         setClient(meJson.client);
+        setSubscription(meJson.subscription);
+        // Load saved meal completions from AsyncStorage (only today's completions)
+        if (meJson.client?.id) {
+          const savedCompletions = await MealCompletionStorage.getMealCompletions(meJson.client.id); // Automatically filters to today
+          setCompletedMeals(savedCompletions);
+          // Clean up old completions periodically
+          await MealCompletionStorage.cleanupOldCompletions(meJson.client.id);
+        }
         if (meJson?.subscription?.expired) {
           router.replace('/blocked');
           return;
         }
       }
 
-      // Fetch active program
+      // Fetch active workout program
       const programRes = await fetch(`${API}/mobile/programs/active`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const programJson = await programRes.json();
       if (programRes.ok) {
-        setData(programJson.assignment);
+        // API returns { assignment: {...} }, so data will be the assignment object
+        setData(programJson.assignment || programJson);
       }
 
-      // Fetch active session
-      const sessionRes = await fetch(`${API}/mobile/sessions/active`, {
+      // Fetch active nutrition program
+      const nutritionRes = await fetch(`${API}/mobile/nutrition/active`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const sessionJson = await sessionRes.json();
-      if (sessionRes.ok) {
-        setActiveSession(sessionJson.session);
+      const nutritionJson = await nutritionRes.json();
+      if (nutritionRes.ok) {
+        // API returns { assignment: {...} }, so nutritionData will be the assignment object
+        setNutritionData(nutritionJson.assignment || nutritionJson);
       }
 
       // Fetch assigned forms
@@ -91,6 +108,22 @@ export default function HomeScreen() {
     fetchAll(); 
   }, [fetchAll]);
 
+  // Reload meal completions when screen comes into focus (only today's completions)
+  useFocusEffect(
+    useCallback(() => {
+      const reloadMealCompletions = async () => {
+        if (client?.id) {
+          // Get only today's completions (system automatically filters by date)
+          const savedCompletions = await MealCompletionStorage.getMealCompletions(client.id);
+          setCompletedMeals(savedCompletions);
+          // Clean up old completions periodically
+          await MealCompletionStorage.cleanupOldCompletions(client.id);
+        }
+      };
+      reloadMealCompletions();
+    }, [client?.id])
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchAll();
@@ -105,50 +138,37 @@ export default function HomeScreen() {
   };
 
   const getSubscriptionStatus = () => {
-    if (!client?.subscriptions?.[0]) return { status: 'No Subscription', color: '#EF4444' };
-    
-    const subscription = client.subscriptions[0];
-    const endDate = new Date(subscription.endDate);
-    const now = new Date();
-    const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (daysLeft < 0) return { status: 'Expired', color: '#EF4444' };
-    if (daysLeft <= 7) return { status: `${daysLeft} days left`, color: '#F59E0B' };
-    return { status: 'Active', color: '#10B981' };
-  };
-
-  const getNextWorkout = () => {
-    if (!data?.program?.weeks) return null;
-    
-    // Find the first incomplete day
-    for (const week of data.program.weeks) {
-      for (const day of week.days) {
-        if (day.dayType !== 'off') {
-          return { week, day };
-        }
+    if (!subscription) {
+      // Try to get from client.subscriptions as fallback
+      if (client?.subscriptions?.[0]) {
+        const sub = client.subscriptions[0];
+        const endDate = new Date(sub.endDate);
+        const now = new Date();
+        const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysLeft < 0 || sub.isCanceled) return { status: 'Expired', color: '#EF4444' };
+        if (daysLeft <= 7) return { status: `${daysLeft} days left`, color: '#F59E0B' };
+        return { status: 'Active', color: '#10B981' };
       }
+      return { status: 'No Subscription', color: '#EF4444' };
     }
-    return null;
-  };
-
-  const getWorkoutProgress = () => {
-    if (!data?.program?.weeks) return { completed: 0, total: 0 };
     
-    let completed = 0;
-    let total = 0;
+    if (subscription.expired) {
+      return { status: 'Expired', color: '#EF4444' };
+    }
     
-    data.program.weeks.forEach((week: any) => {
-      week.days.forEach((day: any) => {
-        if (day.dayType !== 'off') {
-          total++;
-          if (day.workoutSessions?.[0]?.status === 'completed') {
-            completed++;
-          }
-        }
-      });
-    });
+    if (subscription.endDate) {
+      const endDate = new Date(subscription.endDate);
+      const now = new Date();
+      const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (daysLeft < 0) return { status: 'Expired', color: '#EF4444' };
+      if (daysLeft <= 7) return { status: `${daysLeft} days left`, color: '#F59E0B' };
+      if (daysLeft <= 30) return { status: `Active (${daysLeft} days left)`, color: '#10B981' };
+      return { status: 'Active', color: '#10B981' };
+    }
     
-    return { completed, total };
+    return { status: 'Active', color: '#10B981' };
   };
 
   if (loading) {
@@ -163,8 +183,122 @@ export default function HomeScreen() {
   }
 
   const subscriptionStatus = getSubscriptionStatus();
-  const nextWorkout = getNextWorkout();
-  const workoutProgress = getWorkoutProgress();
+
+  // Check if today's workout is completed
+  const getTodayWorkoutStatus = () => {
+    // data is the assignment object, so program is at data.program
+    const program = data?.program;
+    if (!program?.weeks) {
+      return { completed: false, hasWorkout: false };
+    }
+    
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    
+    // Check all weeks and days for completed sessions today
+    let foundCompletedToday = false;
+    let hasActiveSessionToday = false;
+    
+    // Iterate through all weeks and days to find today's completed workout
+    for (const week of program.weeks || []) {
+      for (const day of week.days || []) {
+        if (day.dayType !== 'off' && day.workoutSessions) {
+          for (const session of day.workoutSessions) {
+            // Check if session was completed today
+            if (session.status === 'completed' && session.completedAt) {
+              const completedDate = new Date(session.completedAt);
+              if (completedDate >= todayStart && completedDate < todayEnd) {
+                foundCompletedToday = true;
+                break;
+              }
+            }
+            // Check if there's an active session today
+            if (session.status === 'active' || session.status === 'paused') {
+              const startedDate = session.startedAt ? new Date(session.startedAt) : null;
+              if (startedDate && startedDate >= todayStart && startedDate < todayEnd) {
+                hasActiveSessionToday = true;
+              }
+            }
+          }
+        }
+        if (foundCompletedToday) break;
+      }
+      if (foundCompletedToday) break;
+    }
+    
+    // Also check if there's a program assigned (hasWorkout = true if program exists)
+    return { 
+      completed: foundCompletedToday, 
+      hasWorkout: foundCompletedToday || hasActiveSessionToday || Boolean(program)
+    };
+  };
+
+  // Check if today's meals are completed
+  const getTodayMealsStatus = () => {
+    // nutritionData is the assignment object, so nutritionProgram is at nutritionData.nutritionProgram
+    const nutritionProgram = nutritionData?.nutritionProgram;
+    if (!nutritionProgram?.weeks) {
+      return { completed: false, hasMeals: false, completedCount: 0, totalCount: 0 };
+    }
+    
+    // Get today's meals based on the current week and day
+    // Find the current week (first week for now, or we can calculate based on start date)
+    const currentWeekIndex = 0; // Start with week 0 (first week)
+    const currentWeek = nutritionProgram.weeks[currentWeekIndex];
+    if (!currentWeek?.days || currentWeek.days.length === 0) {
+      return { completed: false, hasMeals: false, completedCount: 0, totalCount: 0 };
+    }
+    
+    // Get today's day of week (0 = Sunday, 6 = Saturday)
+    const todayDayOfWeek = new Date().getDay();
+    // Backend uses 1-7 where 1=Monday, 7=Sunday
+    // JavaScript uses 0-6 where 0=Sunday, 6=Saturday
+    // Map: JS Sunday(0) -> Backend Sunday(7), JS Monday(1) -> Backend Monday(1), ..., JS Saturday(6) -> Backend Saturday(6)
+    const today = todayDayOfWeek === 0 ? 7 : todayDayOfWeek;
+    
+    // Find the day that matches today by dayOfWeek
+    const todayDayIndex = currentWeek.days.findIndex((day: any) => day.dayOfWeek === today);
+    if (todayDayIndex === -1) {
+      return { completed: false, hasMeals: false, completedCount: 0, totalCount: 0 };
+    }
+    
+    const todayDay = currentWeek.days[todayDayIndex];
+    if (!todayDay.meals || todayDay.meals.length === 0) {
+      return { completed: false, hasMeals: true, completedCount: 0, totalCount: 0 };
+    }
+    
+    const totalMeals = todayDay.meals.length;
+    
+    // Check meal completions from AsyncStorage
+    // The meal key format must match exactly with what's saved in nutrition tab
+    // Format: `${weekIndex}-${dayIndex}-${meal.id}` where indices are 0-based array positions
+    // Note: nutrition tab uses selectedWeek and selectedDay (array indices), so we must match those
+    let completedCount = 0;
+    const mealKeys: string[] = [];
+    todayDay.meals.forEach((meal: any) => {
+      // Use the same key format as nutrition tab: week index, day index (array position), meal id
+      const mealKey = `${currentWeekIndex}-${todayDayIndex}-${meal.id}`;
+      mealKeys.push(mealKey);
+      if (completedMeals.has(mealKey)) {
+        completedCount++;
+      }
+    });
+    
+    
+    const allCompleted = completedCount === totalMeals && totalMeals > 0;
+    
+    return { 
+      completed: allCompleted,
+      hasMeals: true,
+      completedCount,
+      totalCount: totalMeals
+    };
+  };
+
+  const workoutStatus = getTodayWorkoutStatus();
+  const mealsStatus = getTodayMealsStatus();
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
@@ -208,32 +342,66 @@ export default function HomeScreen() {
           <Text style={styles.subtitle}>Ready to crush your fitness goals today?</Text>
         </View>
 
-        {/* Quick Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="barbell" size={24} color="#4F46E5" />
+        {/* Quick Status Cards */}
+        <View style={styles.quickStatusContainer}>
+          {/* Today's Workout Status */}
+          <View style={styles.quickStatusCard}>
+            <View style={styles.quickStatusIconContainer}>
+              <Ionicons 
+                name="barbell" 
+                size={24} 
+                color={data?.program ? "#6B7280" : "#9CA3AF"} 
+              />
             </View>
-            <Text style={styles.statNumber}>{workoutProgress.completed}</Text>
-            <Text style={styles.statLabel}>Workouts{'\n'}Completed</Text>
+            <View style={styles.quickStatusContent}>
+              <Text style={styles.quickStatusTitle}>Today's Workout</Text>
+              <Text style={[
+                styles.quickStatusText,
+                !data?.program && { color: '#9CA3AF' }
+              ]}>
+                {workoutStatus.completed 
+                  ? 'Completed' 
+                  : data?.program 
+                    ? 'Not Started' 
+                    : 'No program assigned'}
+              </Text>
+            </View>
+            {workoutStatus.completed && (
+              <View style={styles.quickStatusCheckmark}>
+                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              </View>
+            )}
           </View>
-          
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="calendar" size={24} color="#10B981" />
+
+          {/* Today's Meals Status */}
+          <View style={styles.quickStatusCard}>
+            <View style={styles.quickStatusIconContainer}>
+              <Ionicons 
+                name="nutrition" 
+                size={24} 
+                color={nutritionData?.nutritionProgram ? "#6B7280" : "#9CA3AF"} 
+              />
             </View>
-            <Text style={styles.statNumber}>{workoutProgress.total}</Text>
-            <Text style={styles.statLabel}>Total{'\n'}Workouts</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <View style={styles.statIconContainer}>
-              <Ionicons name="trophy" size={24} color="#F59E0B" />
+            <View style={styles.quickStatusContent}>
+              <Text style={styles.quickStatusTitle}>Today's Meals</Text>
+              <Text style={[
+                styles.quickStatusText,
+                !nutritionData?.nutritionProgram && { color: '#9CA3AF' }
+              ]}>
+                {mealsStatus.completed 
+                  ? 'All Completed' 
+                  : mealsStatus.totalCount > 0 
+                    ? `${mealsStatus.completedCount}/${mealsStatus.totalCount} Completed`
+                    : nutritionData?.nutritionProgram
+                      ? 'No meals scheduled'
+                      : 'No program assigned'}
+              </Text>
             </View>
-            <Text style={styles.statNumber}>
-              {workoutProgress.total > 0 ? Math.round((workoutProgress.completed / workoutProgress.total) * 100) : 0}%
-            </Text>
-            <Text style={styles.statLabel}>Progress</Text>
+            {mealsStatus.completed && (
+              <View style={styles.quickStatusCheckmark}>
+                <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+              </View>
+            )}
           </View>
         </View>
 
@@ -267,70 +435,82 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Active Session Card */}
-        {activeSession && (
-          <View style={styles.activeSessionCard}>
-            <View style={styles.activeSessionHeader}>
-              <Ionicons name="play-circle" size={24} color="#4F46E5" />
-              <Text style={styles.activeSessionTitle}>Active Workout</Text>
-            </View>
-            <Text style={styles.activeSessionText}>
-              You have an active workout session. Tap to continue.
-            </Text>
-            <Pressable 
-              style={styles.activeSessionButton}
-              onPress={() => router.push('/(tabs)/workout')}
-            >
-              <Text style={styles.activeSessionButtonText}>Continue Workout</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </Pressable>
-          </View>
-        )}
 
-        {/* Next Workout Card */}
-        {nextWorkout && !activeSession && (
-          <View style={styles.nextWorkoutCard}>
-            <View style={styles.nextWorkoutHeader}>
-              <Ionicons name="barbell-outline" size={24} color="#111827" />
-              <Text style={styles.nextWorkoutTitle}>Next Workout</Text>
-            </View>
-            <Text style={styles.nextWorkoutText}>
-              Week {nextWorkout.week.weekNumber} - Day {nextWorkout.day.dayNumber}
-            </Text>
-            <Text style={styles.nextWorkoutSubtext}>
-              {nextWorkout.day.exercises?.length || 0} exercises planned
-            </Text>
-            <Pressable 
-              style={styles.nextWorkoutButton}
-              onPress={() => router.push('/(tabs)/workout')}
-            >
-              <Text style={styles.nextWorkoutButtonText}>Start Workout</Text>
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            </Pressable>
-          </View>
-        )}
-
-        {/* Program Overview */}
-        {data?.program && (
-          <View style={styles.programCard}>
-            <View style={styles.programHeader}>
-              <Ionicons name="list" size={24} color="#111827" />
-              <Text style={styles.programTitle}>Current Program</Text>
-            </View>
-            <Text style={styles.programName}>{data.program.name}</Text>
-            <Text style={styles.programDescription}>
-              {data.program.weeks?.length || 0} weeks • {data.program.weeks?.reduce((acc: number, week: any) => 
-                acc + (week.days?.filter((day: any) => day.dayType !== 'off').length || 0), 0
-              )} workout days
-            </Text>
-            <Pressable 
-              style={styles.programButton}
-              onPress={() => router.push('/(tabs)/workout')}
-            >
-              <Text style={styles.programButtonText}>View Program</Text>
-              <Ionicons name="arrow-forward" size={20} color="#4F46E5" />
-            </Pressable>
-          </View>
+        {/* Program Overview - Enhanced */}
+        {(data?.program || nutritionData?.nutritionProgram) && (
+          <>
+            {data?.program && (
+              <View style={styles.programCard}>
+                <View style={styles.programHeader}>
+                  <Ionicons name="barbell" size={24} color="#4F46E5" />
+                  <Text style={styles.programTitle}>Current Workout Program</Text>
+                </View>
+                <Text style={styles.programName}>{data.program.name}</Text>
+                {data.program.description && (
+                  <Text style={styles.programDescription}>{data.program.description}</Text>
+                )}
+                <View style={styles.programStats}>
+                  <View style={styles.programStatItem}>
+                    <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                    <Text style={styles.programStatText}>
+                      {data.program.weeks?.length || 0} weeks
+                    </Text>
+                  </View>
+                  <View style={styles.programStatItem}>
+                    <Ionicons name="fitness-outline" size={16} color="#6B7280" />
+                    <Text style={styles.programStatText}>
+                      {data.program.weeks?.reduce((acc: number, week: any) => 
+                        acc + (week.days?.filter((day: any) => day.dayType !== 'off').length || 0), 0
+                      ) || 0} workout days
+                    </Text>
+                  </View>
+                </View>
+                <Pressable 
+                  style={styles.programButton}
+                  onPress={() => router.push('/(tabs)/workout')}
+                >
+                  <Text style={styles.programButtonText}>View Program</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#4F46E5" />
+                </Pressable>
+              </View>
+            )}
+            
+            {nutritionData?.nutritionProgram && (
+              <View style={styles.programCard}>
+                <View style={styles.programHeader}>
+                  <Ionicons name="nutrition" size={24} color="#10B981" />
+                  <Text style={styles.programTitle}>Current Nutrition Program</Text>
+                </View>
+                <Text style={styles.programName}>{nutritionData.nutritionProgram.name}</Text>
+                {nutritionData.nutritionProgram.description && (
+                  <Text style={styles.programDescription}>{nutritionData.nutritionProgram.description}</Text>
+                )}
+                <View style={styles.programStats}>
+                  <View style={styles.programStatItem}>
+                    <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                    <Text style={styles.programStatText}>
+                      {nutritionData.nutritionProgram.weeks?.length || 0} weeks
+                    </Text>
+                  </View>
+                  {nutritionData.nutritionProgram.targetCalories && (
+                    <View style={styles.programStatItem}>
+                      <Ionicons name="flame-outline" size={16} color="#6B7280" />
+                      <Text style={styles.programStatText}>
+                        {Math.round(nutritionData.nutritionProgram.targetCalories)} cal/day
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Pressable 
+                  style={[styles.programButton, { borderColor: '#10B981' }]}
+                  onPress={() => router.push('/(tabs)/nutrition')}
+                >
+                  <Text style={[styles.programButtonText, { color: '#10B981' }]}>View Program</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#10B981" />
+                </Pressable>
+              </View>
+            )}
+          </>
         )}
 
         {/* Subscription Status */}
@@ -351,43 +531,6 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickActionsCard}>
-          <Text style={styles.quickActionsTitle}>Quick Actions</Text>
-          <View style={styles.quickActionsGrid}>
-            <Pressable 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/(tabs)/workout')}
-            >
-              <Ionicons name="barbell" size={28} color="#4F46E5" />
-              <Text style={styles.quickActionText}>Workout</Text>
-            </Pressable>
-            
-            <Pressable 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/(tabs)/nutrition')}
-            >
-              <Ionicons name="nutrition" size={28} color="#10B981" />
-              <Text style={styles.quickActionText}>Nutrition</Text>
-            </Pressable>
-            
-            <Pressable 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/(tabs)/checkins')}
-            >
-              <Ionicons name="checkmark-done" size={28} color="#F59E0B" />
-              <Text style={styles.quickActionText}>Check-in</Text>
-            </Pressable>
-            
-            <Pressable 
-              style={styles.quickActionButton}
-              onPress={() => router.push('/(tabs)/profile')}
-            >
-              <Ionicons name="person" size={28} color="#8B5CF6" />
-              <Text style={styles.quickActionText}>Profile</Text>
-            </Pressable>
-          </View>
-        </View>
 
         {error && (
           <View style={styles.errorCard}>
@@ -628,7 +771,23 @@ const styles = StyleSheet.create({
   programDescription: {
     fontSize: 14,
     color: '#6B7280',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  programStats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
     marginBottom: 16,
+  },
+  programStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  programStatText: {
+    fontSize: 14,
+    color: '#6B7280',
   },
   programButton: {
     flexDirection: 'row',
@@ -638,6 +797,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#4F46E5',
     borderRadius: 12,
+    marginTop: 4,
   },
   programButtonText: {
     color: '#4F46E5',
@@ -791,6 +951,50 @@ const styles = StyleSheet.create({
   assignedFormMessage: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  quickStatusContainer: {
+    marginBottom: 16,
+    gap: 12,
+  },
+  quickStatusCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  quickStatusIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  quickStatusContent: {
+    flex: 1,
+  },
+  quickStatusTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  quickStatusText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  quickStatusCheckmark: {
+    marginLeft: 8,
   },
 });
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import NotificationService from '../services/NotificationService';
+import { TokenStorage } from '../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -105,8 +106,8 @@ export default function LoginScreen() {
       });
       const data = await res.json();
           if (!res.ok) throw new Error(data?.error || 'Login failed');
-          (globalThis as any).ACCESS_TOKEN = data.accessToken;
-          (globalThis as any).REFRESH_TOKEN = data.refreshToken;
+          // Save tokens to persistent storage
+          await TokenStorage.saveTokens(data.accessToken, data.refreshToken);
       if (data?.subscriptionExpired) {
         router.replace('/blocked');
         return;

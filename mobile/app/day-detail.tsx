@@ -14,6 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { TokenStorage } from '../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://172.20.10.3:4000';
 const { width } = Dimensions.get('window');
@@ -37,7 +38,11 @@ export default function DayDetailScreen() {
   const fetchDayData = useCallback(async () => {
     try {
       setLoading(true);
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
       // Fetch active program to get day data
@@ -107,7 +112,11 @@ export default function DayDetailScreen() {
 
   const handleStartWorkout = async () => {
     try {
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
       const res = await fetch(`${API}/mobile/sessions/start`, {
@@ -152,7 +161,7 @@ export default function DayDetailScreen() {
         
         if (refreshRes.ok) {
           const refreshData = await refreshRes.json();
-          (globalThis as any).ACCESS_TOKEN = refreshData.accessToken;
+          await TokenStorage.saveTokens(refreshData.accessToken);
           token = refreshData.accessToken;
           
           res = await fetch(`${API}/mobile/sessions/${activeSession.id}/${action}`, {
@@ -176,7 +185,11 @@ export default function DayDetailScreen() {
 
   const handleCompleteWorkout = async () => {
     try {
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
       const res = await fetch(`${API}/mobile/sessions/${activeSession.id}/complete`, {
@@ -198,7 +211,11 @@ export default function DayDetailScreen() {
 
   const handleCompleteExercise = async (exerciseId: number) => {
     try {
-      const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      // Load token from storage if not in memory
+      let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+      if (!token) {
+        token = (await TokenStorage.getAccessToken()) || undefined;
+      }
       if (!token) throw new Error('Not authenticated');
 
       const res = await fetch(`${API}/mobile/sessions/${activeSession.id}/exercises/${exerciseId}/complete`, {
