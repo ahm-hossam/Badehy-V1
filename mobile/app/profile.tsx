@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TokenStorage } from '../lib/storage';
 
 const API = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -16,7 +17,11 @@ export default function ProfileScreen() {
     const run = async () => {
       try {
         setErr('');
-        const token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+        // Load token from storage if not in memory
+        let token = (globalThis as any).ACCESS_TOKEN as string | undefined;
+        if (!token) {
+          token = (await TokenStorage.getAccessToken()) || undefined;
+        }
         if (!token) throw new Error('Not authenticated');
         const res = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
@@ -30,11 +35,11 @@ export default function ProfileScreen() {
     run();
   }, []);
 
-  const logout = () => {
+  const logout = async () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: () => {
-        (globalThis as any).ACCESS_TOKEN = undefined;
+      { text: 'Log out', style: 'destructive', onPress: async () => {
+        await TokenStorage.clearTokens();
         router.replace('/login');
       } },
     ]);

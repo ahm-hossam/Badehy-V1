@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express'
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -179,6 +180,34 @@ router.post('/:id/convert', async (req: Request, res: Response) => {
         },
       })
       clientId = created.id
+    }
+
+    // Ensure ClientAuth record exists for mobile app login (create if it doesn't exist)
+    const existingAuth = await prisma.clientAuth.findUnique({ 
+      where: { clientId } 
+    }).catch(() => null);
+    
+    if (!existingAuth) {
+      const generatePassword = (length = 10) => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*';
+        return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      };
+      const tempPassword = generatePassword(10);
+      const client = await prisma.trainerClient.findUnique({ where: { id: clientId } });
+      try {
+        await prisma.clientAuth.create({
+          data: {
+            clientId,
+            email: client?.email || null,
+            phone: client?.phone || null,
+            passwordHash: await bcrypt.hash(tempPassword, 10),
+            requiresPasswordReset: true, // Client needs to set their own password
+          },
+        });
+      } catch (e) {
+        // If it already exists (edge case), ignore
+        console.log('ClientAuth already exists or error creating:', e);
+      }
     }
 
     const updatedLead = await prisma.lead.update({

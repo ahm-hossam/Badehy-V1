@@ -41,6 +41,18 @@ interface Program {
   createdAt: string;
   updatedAt: string;
   weeks: ProgramWeek[];
+  clientAssignments?: Array<{
+    id: number;
+    client: {
+      id: number;
+      fullName: string;
+    };
+    isActive: boolean;
+  }>;
+  customizedFor?: {
+    id: number;
+    fullName: string;
+  } | null;
 }
 
 interface ProgramWeek {
@@ -84,6 +96,7 @@ export default function ProgramsPage() {
   const [showDeletedToast, setShowDeletedToast] = useState(false);
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [deleteErrorMessage, setDeleteErrorMessage] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showCreatedToast, setShowCreatedToast] = useState(false);
@@ -189,7 +202,7 @@ export default function ProgramsPage() {
   };
 
   const confirmDeleteProgram = async () => {
-    if (!confirmDelete) return;
+    if (!confirmDelete || !user) return;
     
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/programs/${confirmDelete.id}`, {
@@ -197,24 +210,30 @@ export default function ProgramsPage() {
       });
 
       if (response.ok) {
-        setConfirmDelete(null); // Close dialog first
-        await fetchPrograms(user.id); // Wait for program list to reload
+        setConfirmDelete(null);
+        await fetchPrograms(user.id);
         setTimeout(() => {
           setShowDeletedToast(true);
           setTimeout(() => setShowDeletedToast(false), 2000);
-        }, 100); // Delay to ensure UI is stable before showing toast
+        }, 100);
       } else {
         const data = await response.json();
-        setErrorMessage(data.error || "Failed to delete program.");
+        setDeleteErrorMessage(data.error || "Failed to delete program.");
         setShowErrorToast(true);
-        setTimeout(() => setShowErrorToast(false), 2000);
+        setTimeout(() => {
+          setShowErrorToast(false);
+          setDeleteErrorMessage("");
+        }, 3000);
+        setConfirmDelete(null);
       }
     } catch (error) {
       console.error('Error deleting program:', error);
-      setErrorMessage("Error deleting program.");
+      setDeleteErrorMessage("Error deleting program.");
       setShowErrorToast(true);
-      setTimeout(() => setShowErrorToast(false), 2000);
-    } finally {
+      setTimeout(() => {
+        setShowErrorToast(false);
+        setDeleteErrorMessage("");
+      }, 3000);
       setConfirmDelete(null);
     }
   };
@@ -244,59 +263,61 @@ export default function ProgramsPage() {
   }
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
           <h1 className="text-2xl font-bold text-gray-900">Workout Programs</h1>
           <p className="text-sm text-gray-600 mt-1">
             Create and manage your custom workout programs for clients
           </p>
         </div>
+      </div>
 
-        {/* Search and Add Button */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="relative flex-1 max-w-sm">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search programs by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+      {/* Search and Add Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative flex-1 max-w-sm">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleCreateProgram} className="px-4">
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Create Program
-            </Button>
-          </div>
+          <input
+            type="text"
+            placeholder="Search programs by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-[calc(--spacing(2.5)-1px)] sm:py-[calc(--spacing(1.5)-1px)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
         </div>
+        <div className="flex gap-2">
+          <Button onClick={handleCreateProgram} className="px-4">
+            <PlusIcon className="h-5 w-5 mr-2" />
+            Create Program
+          </Button>
+        </div>
+      </div>
 
-        {/* Table */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <Table>
+      {/* Table */}
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <Table>
             <TableHead>
               <TableRow>
                 <TableHeader>ID</TableHeader>
                 <TableHeader>Program Name</TableHeader>
                 <TableHeader>Type/Duration</TableHeader>
                 <TableHeader>Details</TableHeader>
+                <TableHeader>Assigned Clients</TableHeader>
                 <TableHeader>Created</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-zinc-400">Loading...</TableCell></TableRow>
               ) : errorMessage ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-red-500 py-8">{errorMessage}</TableCell></TableRow>
               ) : programs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12">
+                  <TableCell colSpan={7} className="text-center py-12">
                     <div className="text-gray-400 mb-4">
                       <FireIcon className="w-12 h-12 mx-auto" />
                     </div>
@@ -357,6 +378,44 @@ export default function ProgramsPage() {
                       </span>
                     </div>
                   </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {program.customizedFor ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            Customized for <Link href={`/clients/${program.customizedFor.id}`} className="ml-1 font-semibold underline hover:text-purple-900">{program.customizedFor.fullName}</Link>
+                          </span>
+                          {program.clientAssignments && program.clientAssignments.filter(a => a.isActive && a.client.id !== program.customizedFor!.id).length > 0 && (
+                            <div className="mt-1">
+                              {program.clientAssignments.filter(a => a.isActive && a.client.id !== program.customizedFor!.id).map((assignment, idx, filtered) => (
+                                <Link
+                                  key={assignment.id}
+                                  href={`/clients/${assignment.client.id}`}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                  {assignment.client.fullName}{idx < filtered.length - 1 ? ', ' : ''}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : program.clientAssignments && program.clientAssignments.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {program.clientAssignments.filter(a => a.isActive).map((assignment, idx) => (
+                            <Link
+                              key={assignment.id}
+                              href={`/clients/${assignment.client.id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline text-xs"
+                            >
+                              {assignment.client.fullName}{idx < program.clientAssignments!.filter(a => a.isActive).length - 1 ? ',' : ''}
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">None</span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm text-gray-500">
                     {new Date(program.createdAt).toLocaleDateString()}
                   </TableCell>
@@ -393,56 +452,54 @@ export default function ProgramsPage() {
               <Button outline disabled={page * pageSize >= total} onClick={() => setPage(page + 1)}>Next</Button>
             </div>
           )}
-        </div>
-
-
-        {/* Delete Confirmation Dialog */}
-        {confirmDelete && (
-          <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
-            <div className="p-6 z-[9999]">
-              <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
-              <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
-              <div className="flex justify-end gap-2 mt-6">
-                <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-                <Button color="red" type="button" onClick={confirmDeleteProgram}>Delete</Button>
-              </div>
-            </div>
-          </Dialog>
-        )}
-
-        {/* Success Toast */}
-        {showDeletedToast && (
-          <div className="fixed bottom-6 right-6 z-50">
-            <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Program deleted successfully!
-            </div>
-          </div>
-        )}
-
-        {/* Error Toast */}
-        {showErrorToast && (
-          <div className="fixed bottom-6 right-6 z-50">
-            <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              {errorMessage}
-            </div>
-          </div>
-        )}
-
-        {showCreatedToast && (
-          <div className="fixed bottom-6 right-6 z-50">
-            <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              Program created successfully!
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {confirmDelete && (
+        <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+          <div className="p-6 z-[9999]">
+            <h2 className="text-lg font-semibold mb-4">Confirm Delete</h2>
+            <p>Are you sure you want to delete <span className="font-bold">{confirmDelete.name}</span>?</p>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button outline type="button" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+              <Button color="red" type="button" onClick={confirmDeleteProgram}>Delete</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Success Toast */}
+      {showDeletedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Program deleted successfully!
+          </div>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {showErrorToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-red-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            {deleteErrorMessage || errorMessage}
+          </div>
+        </div>
+      )}
+
+      {showCreatedToast && (
+        <div className="fixed bottom-6 right-6 z-50">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            Program created successfully!
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

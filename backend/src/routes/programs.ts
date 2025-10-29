@@ -63,6 +63,22 @@ router.get('/', async (req, res) => {
               }
             }
           }
+        },
+        customizedFor: {
+          select: {
+            id: true,
+            fullName: true
+          }
+        },
+        clientAssignments: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                fullName: true
+              }
+            }
+          }
         }
       },
       orderBy: {
@@ -142,6 +158,8 @@ router.post('/import', upload.single('pdf'), async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const { isCustomize } = req.query;
+    
     const program = await prisma.program.findUnique({
       where: { id: Number(id) },
       include: {
@@ -157,7 +175,13 @@ router.get('/:id', async (req, res) => {
               }
             }
           }
-        }
+        },
+        customizedFor: isCustomize ? {
+          select: {
+            id: true,
+            fullName: true
+          }
+        } : undefined
       }
     });
 
@@ -165,7 +189,21 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Program not found' });
     }
 
-    res.json(program);
+    // Add metadata if program is customized
+    if (program.originalProgramId) {
+      const originalProgram = await prisma.program.findUnique({
+        where: { id: program.originalProgramId },
+        select: { name: true }
+      });
+      
+      res.json({
+        ...program,
+        isCustomized: true,
+        originalProgramName: originalProgram?.name
+      });
+    } else {
+      res.json(program);
+    }
   } catch (error) {
     console.error('Error fetching program:', error);
     res.status(500).json({ error: 'Failed to fetch program' });
@@ -200,7 +238,110 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-export default router; 
+// Clone a program for customization (POST /api/programs/:id/clone)
+router.post('/:id/clone', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { trainerId, customizedForClientId } = req.body;
+
+    if (!trainerId || !customizedForClientId) {
+      return res.status(400).json({ error: 'Trainer ID and Client ID are required' });
+    }
+
+    // Fetch the original program with all its data
+    const originalProgram = await prisma.program.findUnique({
+      where: { id },
+      include: {
+        weeks: {
+          include: {
+            days: {
+              include: {
+                exercises: {
+                  include: {
+                    exercise: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!originalProgram) {
+      return res.status(404).json({ error: 'Program not found' });
+    }
+
+    // Get the client's name for the customized program name
+    const client = await prisma.trainerClient.findUnique({
+      where: { id: Number(customizedForClientId) },
+      select: { fullName: true }
+    });
+
+    // Create the cloned program with customization metadata
+    const clonedProgram = await prisma.program.create({
+      data: {
+        trainerId: Number(trainerId),
+        name: `${originalProgram.name} (Customized)`,
+        description: originalProgram.description,
+        pdfUrl: originalProgram.pdfUrl,
+        isImported: originalProgram.isImported,
+        isDefault: false,
+        importedPdfUrl: originalProgram.importedPdfUrl,
+        programDuration: originalProgram.programDuration,
+        durationUnit: originalProgram.durationUnit,
+        originalProgramId: id,
+        customizedForClientId: Number(customizedForClientId),
+        weeks: {
+          create: originalProgram.weeks.map((week: any) => ({
+            weekNumber: week.weekNumber,
+            name: week.name,
+            days: {
+              create: week.days.map((day: any) => ({
+                dayNumber: day.dayNumber,
+                name: day.name,
+                exercises: {
+                  create: day.exercises.map((ex: any) => ({
+                    exerciseId: ex.exerciseId,
+                    sets: ex.sets,
+                    reps: ex.reps,
+                    rest: ex.rest,
+                    notes: ex.notes,
+                    order: ex.order
+                  }))
+                }
+              }))
+            }
+          }))
+        }
+      },
+      include: {
+        weeks: {
+          include: {
+            days: {
+              include: {
+                exercises: {
+                  include: {
+                    exercise: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    res.json({
+      ...clonedProgram,
+      isCustomized: true,
+      customizedFor: client?.fullName
+    });
+  } catch (error) {
+    console.error('Error cloning program:', error);
+    res.status(500).json({ error: 'Failed to clone program' });
+  }
+});
 
 // Create program with nested weeks/days/exercises
 router.post('/', async (req, res) => {
@@ -300,3 +441,5 @@ router.put('/:id', async (req, res) => {
     return res.status(500).json({ error: 'Failed to update program' });
   }
 });
+
+export default router;

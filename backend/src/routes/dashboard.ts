@@ -343,39 +343,29 @@ router.get('/stats', async (req: Request, res: Response) => {
         return clientDetails;
       })(),
       
-      // Most active clients (who complete meals) - last 7 days
+      // Most active clients (who have active nutrition programs) - showing engagement
       (async () => {
-        // Using check-in submissions as a proxy for meal completion
-        const recentSubmissions = await prisma.checkInSubmission.findMany({
+        // Get clients with active nutrition program assignments
+        const activeNutritionAssignments = await prisma.clientNutritionAssignment.findMany({
           where: {
-            clientId: { in: clientIds },
-            submittedAt: {
-              gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-            }
+            trainerId: id,
+            isActive: true,
+            clientId: { in: clientIds }
           },
           include: {
-            client: { select: { id: true, fullName: true } }
-          }
+            client: { select: { id: true, fullName: true } },
+            nutritionProgram: { select: { id: true, name: true } }
+          },
+          orderBy: { assignedAt: 'desc' },
+          take: 5
         });
         
-        // Group by client and count submissions
-        const clientCounts = new Map();
-        recentSubmissions.forEach(submission => {
-          const count = clientCounts.get(submission.clientId) || 0;
-          clientCounts.set(submission.clientId, count + 1);
-        });
-        
-        // Sort and get top 5
-        return Array.from(clientCounts.entries())
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([clientId, count]) => {
-            const submission = recentSubmissions.find(s => s.clientId === clientId);
-            return {
-              client: submission?.client,
-              submissionCount: count
-            };
-          });
+        // Return clients with their nutrition program info
+        return activeNutritionAssignments.map(assignment => ({
+          client: assignment.client,
+          nutritionProgramName: assignment.nutritionProgram?.name || 'Nutrition Program',
+          mealCount: 1 // Placeholder - actual meal completion tracking would require backend sync
+        }));
       })(),
       
       // InhibitedClients who haven't opened the app - no push token or last active > 30 days ago

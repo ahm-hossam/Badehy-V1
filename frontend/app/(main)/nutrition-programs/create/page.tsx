@@ -162,8 +162,13 @@ export default function NutritionProgramBuilder() {
   const searchParams = useSearchParams();
   const programId = searchParams.get('id');
   const isEdit = !!programId;
+  const isCustomize = searchParams.get('customize') === 'true';
+  const customizeProgramId = searchParams.get('programId');
+  const clientId = searchParams.get('clientId');
+  const trainerId = searchParams.get('trainerId');
 
   const [user, setUser] = useState<any>(null);
+  const [clientInfo, setClientInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -353,16 +358,68 @@ export default function NutritionProgramBuilder() {
     const storedUser = getStoredUser();
     if (storedUser) {
       setUser(storedUser);
-      if (programId) {
+      
+      // Check if we're in customization mode
+      if (isCustomize && customizeProgramId && clientId && trainerId) {
+        setLoading(true);
+        
+        // Fetch client info
+        async function fetchClientAndClone() {
+          try {
+            // Fetch client info
+            const clientRes = await fetch(`/api/clients/${clientId}`);
+            if (clientRes.ok) {
+              const clientData = await clientRes.json();
+              setClientInfo(clientData);
+            }
+            
+            // Call clone endpoint to create a customized version
+            const cloneRes = await fetch(`/api/nutrition-programs/${customizeProgramId}/clone`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                trainerId: Number(trainerId),
+                customizedForClientId: Number(clientId)
+              })
+            });
+            
+            if (cloneRes.ok) {
+              const clonedProgram = await cloneRes.json();
+              console.log('Nutrition program cloned successfully:', clonedProgram);
+              setProgram(clonedProgram);
+              // Expand first week by default
+              if (clonedProgram.weeks && clonedProgram.weeks.length > 0) {
+                setExpandedWeeks(new Set([clonedProgram.weeks[0].weekNumber]));
+              }
+              setLoading(false);
+            } else {
+              console.error('Failed to clone nutrition program:', cloneRes.statusText);
+              const error = await cloneRes.json();
+              setError(error.error || 'Failed to clone program');
+              setLoading(false);
+            }
+          } catch (error) {
+            console.error('Error cloning nutrition program:', error);
+            setError('Error cloning program');
+            setLoading(false);
+          }
+        }
+        
+        fetchClientAndClone();
+        fetchAvailableMeals(storedUser.id);
+      } else if (programId) {
         // Edit mode - fetch existing program
         fetchProgram(storedUser.id);
+        fetchAvailableMeals(storedUser.id);
       } else {
         // Create mode - create default week
         createDefaultWeek();
+        fetchAvailableMeals(storedUser.id);
       }
-      fetchAvailableMeals(storedUser.id);
     }
-  }, [programId]);
+  }, [programId, isCustomize, customizeProgramId, clientId, trainerId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -939,6 +996,45 @@ export default function NutritionProgramBuilder() {
       });
 
       if (response.ok) {
+        const savedProgram = await response.json();
+        
+        // If this is a customized program, auto-assign it to the client and redirect
+        if (isCustomize && clientId && savedProgram.id) {
+          try {
+            if (user) {
+              const today = new Date().toISOString().split('T')[0];
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+              const assignResponse = await fetch(`${apiUrl}/api/client-nutrition-assignments`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  trainerId: user.id,
+                  clientId: Number(clientId),
+                  nutritionProgramId: savedProgram.id,
+                  startDate: today,
+                  endDate: null,
+                  nextUpdateDate: null,
+                  notes: null,
+                }),
+              });
+
+              if (assignResponse.ok) {
+                router.push(`/clients/${clientId}?tab=nutrition-programs`);
+                return;
+              } else {
+                console.error('Failed to assign nutrition program, but program was saved');
+              }
+            }
+          } catch (assignError) {
+            console.error('Error assigning nutrition program:', assignError);
+            // Still redirect even if assignment fails, since the program was saved
+            router.push(`/clients/${clientId}?tab=nutrition-programs`);
+            return;
+          }
+        }
+        
         router.push('/nutrition-programs');
       } else {
         setError('Failed to save program');
@@ -970,6 +1066,15 @@ export default function NutritionProgramBuilder() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg">Loading program...</div>
+      </div>
+    );
+  }
+
+  // Show loading state while cloning in customization mode
+  if (loading && isCustomize) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg text-gray-600">Loading program for customization...</div>
       </div>
     );
   }
@@ -1012,6 +1117,25 @@ export default function NutritionProgramBuilder() {
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-md p-4">
           <Text className="text-green-800">{successMessage}</Text>
+        </div>
+      )}
+
+      {/* Customization Banner */}
+      {isCustomize && clientInfo && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center space-x-3">
+          <div className="flex-shrink-0">
+            <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-blue-800">
+              Customizing for Client
+            </h3>
+            <p className="text-sm text-blue-700">
+              Changes to this program will only affect <strong>{clientInfo.fullName}</strong>. The original program remains unchanged for other clients.
+            </p>
+          </div>
         </div>
       )}
 
@@ -3217,7 +3341,10 @@ export default function NutritionProgramBuilder() {
           disabled={loading}
           className="font-semibold bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Saving...' : 'Save Program'}
+          {loading 
+            ? (isCustomize ? 'Assigning...' : 'Saving...')
+            : (isCustomize ? 'Assign Program' : 'Save Program')
+          }
         </Button>
       </div>
     </div>

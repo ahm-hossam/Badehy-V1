@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { Textarea } from '@/components/textarea';
@@ -169,12 +169,21 @@ interface Client {
 export default function ClientDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const clientId = params.id as string;
   
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Check for tab query parameter on mount
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab && ['overview', 'profile', 'subscriptions', 'workout-programs', 'nutrition-programs', 'checkins', 'services', 'notes'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -3324,8 +3333,8 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
     }
   };
 
-  const handleAssignProgram = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAssignProgram = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!assignmentData.programId || !assignmentData.startDate) return;
 
     setAssignLoading(true);
@@ -3514,7 +3523,9 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
       <div className="bg-white rounded-xl shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Current Program</h3>
-          <Button onClick={() => setShowAssignModal(true)}>
+          <Button onClick={() => {
+            setShowAssignModal(true);
+          }}>
             <PlusIcon className="h-4 w-4 mr-2" />
             Assign Program
           </Button>
@@ -3580,7 +3591,9 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
           <div className="text-center py-8 text-gray-500">
             <FireIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p>No program currently assigned</p>
-            <Button onClick={() => setShowAssignModal(true)} className="mt-4">
+            <Button onClick={() => {
+              setShowAssignModal(true);
+            }} className="mt-4">
               <PlusIcon className="h-4 w-4 mr-2" />
               Assign Program
             </Button>
@@ -3659,7 +3672,7 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
             </button>
           </div>
           
-          <form onSubmit={handleAssignProgram} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Program
@@ -3727,19 +3740,41 @@ function WorkoutProgramsTab({ client }: { client: Client }) {
               />
             </div>
             
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
               <Button
                 type="button"
                 outline
-                onClick={() => setShowAssignModal(false)}
+                  onClick={() => {
+                  setShowAssignModal(false);
+                  setAssignmentData({
+                    programId: '',
+                    startDate: '',
+                    endDate: '',
+                    nextUpdateDate: '',
+                    notes: ''
+                  });
+                }}
               >
                 Cancel
               </Button>
               <Button
-                type="submit"
+                type="button"
+                onClick={handleAssignProgram}
                 disabled={!assignmentData.programId || !assignmentData.startDate || assignLoading}
               >
-                {assignLoading ? 'Assigning...' : 'Assign Program'}
+                {assignLoading ? 'Assigning...' : 'Assign as Is'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const user = getStoredUser();
+                  if (user && assignmentData.programId) {
+                    window.location.href = `/workout-programs/${assignmentData.programId}/edit?customize=true&clientId=${client.id}&trainerId=${user.id}`;
+                  }
+                }}
+                disabled={!assignmentData.programId}
+              >
+                Customize for Client
               </Button>
             </div>
           </form>
@@ -3801,8 +3836,9 @@ function NutritionProgramsTab({ client }: { client: Client }) {
     }
   };
 
-  const handleAssignNutritionProgram = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAssignNutritionProgram = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
     try {
       setAssignLoading(true);
       const user = getStoredUser();
@@ -4045,7 +4081,9 @@ function NutritionProgramsTab({ client }: { client: Client }) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900">Nutrition Program History</h3>
           <Button
-            onClick={() => setShowAssignModal(true)}
+            onClick={() => {
+              setShowAssignModal(true);
+            }}
             className="flex items-center gap-2"
           >
             <PlusIcon className="h-4 w-4" />
@@ -4142,7 +4180,7 @@ function NutritionProgramsTab({ client }: { client: Client }) {
             </button>
           </div>
           
-          <form onSubmit={handleAssignNutritionProgram} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Nutrition Program
@@ -4214,19 +4252,41 @@ function NutritionProgramsTab({ client }: { client: Client }) {
               />
             </div>
             
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
               <Button
                 type="button"
                 outline
-                onClick={() => setShowAssignModal(false)}
+                  onClick={() => {
+                  setShowAssignModal(false);
+                  setAssignmentData({
+                    nutritionProgramId: '',
+                    startDate: '',
+                    endDate: '',
+                    nextUpdateDate: '',
+                    notes: ''
+                  });
+                }}
               >
                 Cancel
               </Button>
               <Button
-                type="submit"
+                type="button"
+                onClick={handleAssignNutritionProgram}
                 disabled={!assignmentData.nutritionProgramId || !assignmentData.startDate || assignLoading}
               >
-                {assignLoading ? 'Assigning...' : 'Assign Nutrition Program'}
+                {assignLoading ? 'Assigning...' : 'Assign as Is'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  const user = getStoredUser();
+                  if (user && assignmentData.nutritionProgramId) {
+                    window.location.href = `/nutrition-programs/create?customize=true&programId=${assignmentData.nutritionProgramId}&clientId=${client.id}&trainerId=${user.id}`;
+                  }
+                }}
+                disabled={!assignmentData.nutritionProgramId}
+              >
+                Customize for Client
               </Button>
             </div>
           </form>
