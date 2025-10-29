@@ -41,6 +41,7 @@ model Registered {
   trainerClients             TrainerClient[]
   notifications              Notification[]
   workflows                  Workflow[]
+  messages                   Message[]
 }
 
 model TrainerClient {
@@ -93,6 +94,8 @@ model TrainerClient {
   clientAuth            ClientAuth?
   // Notification relations
   notificationRecipients NotificationRecipient[]
+  // Chat messages
+  messages              Message[]                    @relation("ClientMessages")
   pushToken             PushToken?
   workflowExecutions      WorkflowExecution[]
   assignedForms           AssignedForm[]
@@ -978,6 +981,32 @@ model PushToken {
 
   @@index([clientId])
   @@index([token])
+}
+
+// ===== CHAT / MESSAGING SYSTEM =====
+
+model Message {
+  id          Int           @id @default(autoincrement())
+  trainerId   Int
+  clientId    Int
+  senderType  String        // 'trainer' or 'client'
+  content     String
+  attachmentUrl String?     // URL to attached file
+  attachmentType String?    // 'image', 'pdf', 'video', etc.
+  attachmentName String?    // Original filename
+  isRead      Boolean       @default(false)
+  readAt      DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  trainer     Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  client      TrainerClient @relation("ClientMessages", fields: [clientId], references: [id], onDelete: Cascade)
+  
+  @@index([trainerId])
+  @@index([clientId])
+  @@index([createdAt])
+  @@index([isRead])
+  @@index([trainerId, clientId])
 }
 
 // ===== WORKFLOW SYSTEM =====

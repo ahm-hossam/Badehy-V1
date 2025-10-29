@@ -49,6 +49,7 @@ import {
   ChartBarIcon,
   BellIcon,
   CogIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -88,6 +89,38 @@ function TaskCounter({ trainerId }: { trainerId?: number }) {
   return (
     <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[16px] h-4 flex items-center justify-center text-[10px] font-medium">
       {count}
+    </span>
+  )
+}
+
+// UnreadMessagesBadge Component
+function UnreadMessagesBadge({ trainerId }: { trainerId?: number }) {
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    if (!trainerId) return
+    let cancelled = false
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`/api/messages/unread-count?trainerId=${trainerId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) setUnread(Number(data.unread || 0))
+      } catch (e) {
+        // silent
+      }
+    }
+
+    fetchUnread()
+    const id = setInterval(fetchUnread, 5000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [trainerId])
+
+  if (!unread) return null
+  return (
+    <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[16px] h-4 flex items-center justify-center text-[10px] font-medium">
+      {unread > 99 ? '99+' : unread}
     </span>
   )
 }
@@ -447,6 +480,11 @@ export function ApplicationLayout({
               <SidebarItem href="/notifications" current={pathname === '/notifications'}>
                 <BellIcon />
                 <SidebarLabel>Notifications</SidebarLabel>
+              </SidebarItem>
+              <SidebarItem href="/messages" current={pathname === '/messages'}>
+                <ChatBubbleLeftRightIcon />
+                <SidebarLabel>Messages</SidebarLabel>
+                <UnreadMessagesBadge trainerId={getStoredUser()?.id} />
               </SidebarItem>
               <SidebarItem href="/workflows" current={pathname === '/workflows'}>
                 <CogIcon />
