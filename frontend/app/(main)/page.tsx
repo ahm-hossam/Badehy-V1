@@ -64,7 +64,7 @@ interface DashboardData {
   };
   clientActivity: {
     mostActiveWorkouts: Array<{ client: any; workoutCount: number }>;
-    mostActiveMeals: Array<{ client: any; submissionCount: number }>;
+    mostActiveMeals: Array<{ client: any; nutritionProgramName?: string; mealCount?: number }>;
     inactiveClients: Array<{ id: number; fullName: string; email: string }>;
     programsFinishingSoon: Array<{ client: any; program: { id: number; name: string; type?: string }; endDate: string }>;
   };
@@ -283,12 +283,12 @@ export default function HomePage() {
                   {data.clientActivity.mostActiveMeals.map((item, index) => (
                     <div key={index} className="text-sm">
                       <p className="font-medium text-zinc-900">{item.client?.fullName || 'Unknown'}</p>
-                      <p className="text-zinc-600">{item.submissionCount} check-ins this week</p>
+                      <p className="text-zinc-600">{item.nutritionProgramName || 'Active nutrition program'}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-500 text-center py-4">No meal check-ins this week</p>
+                <p className="text-sm text-zinc-500 text-center py-4">No active nutrition programs this week</p>
               )}
             </div>
           </div>
