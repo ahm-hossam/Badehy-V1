@@ -66,6 +66,22 @@ router.get('/', async (req, res) => {
               },
             },
           },
+          clientAssignments: {
+            include: {
+              client: {
+                select: {
+                  id: true,
+                  fullName: true
+                }
+              }
+            }
+          },
+          customizedFor: {
+            select: {
+              id: true,
+              fullName: true
+            }
+          }
         },
         orderBy: {
           createdAt: 'desc',
@@ -201,6 +217,224 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error fetching nutrition program:', error);
     res.status(500).json({ error: 'Failed to fetch nutrition program' });
+  }
+});
+
+// Clone a nutrition program for customization (POST /api/nutrition-programs/:id/clone)
+router.post('/:id/clone', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { trainerId, customizedForClientId } = req.body;
+
+    if (!trainerId || !customizedForClientId) {
+      return res.status(400).json({ error: 'Trainer ID and Client ID are required' });
+    }
+
+    // Fetch the original program with all its data
+    const originalProgram = await prisma.nutritionProgram.findUnique({
+      where: { id },
+      include: {
+        weeks: {
+          include: {
+            days: {
+              include: {
+                meals: {
+                  include: {
+                    meal: {
+                      include: {
+                        mealIngredients: {
+                          include: {
+                            ingredient: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        meals: {
+          include: {
+            meal: {
+              include: {
+                mealIngredients: {
+                  include: {
+                    ingredient: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!originalProgram) {
+      return res.status(404).json({ error: 'Nutrition program not found' });
+    }
+
+    // Get the client's name for the customized program name
+    const client = await prisma.trainerClient.findUnique({
+      where: { id: Number(customizedForClientId) },
+      select: { fullName: true }
+    });
+
+    // Create the cloned program with customization metadata using a transaction
+    const clonedProgram = await prisma.$transaction(async (tx) => {
+      // Step 1: Create program with weeks and days (without meals)
+      const program = await tx.nutritionProgram.create({
+        data: {
+          trainerId: Number(trainerId),
+          name: `${originalProgram.name} (Customized)`,
+          description: originalProgram.description,
+          pdfUrl: originalProgram.pdfUrl,
+          isImported: originalProgram.isImported,
+          importedPdfUrl: originalProgram.importedPdfUrl,
+          programDuration: originalProgram.programDuration,
+          durationUnit: originalProgram.durationUnit,
+          repeatCount: originalProgram.repeatCount,
+          targetCalories: originalProgram.targetCalories,
+          targetProtein: originalProgram.targetProtein,
+          targetCarbs: originalProgram.targetCarbs,
+          targetFats: originalProgram.targetFats,
+          proteinPercentage: originalProgram.proteinPercentage,
+          carbsPercentage: originalProgram.carbsPercentage,
+          fatsPercentage: originalProgram.fatsPercentage,
+          usePercentages: originalProgram.usePercentages,
+          isActive: originalProgram.isActive,
+          originalNutritionProgramId: id,
+          customizedForClientId: Number(customizedForClientId),
+          weeks: {
+            create: originalProgram.weeks.map((week: any) => ({
+              weekNumber: week.weekNumber,
+              name: week.name,
+              days: {
+                create: week.days.map((day: any, dayIndex: number) => ({
+                  dayOfWeek: day.dayOfWeek ?? ((dayIndex % 7) + 1),
+                  name: day.name
+                }))
+              }
+            }))
+          }
+        },
+        include: {
+          weeks: {
+            include: {
+              days: true
+            }
+          }
+        }
+      });
+
+      // Step 2: Create meals for each day
+      for (const week of originalProgram.weeks) {
+        const createdWeek = program.weeks.find(w => w.weekNumber === week.weekNumber);
+        if (!createdWeek) continue;
+
+        for (const day of week.days) {
+          const dayOfWeekValue = day.dayOfWeek ?? 1;
+          const createdDay = createdWeek.days.find(d => d.dayOfWeek === dayOfWeekValue);
+          if (!createdDay || !day.meals || day.meals.length === 0) continue;
+
+          await tx.nutritionProgramMeal.createMany({
+            data: day.meals.map((mealEntry: any) => ({
+              nutritionProgramId: program.id,
+              nutritionProgramWeekId: createdWeek.id,
+              nutritionProgramDayId: createdDay.id,
+              mealId: mealEntry.mealId,
+              mealType: mealEntry.mealType,
+              order: mealEntry.order,
+              customNotes: mealEntry.customNotes || mealEntry.notes || null,
+              isCheatMeal: mealEntry.isCheatMeal || false,
+              cheatDescription: mealEntry.cheatDescription || null
+            }))
+          });
+        }
+      }
+
+      // Step 3: Create top-level meals (not associated with specific days)
+      const topLevelMeals = originalProgram.meals.filter((mealEntry: any) => !mealEntry.nutritionProgramDayId);
+      if (topLevelMeals.length > 0) {
+        await tx.nutritionProgramMeal.createMany({
+          data: topLevelMeals.map((mealEntry: any) => {
+            let weekId = null;
+            if (mealEntry.nutritionProgramWeekId) {
+              // Find the original week to get its weekNumber, then find the created week
+              const originalWeek = originalProgram.weeks.find((w: any) => w.id === mealEntry.nutritionProgramWeekId);
+              if (originalWeek) {
+                const createdWeek = program.weeks.find((w: any) => w.weekNumber === originalWeek.weekNumber);
+                weekId = createdWeek?.id || null;
+              }
+            }
+            return {
+              nutritionProgramId: program.id,
+              nutritionProgramWeekId: weekId,
+              mealId: mealEntry.mealId,
+              mealType: mealEntry.mealType,
+              order: mealEntry.order,
+              isCheatMeal: mealEntry.isCheatMeal || false,
+              cheatDescription: mealEntry.cheatDescription || null
+            };
+          })
+        });
+      }
+
+      // Step 4: Fetch the complete program with all relations
+      return await tx.nutritionProgram.findUnique({
+        where: { id: program.id },
+        include: {
+          weeks: {
+            include: {
+              days: {
+                include: {
+                  meals: {
+                    include: {
+                      meal: {
+                        include: {
+                          mealIngredients: {
+                            include: {
+                              ingredient: true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          meals: {
+            include: {
+              meal: {
+                include: {
+                  mealIngredients: {
+                    include: {
+                      ingredient: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+    });
+
+    if (!clonedProgram) {
+      return res.status(500).json({ error: 'Failed to create cloned program' });
+    }
+
+    res.json({
+      ...clonedProgram,
+      isCustomized: true,
+      customizedFor: client?.fullName
+    });
+  } catch (error) {
+    console.error('Error cloning nutrition program:', error);
+    res.status(500).json({ error: 'Failed to clone nutrition program' });
   }
 });
 

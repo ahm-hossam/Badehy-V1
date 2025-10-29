@@ -52,6 +52,18 @@ interface NutritionProgram {
   meals?: any[];
   createdAt: string;
   updatedAt: string;
+  clientAssignments?: Array<{
+    id: number;
+    client: {
+      id: number;
+      fullName: string;
+    };
+    isActive: boolean;
+  }>;
+  customizedFor?: {
+    id: number;
+    fullName: string;
+  } | null;
 }
 
 export default function NutritionProgramsPage() {
@@ -77,8 +89,7 @@ export default function NutritionProgramsPage() {
   const fetchNutritionPrograms = async (trainerId: number, search = '') => {
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const url = `${apiUrl}/api/nutrition-programs?trainerId=${trainerId}&page=${page}&limit=${pageSize}&search=${search}`;
+      const url = `/api/nutrition-programs?trainerId=${trainerId}&page=${page}&limit=${pageSize}&search=${search}`;
       
       const response = await fetch(url);
       if (response.ok) {
@@ -107,8 +118,7 @@ export default function NutritionProgramsPage() {
 
   const handleDelete = async (program: NutritionProgram) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const response = await fetch(`${apiUrl}/api/nutrition-programs/${program.id}?trainerId=${user.id}`, {
+      const response = await fetch(`/api/nutrition-programs/${program.id}?trainerId=${user.id}`, {
         method: 'DELETE',
       });
 
@@ -127,8 +137,7 @@ export default function NutritionProgramsPage() {
 
   const handleDuplicateProgram = async (program: NutritionProgram) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const url = `${apiUrl}/api/nutrition-programs/${program.id}/duplicate?trainerId=${user.id}`;
+      const url = `/api/nutrition-programs/${program.id}/duplicate?trainerId=${user.id}`;
       
       const response = await fetch(url, {
         method: 'POST',
@@ -157,10 +166,9 @@ export default function NutritionProgramsPage() {
       setLoading(true);
       
       // Call the backend API to generate PDF
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      console.log('Exporting PDF for program:', program.id, 'API URL:', apiUrl);
+      console.log('Exporting PDF for program:', program.id);
       
-        const response = await fetch(`${apiUrl}/api/nutrition-programs/${program.id}/export-pdf?t=${Date.now()}`, {
+        const response = await fetch(`/api/nutrition-programs/${program.id}/export-pdf?t=${Date.now()}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -287,6 +295,7 @@ export default function NutritionProgramsPage() {
                 <TableHeader>Program</TableHeader>
                 <TableHeader>Duration</TableHeader>
                 <TableHeader>Goals</TableHeader>
+                <TableHeader>Assigned Clients</TableHeader>
                 <TableHeader className="text-right">Actions</TableHeader>
               </TableRow>
             </TableHead>
@@ -337,6 +346,44 @@ export default function NutritionProgramsPage() {
                             `${program.targetProtein}gP | ${program.targetCarbs}gC | ${program.targetFats}gF`
                           )}
                         </Text>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {program.customizedFor ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            Customized for <Link href={`/clients/${program.customizedFor.id}`} className="ml-1 font-semibold underline hover:text-purple-900">{program.customizedFor.fullName}</Link>
+                          </span>
+                          {program.clientAssignments && program.clientAssignments.filter(a => a.isActive && a.client.id !== program.customizedFor!.id).length > 0 && (
+                            <div className="mt-1">
+                              {program.clientAssignments.filter(a => a.isActive && a.client.id !== program.customizedFor!.id).map((assignment, idx, filtered) => (
+                                <Link
+                                  key={assignment.id}
+                                  href={`/clients/${assignment.client.id}`}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                                >
+                                  {assignment.client.fullName}{idx < filtered.length - 1 ? ', ' : ''}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : program.clientAssignments && program.clientAssignments.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {program.clientAssignments.filter(a => a.isActive).map((assignment, idx) => (
+                            <Link
+                              key={assignment.id}
+                              href={`/clients/${assignment.client.id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline text-xs"
+                            >
+                              {assignment.client.fullName}{idx < program.clientAssignments!.filter(a => a.isActive).length - 1 ? ',' : ''}
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">None</span>
                       )}
                     </div>
                   </TableCell>

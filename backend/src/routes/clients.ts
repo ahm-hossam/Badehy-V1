@@ -611,11 +611,10 @@ router.get('/', async (req: Request, res: Response) => {
         return value;
       };
 
-          // Check core questions (required)
-    const coreQuestions = ['fullName', 'phone', 'email', 'gender', 'age', 'source'];
+          // Check core questions (required) - only name, phone, email, gender (age and source removed)
+    const coreQuestions = ['fullName', 'phone', 'email', 'gender'];
     const coreComplete = coreQuestions.every(field => {
       const value = getValue(field);
-      if (field === 'age') return value !== null && value !== undefined && value !== '';
       return value !== null && value !== undefined && String(value).trim() !== '';
     });
 
@@ -763,6 +762,16 @@ router.get('/:id', async (req: Request, res: Response) => {
                 role: true,
               },
             },
+          },
+        },
+        programAssignments: {
+          where: {
+            isActive: true,
+          },
+        },
+        nutritionAssignments: {
+          where: {
+            isActive: true,
           },
         },
       },
@@ -987,7 +996,31 @@ router.get('/:id', async (req: Request, res: Response) => {
       console.log('Package ID:', subscription.packageId);
     }
 
-    const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete;
+    // New completion checks: active workout and nutrition programs
+    let workoutProgramComplete = false;
+    let nutritionProgramComplete = false;
+    try {
+      const today = new Date();
+      if (client.programAssignments && client.programAssignments.length > 0) {
+        workoutProgramComplete = client.programAssignments.some((assignment: any) => {
+          const end = assignment.endDate ? new Date(assignment.endDate) : null;
+          return Boolean(assignment.isActive) && (!end || end > today);
+        });
+      }
+      if (client.nutritionAssignments && client.nutritionAssignments.length > 0) {
+        nutritionProgramComplete = client.nutritionAssignments.some((assignment: any) => {
+          const end = assignment.endDate ? new Date(assignment.endDate) : null;
+          return Boolean(assignment.isActive) && (!end || end > today);
+        });
+      }
+    } catch (error) {
+      console.error('Error checking program assignments:', error);
+    }
+
+    console.log('Workout Program Complete:', workoutProgramComplete);
+    console.log('Nutrition Program Complete:', nutritionProgramComplete);
+
+    const isComplete = coreComplete && teamAssignmentComplete && subscriptionComplete && workoutProgramComplete && nutritionProgramComplete;
     res.json({ ...client, profileCompletion: isComplete ? 'Completed' : 'Not Completed' });
   } catch (error) {
     console.error('Error fetching client:', error);

@@ -214,7 +214,7 @@ const ExerciseRow = ({
   );
 };
 
-export default function SimpleProgramBuilder({ mode = 'create', initialData }: { mode?: 'create' | 'edit'; initialData?: any }) {
+export default function SimpleProgramBuilder({ mode = 'create', initialData, customizationData }: { mode?: 'create' | 'edit'; initialData?: any; customizationData?: { isCustomizing: boolean; clientId: string; clientName?: string } | null }) {
   const [weeks, setWeeks] = React.useState<SimpleWeek[]>([]);
   const [programName, setProgramName] = React.useState('');
   const [programDescription, setProgramDescription] = React.useState('');
@@ -632,6 +632,44 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save');
       }
+      
+      // If this is a customized program, auto-assign it to the client and redirect
+      if (customizationData?.isCustomizing && customizationData?.clientId && data.id) {
+        try {
+          const user = getStoredUser();
+          if (user) {
+            const today = new Date().toISOString().split('T')[0];
+            const assignResponse = await fetch('/api/client-program-assignments', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                trainerId: user.id,
+                clientId: Number(customizationData.clientId),
+                programId: data.id,
+                startDate: today,
+                endDate: null,
+                nextUpdateDate: null,
+                notes: null
+              }),
+            });
+
+            if (assignResponse.ok) {
+              router.push(`/clients/${customizationData.clientId}?tab=workout-programs`);
+              return;
+            } else {
+              console.error('Failed to assign program, but program was saved');
+            }
+          }
+        } catch (assignError) {
+          console.error('Error assigning program:', assignError);
+          // Still redirect even if assignment fails, since the program was saved
+          router.push(`/clients/${customizationData.clientId}?tab=workout-programs`);
+          return;
+        }
+      }
+      
       router.push('/workout-programs?created=1');
     } catch (e: any) {
       setError(e.message || 'Failed to save');
@@ -947,7 +985,10 @@ export default function SimpleProgramBuilder({ mode = 'create', initialData }: {
           Preview Program
         </Button>
         <Button onClick={handleSave} disabled={saving} className="px-8 h-10">
-          {saving ? 'Saving...' : 'Save Program'}
+          {saving 
+            ? (customizationData?.isCustomizing ? 'Assigning...' : 'Saving...')
+            : (customizationData?.isCustomizing ? 'Assign Program' : 'Save Program')
+          }
         </Button>
       </div>
 

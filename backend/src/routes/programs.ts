@@ -69,6 +69,16 @@ router.get('/', async (req, res) => {
             id: true,
             fullName: true
           }
+        },
+        clientAssignments: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                fullName: true
+              }
+            }
+          }
         }
       },
       orderBy: {
