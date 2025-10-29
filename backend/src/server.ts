@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import { createServer } from 'http';
+import { socketManager } from './socket';
 import registerRoute from './routes/register';
 import clientsRoute from './routes/clients';
 import packagesRoute from './routes/packages';
@@ -39,6 +41,8 @@ import ingredientsRoute from './routes/ingredients';
 import mealsRoute from './routes/meals';
 import pdfExportRoute from './routes/pdf-export';
 import dashboardRoute from './routes/dashboard';
+import messagesRoute from './routes/messages';
+import messageUploadsRoute from './routes/message-uploads';
 import workflowProcessor from './jobs/workflowProcessor';
 
 // Always load .env from the project root
@@ -48,7 +52,11 @@ dotenv.config({ path: envPath });
 console.log('DATABASE_URL after dotenv:', process.env.DATABASE_URL);
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = Number(process.env.PORT) || 4000;
+
+// Initialize Socket.IO
+socketManager.initialize(httpServer);
 
 app.use(cors());
 app.use(express.json());
@@ -93,6 +101,8 @@ app.use('/api/finance', financeRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/workflows', workflowsRoute);
 app.use('/api/dashboard', dashboardRoute);
+app.use('/api/messages', messagesRoute);
+app.use('/api/message-uploads', messageUploadsRoute);
 // Mobile endpoints
 app.use('/mobile', mobileAuthRoute);
 app.use('/mobile', mobileProgramsRoute);
@@ -118,9 +128,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on 0.0.0.0:${PORT}`);
   console.log(`Server accessible at http://localhost:${PORT} and http://[your-local-ip]:${PORT}`);
+  console.log(`WebSocket server ready on ws://localhost:${PORT}`);
   
   // Start workflow processor
   workflowProcessor.start();

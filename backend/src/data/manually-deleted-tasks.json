@@ -313,5 +313,173 @@
     "category": "Nutrition",
     "taskType": "automatic",
     "deletedAt": "2025-08-10T06:53:00.907Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 37,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:09.691Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 37,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:12.251Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": 37,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:15.692Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:18.173Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:20.658Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:23.341Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:26.031Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:28.524Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:31.399Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:35.952Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:38.431Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:41.159Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:43.809Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:46.094Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:48.606Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:51.888Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:05:58.849Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:06:49.547Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:06:51.881Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:06:54.827Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:06:57.223Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Workout",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:06:59.660Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Profile",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:07:01.983Z"
+  },
+  {
+    "trainerId": 2,
+    "clientId": null,
+    "category": "Nutrition",
+    "taskType": "automatic",
+    "deletedAt": "2025-10-29T20:07:04.202Z"
   }
 ]
