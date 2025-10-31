@@ -317,8 +317,10 @@ export default function HomePage() {
           {/* Today's Workout Status */}
           <div className="bg-white rounded-2xl p-4 flex items-center shadow-sm border border-slate-200">
             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-3">
-              <svg className={`w-6 h-6 ${data?.program ? 'text-slate-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              <svg className={`w-6 h-6 ${data?.program ? 'text-slate-600' : 'text-slate-400'}`} fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="12" r="3"/>
+                <rect x="8" y="11" width="8" height="2" rx="1"/>
               </svg>
             </div>
             <div className="flex-1">
@@ -343,8 +345,9 @@ export default function HomePage() {
           {/* Today's Meals Status */}
           <div className="bg-white rounded-2xl p-4 flex items-center shadow-sm border border-slate-200">
             <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-3">
-              <svg className={`w-6 h-6 ${nutritionData?.nutritionProgram ? 'text-slate-600' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              <svg className={`w-6 h-6 ${nutritionData?.nutritionProgram ? 'text-slate-600' : 'text-slate-400'}`} fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
+                <path d="M8 12c0-1.5 1.5-3 4-3s4 1.5 4 3" stroke="currentColor" strokeWidth="2" fill="none"/>
               </svg>
             </div>
             <div className="flex-1">
@@ -375,8 +378,10 @@ export default function HomePage() {
             {data?.program && (
               <div className="bg-white rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center mb-3">
-                  <svg className="w-6 h-6 text-indigo-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  <svg className="w-6 h-6 text-indigo-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="6" cy="12" r="3"/>
+                    <circle cx="18" cy="12" r="3"/>
+                    <rect x="8" y="11" width="8" height="2" rx="1"/>
                   </svg>
                   <h2 className="text-lg font-semibold text-slate-900">Current Workout Program</h2>
                 </div>
@@ -419,8 +424,9 @@ export default function HomePage() {
             {nutritionData?.nutritionProgram && (
               <div className="bg-white rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center mb-3">
-                  <svg className="w-6 h-6 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  <svg className="w-6 h-6 text-green-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M8 12c0-1.5 1.5-3 4-3s4 1.5 4 3" stroke="currentColor" strokeWidth="2" fill="none"/>
                   </svg>
                   <h2 className="text-lg font-semibold text-slate-900">Current Nutrition Program</h2>
                 </div>

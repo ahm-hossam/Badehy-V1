@@ -525,7 +525,7 @@ export default function NutritionPage() {
       {/* Meal Details Bottom Sheet */}
       {selectedMeal && (
         <div className="fixed inset-0 z-50 flex items-end bg-black bg-opacity-50" onClick={() => setSelectedMeal(null)}>
-          <div className="bg-white rounded-t-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-t-3xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-end p-4 border-b border-slate-200">
               <button
                 onClick={() => setSelectedMeal(null)}
@@ -537,8 +537,9 @@ export default function NutritionPage() {
               </button>
             </div>
 
-            <div className="p-5">
-              {selectedMeal.isCheatMeal ? (
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-5">
+                {selectedMeal.isCheatMeal ? (
                 <div>
                   <div className="flex justify-center mb-4 relative">
                     {selectedMeal.cheatImageUrl ? (
@@ -668,10 +669,11 @@ export default function NutritionPage() {
                   )}
                 </div>
               )}
+              </div>
             </div>
 
-            {/* Bottom Sheet Actions */}
-            <div className="p-5 border-t border-slate-200">
+            {/* Bottom Sheet Actions - Sticky at bottom */}
+            <div className="bg-white p-5 border-t border-slate-200 pb-20">
               <button
                 onClick={() => {
                   toggleMealCompletion(selectedMeal);
