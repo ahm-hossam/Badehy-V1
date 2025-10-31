@@ -23,6 +23,11 @@ export default function DayDetailPage() {
     notes: '',
     exerciseName: ''
   });
+  const [videoModal, setVideoModal] = useState<{visible: boolean, videoUrl: string, exerciseName: string}>({
+    visible: false,
+    videoUrl: '',
+    exerciseName: ''
+  });
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchDayData = useCallback(async () => {
@@ -238,6 +243,30 @@ export default function DayDetailPage() {
     });
   };
 
+  const openVideoModal = (videoUrl: string, exerciseName: string) => {
+    setVideoModal({
+      visible: true,
+      videoUrl,
+      exerciseName
+    });
+  };
+
+  const closeVideoModal = () => {
+    setVideoModal({
+      visible: false,
+      videoUrl: '',
+      exerciseName: ''
+    });
+  };
+
+  const getVideoUrl = (videoUrl: string | null | undefined) => {
+    if (!videoUrl) return null;
+    if (videoUrl.startsWith('http')) return videoUrl;
+    // If relative path, prepend API URL
+    const cleanPath = videoUrl.startsWith('/') ? videoUrl : `/${videoUrl}`;
+    return `${API}${cleanPath}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center pb-20">
@@ -439,6 +468,16 @@ export default function DayDetailPage() {
                                 {exercise.exercise?.name}
                               </h3>
                               <div className="flex items-center gap-2">
+                                {exercise.exercise?.videoUrl && (
+                                  <button
+                                    onClick={() => openVideoModal(exercise.exercise.videoUrl, exercise.exercise?.name)}
+                                    className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center hover:bg-indigo-200 transition-colors"
+                                  >
+                                    <svg className="w-5 h-5 text-indigo-600 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M8 5v14l11-7z" />
+                                    </svg>
+                                  </button>
+                                )}
                                 {exercise.notes && (
                                   <button
                                     onClick={() => openNotesModal(exercise.notes, exercise.exercise?.name)}
@@ -523,6 +562,16 @@ export default function DayDetailPage() {
                           {exercise.exercise?.name}
                         </h3>
                         <div className="flex items-center gap-2">
+                          {exercise.exercise?.videoUrl && (
+                            <button
+                              onClick={() => openVideoModal(exercise.exercise.videoUrl, exercise.exercise?.name)}
+                              className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center hover:bg-indigo-200 transition-colors"
+                            >
+                              <svg className="w-5 h-5 text-indigo-600 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </button>
+                          )}
                           {exercise.notes && (
                             <button
                               onClick={() => openNotesModal(exercise.notes, exercise.exercise?.name)}
@@ -633,6 +682,65 @@ export default function DayDetailPage() {
               <p className="text-base leading-relaxed text-slate-700 whitespace-pre-wrap">
                 {notesModal.notes}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Video Bottom Sheet */}
+      {videoModal.visible && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end" onClick={closeVideoModal}>
+          <div className="bg-white w-full rounded-t-3xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-200">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Exercise Video</h3>
+                <p className="text-sm text-slate-600 mt-1">{videoModal.exerciseName}</p>
+              </div>
+              <button
+                onClick={closeVideoModal}
+                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors"
+              >
+                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Video Player */}
+            <div className="relative w-full bg-black" style={{ aspectRatio: '16/9' }}>
+              {videoModal.videoUrl.includes('youtube.com') || videoModal.videoUrl.includes('youtu.be') ? (
+                // YouTube video - extract video ID and embed
+                (() => {
+                  const getYouTubeId = (url: string) => {
+                    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+                    const match = url.match(regExp);
+                    return match && match[2].length === 11 ? match[2] : null;
+                  };
+                  const videoId = getYouTubeId(videoModal.videoUrl);
+                  return videoId ? (
+                    <iframe
+                      className="absolute inset-0 w-full h-full"
+                      src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-white">
+                      Invalid YouTube URL
+                    </div>
+                  );
+                })()
+              ) : (
+                // Local video - use HTML5 video player
+                <video
+                  src={getVideoUrl(videoModal.videoUrl) || ''}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-contain"
+                  playsInline
+                />
+              )}
             </div>
           </div>
         </div>
