@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
         source: '/mobile/:path*',
         destination: `${API_URL}/mobile/:path*`,
       },
+      {
+        source: '/uploads/:path*',
+        destination: `${API_URL}/uploads/:path*`,
+      },
     ];
   },
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TokenStorage } from '@/lib/storage';
 
@@ -13,9 +13,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<'email' | 'password'>('email');
+  const [mounted, setMounted] = useState(false);
 
   // Logo source - same as mobile app: env variable OR local file
   const logoUrl = process.env.NEXT_PUBLIC_LOGO_URL || '/logo.png';
+
+  // Ensure component is mounted (client-side only)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const checkFormCompletion = async () => {
     try {
@@ -83,8 +89,21 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Login failed');
       
-      // Save tokens
+      // Save tokens immediately and verify
+      console.log('[Login] Saving tokens...');
       await TokenStorage.saveTokens(data.accessToken, data.refreshToken);
+      
+      // Double-check token was saved
+      const savedToken = localStorage.getItem('client_access_token');
+      if (!savedToken) {
+        console.error('[Login] Token not saved! Attempting manual save...');
+        localStorage.setItem('client_access_token', data.accessToken);
+        if (data.refreshToken) {
+          localStorage.setItem('client_refresh_token', data.refreshToken);
+        }
+      } else {
+        console.log('[Login] Token verified in localStorage');
+      }
       
       if (data?.subscriptionExpired) {
         router.push('/blocked');
@@ -101,6 +120,15 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Don't render until mounted (prevents SSR issues)
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-slate-600">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col">

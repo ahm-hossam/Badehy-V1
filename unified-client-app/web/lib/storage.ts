@@ -6,12 +6,66 @@ const REFRESH_TOKEN_KEY = 'client_refresh_token';
 export const TokenStorage = {
   async saveTokens(accessToken: string, refreshToken?: string): Promise<void> {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-      if (refreshToken) {
-        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      try {
+        // Save tokens synchronously to ensure they're persisted immediately
+        localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+        if (refreshToken) {
+          localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        }
+        // Also set in global for immediate access
+        (globalThis as any).ACCESS_TOKEN = accessToken;
+        
+        // Notify native app to save token (for WebView persistence)
+        // CRITICAL: This must happen for persistence to work
+        try {
+          if ((window as any).ReactNativeWebView) {
+            // Use postMessage multiple times to ensure it gets through
+            const message = JSON.stringify({
+              type: 'SAVE_TOKEN',
+              token: accessToken,
+              refreshToken: refreshToken
+            });
+            
+            // Send immediately
+            (window as any).ReactNativeWebView.postMessage(message);
+            
+            // Send again after small delay (in case first one didn't go through)
+            setTimeout(() => {
+              try {
+                (window as any).ReactNativeWebView.postMessage(message);
+              } catch (e) {
+                console.error('[Storage] Error sending token sync (retry):', e);
+              }
+            }, 100);
+            
+            // One more retry
+            setTimeout(() => {
+              try {
+                (window as any).ReactNativeWebView.postMessage(message);
+              } catch (e) {
+                console.error('[Storage] Error sending token sync (retry 2):', e);
+              }
+            }, 500);
+            
+            console.log('[Storage] Token sync message sent to native app');
+          } else {
+            console.log('[Storage] Not in WebView, skipping native sync');
+          }
+        } catch (e) {
+          console.error('[Storage] Error notifying native app:', e);
+        }
+        
+        // Verify the token was saved
+        const saved = localStorage.getItem(ACCESS_TOKEN_KEY);
+        if (!saved || saved !== accessToken) {
+          console.error('Failed to save token to localStorage');
+        } else {
+          console.log('Token saved successfully to localStorage');
+        }
+      } catch (error) {
+        console.error('Error saving tokens:', error);
+        throw error;
       }
-      // Also set in global for immediate access
-      (globalThis as any).ACCESS_TOKEN = accessToken;
     }
   },
 
@@ -38,6 +92,17 @@ export const TokenStorage = {
       localStorage.removeItem(ACCESS_TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
       delete (globalThis as any).ACCESS_TOKEN;
+      
+      // Notify native app to clear token
+      try {
+        if ((window as any).ReactNativeWebView) {
+          (window as any).ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'CLEAR_TOKEN'
+          }));
+        }
+      } catch (e) {
+        // Not in WebView, ignore
+      }
     }
   },
 };

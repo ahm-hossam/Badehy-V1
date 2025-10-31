@@ -75,16 +75,51 @@ export default function TabsLayout({
     { href: '/profile', label: 'Profile', icon: 'person-outline', activeIcon: 'person' },
   ];
 
-  // Check auth on mount
+  // Check auth on mount - but only if we're on a protected route
   useEffect(() => {
     const checkAuth = async () => {
-      const token = await TokenStorage.getAccessToken();
-      if (!token) {
-        router.push('/login');
+      // Don't check auth if we're already on login/blocked pages
+      if (pathname === '/login' || pathname === '/blocked' || pathname === '/set-password') {
+        return;
+      }
+      
+      // In WebView, wait a bit for token injection from native
+      const isWebView = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView;
+      
+      if (isWebView) {
+        // Wait up to 5 seconds for token injection (don't interfere with root page)
+        let attempts = 0;
+        const maxAttempts = 100; // 5 seconds
+        const checkInterval = setInterval(() => {
+          attempts++;
+          const token = localStorage.getItem('client_access_token');
+          
+          if (token && token.trim().length > 0) {
+            clearInterval(checkInterval);
+            // Token found, set it globally
+            (globalThis as any).ACCESS_TOKEN = token;
+            return;
+          }
+          
+          // Only redirect if we're NOT on the root page (which handles its own redirect)
+          if (attempts >= maxAttempts && pathname !== '/') {
+            clearInterval(checkInterval);
+            // Still no token after waiting, redirect to login
+            router.push('/login');
+          }
+        }, 50);
+        
+        return () => clearInterval(checkInterval);
+      } else {
+        // Regular browser - check immediately
+        const token = localStorage.getItem('client_access_token');
+        if (!token && pathname !== '/') {
+          router.push('/login');
+        }
       }
     };
     checkAuth();
-  }, [router]);
+  }, [router, pathname]);
 
   return (
     <div className="flex flex-col h-screen bg-white">

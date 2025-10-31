@@ -364,13 +364,22 @@ export default function MessagesPage() {
                       <div className="mb-2">
                         {message.attachmentType === 'image' ? (
                           <img
-                            src={`${API}${message.attachmentUrl}`}
+                            src={message.attachmentUrl?.startsWith('http') ? message.attachmentUrl : (message.attachmentUrl?.startsWith('/') ? message.attachmentUrl : `/${message.attachmentUrl || ''}`)}
                             alt="Attachment"
-                            className="w-48 h-48 rounded-lg object-cover mb-2"
+                            className="w-48 h-48 rounded-lg object-cover mb-2 bg-slate-100"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (!target.src.includes(API)) {
+                                const imagePath = message.attachmentUrl?.startsWith('/') 
+                                  ? message.attachmentUrl 
+                                  : `/${message.attachmentUrl || ''}`;
+                                target.src = `${API}${imagePath}`;
+                              }
+                            }}
                           />
                         ) : (
                           <a
-                            href={`${API}${message.attachmentUrl}`}
+                            href={message.attachmentUrl?.startsWith('http') ? message.attachmentUrl : `${API}${message.attachmentUrl?.startsWith('/') ? message.attachmentUrl : `/${message.attachmentUrl || ''}`}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`flex items-center gap-2 p-2 rounded-lg mb-2 ${

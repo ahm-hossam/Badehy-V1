@@ -31,9 +31,13 @@ export default function HomePage() {
         return;
       }
 
-      // Fetch client info and subscription
-      const meRes = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
+      // Import apiRequest once for all requests
+      const { apiRequest } = await import('@/lib/auth');
+      
+      // Fetch client info and subscription - use apiRequest which handles token refresh
+      const meRes = await apiRequest('/mobile/me', { method: 'GET' });
       const meJson = await meRes.json();
+      
       if (meRes.ok) {
         setClient(meJson.client);
         setSubscription(meJson.subscription);
@@ -46,21 +50,28 @@ export default function HomePage() {
           router.push('/blocked');
           return;
         }
+      } else if (meRes.status === 401) {
+        // apiRequest should have already tried to refresh the token
+        // If we still get 401, it means refresh failed and tokens were already cleared
+        // Double-check and redirect if needed
+        const token = await TokenStorage.getAccessToken();
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        // If token still exists, don't clear it - might be a temporary network issue
+        setError('Authentication failed. Please try again.');
       }
 
       // Fetch active workout program
-      const programRes = await fetch(`${API}/mobile/programs/active`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const programRes = await apiRequest('/mobile/programs/active', { method: 'GET' });
       const programJson = await programRes.json();
       if (programRes.ok) {
         setData(programJson.assignment || programJson);
       }
 
       // Fetch active nutrition program
-      const nutritionRes = await fetch(`${API}/mobile/nutrition/active`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const nutritionRes = await apiRequest('/mobile/nutrition/active', { method: 'GET' });
       const nutritionJson = await nutritionRes.json();
       if (nutritionRes.ok) {
         setNutritionData(nutritionJson.assignment || nutritionJson);
@@ -76,9 +87,27 @@ export default function HomePage() {
       // }
 
     } catch (e: any) {
+      console.error('Error fetching home data:', e);
+      // Only clear tokens and redirect if it's a confirmed auth failure
+      // apiRequest already handles token refresh automatically
+      // Only clear if refresh explicitly failed
+      const errorMsg = e.message || '';
+      if (errorMsg.includes('Session expired') || 
+          (errorMsg.includes('No access token') && !errorMsg.includes('refresh'))) {
+        // Give it one more chance - check if token exists
+        const stillHasToken = await TokenStorage.getAccessToken();
+        if (!stillHasToken) {
+          // Token was already cleared (probably by apiRequest after failed refresh)
+          router.push('/login');
+          return;
+        }
+        // If we still have a token, it might just need a moment
+        // Don't clear it, just show error and let user retry
+      }
       setError(e.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [router]);
 

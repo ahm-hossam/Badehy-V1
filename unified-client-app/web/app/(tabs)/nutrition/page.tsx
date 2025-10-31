@@ -168,10 +168,15 @@ export default function NutritionPage() {
       if (meal.meal.imageUrl.startsWith('http')) {
         return meal.meal.imageUrl;
       } else {
-        return `${API}${meal.meal.imageUrl}`;
+        // Ensure the URL path starts with / if it doesn't
+        const imagePath = meal.meal.imageUrl.startsWith('/') ? meal.meal.imageUrl : `/${meal.meal.imageUrl}`;
+        // Use Next.js rewrite to proxy /uploads to backend
+        // This works because we have /uploads/:path* -> backend in next.config.ts
+        return imagePath;
       }
     }
-    return 'https://via.placeholder.com/300x200/f3f4f6/9ca3af?text=Meal';
+    // Return null so we can handle with placeholder
+    return null;
   };
 
   const calculateMealNutrition = (meal: any) => {
@@ -390,12 +395,21 @@ export default function NutritionPage() {
                         {meal.isCheatMeal ? (
                           <div className="flex gap-3">
                             <div className="relative">
-                              {meal.cheatImageUrl ? (
-                                <img
-                                  src={meal.cheatImageUrl.startsWith('http') ? meal.cheatImageUrl : `${API}${meal.cheatImageUrl}`}
-                                  alt="Cheat meal"
-                                  className="w-20 h-20 rounded-lg object-cover"
-                                />
+                            {meal.cheatImageUrl ? (
+                              <img
+                                src={meal.cheatImageUrl.startsWith('http') ? meal.cheatImageUrl : (meal.cheatImageUrl.startsWith('/') ? meal.cheatImageUrl : `/${meal.cheatImageUrl}`)}
+                                alt="Cheat meal"
+                                className="w-20 h-20 rounded-lg object-cover bg-amber-50"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  if (!target.src.includes(API)) {
+                                    const imagePath = meal.cheatImageUrl?.startsWith('/') 
+                                      ? meal.cheatImageUrl 
+                                      : `/${meal.cheatImageUrl || ''}`;
+                                    target.src = `${API}${imagePath}`;
+                                  }
+                                }}
+                              />
                               ) : (
                                 <div className="w-20 h-20 rounded-lg bg-amber-100 flex items-center justify-center">
                                   <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -424,11 +438,40 @@ export default function NutritionPage() {
                           </div>
                         ) : (
                           <div className="flex gap-3">
-                            <img
-                              src={getMealImageUri(meal)}
-                              alt={meal.meal?.name || 'Meal'}
-                              className="w-20 h-20 rounded-lg object-cover"
-                            />
+                            {getMealImageUri(meal) ? (
+                              <img
+                                src={getMealImageUri(meal)}
+                                alt={meal.meal?.name || 'Meal'}
+                                className="w-20 h-20 rounded-lg object-cover bg-slate-100"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  // Try direct backend URL as fallback
+                                  if (!target.src.includes(API)) {
+                                    const imagePath = meal.meal?.imageUrl?.startsWith('/') 
+                                      ? meal.meal.imageUrl 
+                                      : `/${meal.meal?.imageUrl || ''}`;
+                                    target.src = `${API}${imagePath}`;
+                                  } else {
+                                    // Already tried both, show placeholder
+                                    target.style.display = 'none';
+                                    const placeholder = target.parentElement?.querySelector('.meal-placeholder');
+                                    if (!placeholder && target.parentElement) {
+                                      const placeholderDiv = document.createElement('div');
+                                      placeholderDiv.className = 'meal-placeholder absolute inset-0 bg-slate-100 rounded-lg flex items-center justify-center';
+                                      placeholderDiv.innerHTML = '<svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                                      target.parentElement.style.position = 'relative';
+                                      target.parentElement.appendChild(placeholderDiv);
+                                    }
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-lg bg-slate-100 flex items-center justify-center">
+                                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
                             <div className="flex-1">
                               <h3 className={`text-base font-semibold ${isCompleted ? 'line-through text-slate-400' : 'text-slate-900'}`}>
                                 {meal.meal?.name || `${meal.mealType || 'Meal'}`}
@@ -500,9 +543,18 @@ export default function NutritionPage() {
                   <div className="flex justify-center mb-4 relative">
                     {selectedMeal.cheatImageUrl ? (
                       <img
-                        src={selectedMeal.cheatImageUrl.startsWith('http') ? selectedMeal.cheatImageUrl : `${API}${selectedMeal.cheatImageUrl}`}
+                        src={selectedMeal.cheatImageUrl.startsWith('http') ? selectedMeal.cheatImageUrl : (selectedMeal.cheatImageUrl.startsWith('/') ? selectedMeal.cheatImageUrl : `/${selectedMeal.cheatImageUrl}`)}
                         alt="Cheat meal"
-                        className="w-30 h-30 rounded-2xl object-cover"
+                        className="w-30 h-30 rounded-2xl object-cover bg-amber-50"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.src.includes(API)) {
+                            const imagePath = selectedMeal.cheatImageUrl?.startsWith('/') 
+                              ? selectedMeal.cheatImageUrl 
+                              : `/${selectedMeal.cheatImageUrl || ''}`;
+                            target.src = `${API}${imagePath}`;
+                          }
+                        }}
                       />
                     ) : (
                       <div className="w-30 h-30 rounded-2xl bg-amber-100 flex items-center justify-center">
@@ -527,11 +579,40 @@ export default function NutritionPage() {
               ) : (
                 <div>
                   <div className="flex justify-center mb-4">
-                    <img
-                      src={getMealImageUri(selectedMeal)}
-                      alt={selectedMeal.meal?.name || 'Meal'}
-                      className="w-30 h-30 rounded-2xl object-cover"
-                    />
+                    {getMealImageUri(selectedMeal) ? (
+                      <img
+                        src={getMealImageUri(selectedMeal)}
+                        alt={selectedMeal.meal?.name || 'Meal'}
+                        className="w-30 h-30 rounded-2xl object-cover bg-slate-100"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          // Try direct backend URL as fallback
+                          if (!target.src.includes(API)) {
+                            const imagePath = selectedMeal.meal?.imageUrl?.startsWith('/') 
+                              ? selectedMeal.meal.imageUrl 
+                              : `/${selectedMeal.meal?.imageUrl || ''}`;
+                            target.src = `${API}${imagePath}`;
+                          } else {
+                            // Already tried both, show placeholder
+                            target.style.display = 'none';
+                            const placeholder = target.parentElement?.querySelector('.meal-placeholder');
+                            if (!placeholder && target.parentElement) {
+                              const placeholderDiv = document.createElement('div');
+                              placeholderDiv.className = 'meal-placeholder absolute inset-0 bg-slate-100 rounded-2xl flex items-center justify-center';
+                              placeholderDiv.innerHTML = '<svg class="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                              target.parentElement.style.position = 'relative';
+                              target.parentElement.appendChild(placeholderDiv);
+                            }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="w-30 h-30 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                   
                   <h2 className="text-2xl font-bold text-slate-900 text-center mb-2">
