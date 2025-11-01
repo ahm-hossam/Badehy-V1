@@ -35,6 +35,14 @@ export default function LoginPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      // Safe JSON parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('[Login] Non-JSON response:', text.substring(0, 200));
+        return; // Skip if not JSON
+      }
+      
       const data = await response.json();
       
       if (response.ok) {
@@ -60,9 +68,17 @@ export default function LoginPage() {
       setError('');
       const res = await fetch(`${API}/mobile/auth/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'skip_zrok_interstitial': 'true' },
         body: JSON.stringify({ email }),
       });
+      // Safe JSON parsing
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('[Login] Non-JSON response:', text.substring(0, 200));
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+      
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed');
       if (data?.firstLogin && data?.firstLoginToken) {
@@ -83,9 +99,18 @@ export default function LoginPage() {
       setError('');
       const res = await fetch(`${API}/mobile/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' ,'skip_zrok_interstitial': 'true'},
         body: JSON.stringify({ email, password }),
       });
+      
+      // Safe JSON parsing
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('[Login] Non-JSON response:', text.substring(0, 200));
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
+      }
+      
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Login failed');
       

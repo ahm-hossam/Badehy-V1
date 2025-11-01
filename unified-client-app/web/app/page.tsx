@@ -123,11 +123,11 @@ export default function Home() {
           clearInterval(fastInterval);
           
           // Start slower checking (every 50ms)
-          checkInterval = setInterval(() => {
+          const intervalId = setInterval(() => {
             attempts++;
             
             if (hasRedirected.current) {
-              clearInterval(checkInterval);
+              clearInterval(intervalId);
               window.removeEventListener('tokenInjected', tokenInjectedListener);
               return;
             }
@@ -137,7 +137,7 @@ export default function Home() {
             if (token) {
               const elapsed = 2000 + (attempts - 200) * 50;
               console.log(`[Root Page] ✓✓✓✓✓ TOKEN FOUND on attempt #${attempts} (after ${elapsed}ms)`);
-              clearInterval(checkInterval);
+              clearInterval(intervalId);
               window.removeEventListener('tokenInjected', tokenInjectedListener);
               (globalThis as any).ACCESS_TOKEN = token;
               redirectToHome();
@@ -157,7 +157,7 @@ export default function Home() {
               console.log('[Root Page] Final check:', finalToken ? `✓ TOKEN FOUND (${finalToken.length} chars)` : '✗ NO TOKEN');
               console.log('[Root Page] localStorage keys:', Object.keys(localStorage));
               console.log('[Root Page] localStorage.getItem result:', localStorage.getItem('client_access_token') ? 'HAS VALUE' : 'NULL');
-              clearInterval(checkInterval);
+              clearInterval(intervalId);
               window.removeEventListener('tokenInjected', tokenInjectedListener);
               
               if (finalToken) {
@@ -168,6 +168,7 @@ export default function Home() {
               }
             }
           }, 50);
+          checkInterval = intervalId;
         }
       }, 10); // Check every 10ms for first 2 seconds
       

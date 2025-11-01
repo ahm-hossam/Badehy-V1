@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Registered {
@@ -31,6 +31,8 @@ model Registered {
   labels                     Label[]
   leads                      Lead[]
   meals                      Meal[]
+  messages                   Message[]
+  notifications              Notification[]
   nutritionPrograms          NutritionProgram[]
   packages                   Package[]
   programs                   Program[]
@@ -39,68 +41,63 @@ model Registered {
   tasks                      Task[]
   teamMembers                TeamMember[]
   trainerClients             TrainerClient[]
-  notifications              Notification[]
   workflows                  Workflow[]
-  messages                   Message[]
 }
 
 model TrainerClient {
-  id                    Int                         @id @default(autoincrement())
-  trainerId             Int
-  fullName              String
-  phone                 String
-  email                 String
-  gender                String?
-  age                   Int?
-  source                String?
-  level                 String?
-  registrationDate      DateTime?
-  injuriesHealthNotes   String?  // JSON string array
-  goals                 String?  // JSON string array
-  goal                  String?
-  workoutPlace          String?
-  height                Int?
-  weight                Int?
-  preferredTrainingDays String?
-  preferredTrainingTime String?
-  equipmentAvailability String?
-  favoriteTrainingStyle String?
-  weakAreas             String?
-  nutritionGoal         String?
-  dietPreference        String?
-  mealCount             Int?
-  foodAllergies         String?
-  dislikedIngredients   String?
-  currentNutritionPlan  String?
-  selectedFormId        Int?
-  createdAt             DateTime                    @default(now())
-  updatedAt             DateTime                    @updatedAt
-  originLeadId          Int?                        @unique
-  submissions           CheckInSubmission[]
-  nutritionAssignments  ClientNutritionAssignment[]
-  programAssignments    ClientProgramAssignment[]
-  services              ClientService[]
-  teamAssignments       ClientTeamAssignment[]
-  financialRecords      FinancialRecord[]
-  notes                 Note[]
-  subscriptions         Subscription[]
-  tasks                 Task[]
-  originLead            Lead?                       @relation("LeadToClient", fields: [originLeadId], references: [id])
-  selectedForm          CheckInForm?                @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
-  trainer               Registered                  @relation(fields: [trainerId], references: [id])
-  labels                Label[]                     @relation("ClientLabels")
-  workoutSessions       WorkoutSession[]
-  // Back relation for ClientAuth one-to-one credentials
-  clientAuth            ClientAuth?
-  // Notification relations
-  notificationRecipients NotificationRecipient[]
-  // Chat messages
-  messages              Message[]                    @relation("ClientMessages")
-  pushToken             PushToken?
-  workflowExecutions      WorkflowExecution[]
-  assignedForms           AssignedForm[]
-  customizedPrograms      Program[]                   @relation("CustomizedProgram")
-  customizedNutritionPrograms NutritionProgram[]      @relation("CustomizedNutritionProgram")
+  id                          Int                         @id @default(autoincrement())
+  trainerId                   Int
+  fullName                    String
+  phone                       String
+  email                       String
+  gender                      String?
+  age                         Int?
+  source                      String?
+  level                       String?
+  registrationDate            DateTime?
+  injuriesHealthNotes         String?
+  goals                       String?
+  goal                        String?
+  workoutPlace                String?
+  height                      Int?
+  weight                      Int?
+  preferredTrainingDays       String?
+  preferredTrainingTime       String?
+  equipmentAvailability       String?
+  favoriteTrainingStyle       String?
+  weakAreas                   String?
+  nutritionGoal               String?
+  dietPreference              String?
+  mealCount                   Int?
+  foodAllergies               String?
+  dislikedIngredients         String?
+  currentNutritionPlan        String?
+  selectedFormId              Int?
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+  originLeadId                Int?                        @unique
+  assignedForms               AssignedForm[]
+  submissions                 CheckInSubmission[]
+  clientAuth                  ClientAuth?
+  nutritionAssignments        ClientNutritionAssignment[]
+  programAssignments          ClientProgramAssignment[]
+  services                    ClientService[]
+  teamAssignments             ClientTeamAssignment[]
+  financialRecords            FinancialRecord[]
+  messages                    Message[]                   @relation("ClientMessages")
+  notes                       Note[]
+  notificationRecipients      NotificationRecipient[]
+  customizedNutritionPrograms NutritionProgram[]          @relation("CustomizedNutritionProgram")
+  customizedPrograms          Program[]                   @relation("CustomizedProgram")
+  pushToken                   PushToken?
+  subscriptions               Subscription[]
+  tasks                       Task[]
+  originLead                  Lead?                       @relation("LeadToClient", fields: [originLeadId], references: [id])
+  selectedForm                CheckInForm?                @relation("ClientSelectedForm", fields: [selectedFormId], references: [id])
+  trainer                     Registered                  @relation(fields: [trainerId], references: [id])
+  workflowExecutions          WorkflowExecution[]
+  workoutSessions             WorkoutSession[]
+  labels                      Label[]                     @relation("ClientLabels")
 
   @@index([trainerId])
 }
@@ -116,14 +113,13 @@ model Package {
   discountType    String?
   discountValue   Float?
   priceAfterDisc  Float?
-  // Workflow fields
-  followUpDays    Int?           // Days between follow-ups
-  followUpFormId  Int?           // Form to send for follow-ups
+  followUpDays    Int?
+  followUpFormId  Int?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   trainer         Registered     @relation(fields: [trainerId], references: [id])
   subscriptions   Subscription[]
-  workflows       Workflow[]     // Workflows associated with this package
+  workflows       Workflow[]
 
   @@unique([trainerId, name])
   @@index([trainerId])
@@ -347,12 +343,12 @@ model CheckInForm {
   isMainForm        Boolean              @default(false)
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
+  assignedForms     AssignedForm[]
   trainer           Registered           @relation(fields: [trainerId], references: [id])
   history           CheckInFormHistory[]
   questions         CheckInQuestion[]
   submissions       CheckInSubmission[]
   selectedByClients TrainerClient[]      @relation("ClientSelectedForm")
-  assignedForms     AssignedForm[]
 }
 
 model CheckInQuestion {
@@ -408,8 +404,8 @@ model Exercise {
   bodyPart         String?
   equipment        String?
   target           String?
-  secondaryMuscles String?          @default("[]")
-  instructions     String?          @default("[]")
+  secondaryMuscles String?           @default("[]")
+  instructions     String?           @default("[]")
   gifUrl           String?
   source           String?
   createdAt        DateTime          @default(now())
@@ -421,45 +417,33 @@ model Exercise {
 }
 
 model Ingredient {
-  id               Int               @id @default(autoincrement())
-  trainerId        Int
-  name             String
-  category         String            // Protein, Carbs, Fats, Vegetables, Fruits, etc.
-  description      String?
-  
-  // Cooking state - which nutritional values to use
-  cookingState      String            @default("before_cook") // "before_cook" or "after_cook"
-  
-  // Nutritional info per 100g - Before Cook
-  caloriesBefore   Float             @default(0)
-  proteinBefore    Float             @default(0)
-  carbsBefore      Float             @default(0)
-  fatsBefore       Float             @default(0)
-  
-  // Nutritional info per 100g - After Cook
-  caloriesAfter    Float             @default(0)
-  proteinAfter     Float             @default(0)
-  carbsAfter       Float             @default(0)
-  fatsAfter        Float             @default(0)
-  
-  // Common nutritional info (not affected by cooking)
-  fiber            Float             @default(0)
-  sugar            Float             @default(0)
-  sodium           Float             @default(0)
-  
-  // Unit information
-  unitType         String            @default("grams") // grams, cups, pieces, etc.
-  servingSize      Float             @default(100) // default 100g
-  
-  // Additional info
-  costPerUnit      Float?            // optional cost tracking
-  allergens        String?           @default("[]") // JSON array of allergens
-  imageUrl         String?
-  isActive         Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  trainer          Registered        @relation(fields: [trainerId], references: [id])
-  mealIngredients  MealIngredient[]
+  id              Int              @id @default(autoincrement())
+  trainerId       Int
+  name            String
+  category        String
+  description     String?
+  cookingState    String           @default("before_cook")
+  caloriesBefore  Float            @default(0)
+  proteinBefore   Float            @default(0)
+  carbsBefore     Float            @default(0)
+  fatsBefore      Float            @default(0)
+  caloriesAfter   Float            @default(0)
+  proteinAfter    Float            @default(0)
+  carbsAfter      Float            @default(0)
+  fatsAfter       Float            @default(0)
+  fiber           Float            @default(0)
+  sugar           Float            @default(0)
+  sodium          Float            @default(0)
+  unitType        String           @default("grams")
+  servingSize     Float            @default(100)
+  costPerUnit     Float?
+  allergens       String?          @default("[]")
+  imageUrl        String?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  trainer         Registered       @relation(fields: [trainerId], references: [id])
+  mealIngredients MealIngredient[]
 
   @@index([trainerId])
   @@index([category])
@@ -467,24 +451,24 @@ model Ingredient {
 }
 
 model Program {
-  id                      Int                       @id @default(autoincrement())
-  trainerId               Int
-  name                    String
-  description             String?
-  pdfUrl                  String?
-  isImported              Boolean                   @default(false)
-  isDefault               Boolean                   @default(false) // Mark default programs
-  importedPdfUrl          String?
-  programDuration         Int?
-  durationUnit            String?
-  originalProgramId       Int?                      // ID of the original program if this is a customized version
-  customizedForClientId   Int?                      // Client ID for whom this program was customized
-  createdAt               DateTime                  @default(now())
-  updatedAt               DateTime                  @updatedAt
-  clientAssignments       ClientProgramAssignment[]
-  trainer                 Registered                @relation(fields: [trainerId], references: [id])
-  weeks                   ProgramWeek[]
-  customizedFor           TrainerClient?            @relation("CustomizedProgram", fields: [customizedForClientId], references: [id])
+  id                    Int                       @id @default(autoincrement())
+  trainerId             Int
+  name                  String
+  description           String?
+  pdfUrl                String?
+  isImported            Boolean                   @default(false)
+  isDefault             Boolean                   @default(false)
+  importedPdfUrl        String?
+  programDuration       Int?
+  durationUnit          String?
+  originalProgramId     Int?
+  customizedForClientId Int?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  clientAssignments     ClientProgramAssignment[]
+  customizedFor         TrainerClient?            @relation("CustomizedProgram", fields: [customizedForClientId], references: [id])
+  trainer               Registered                @relation(fields: [trainerId], references: [id])
+  weeks                 ProgramWeek[]
 
   @@index([trainerId])
   @@index([originalProgramId])
@@ -492,37 +476,34 @@ model Program {
 }
 
 model NutritionProgram {
-  id                        Int                         @id @default(autoincrement())
-  trainerId                 Int
-  name                      String
-  description               String?
-  pdfUrl                    String?
-  isImported                Boolean                     @default(false)
-  importedPdfUrl            String?
-  programDuration           Int?                        // Number of weeks
-  durationUnit              String?                     @default("weeks")
-  repeatCount               Int?                        @default(1) // How many times to repeat the program
-  
-  // Goal settings
-  targetCalories            Float?                      // Daily calorie target
-  targetProtein             Float?                      // Daily protein target (grams)
-  targetCarbs               Float?                      // Daily carbs target (grams)
-  targetFats                Float?                      // Daily fats target (grams)
-  proteinPercentage         Float?                     // Protein percentage (if using %)
-  carbsPercentage           Float?                      // Carbs percentage (if using %)
-  fatsPercentage            Float?                      // Fats percentage (if using %)
-  usePercentages            Boolean                     @default(false) // Whether to use % or grams
-  
-  isActive                  Boolean                     @default(true)
-  originalNutritionProgramId Int?                      // ID of the original program if this is a customized version
-  customizedForClientId     Int?                      // Client ID for whom this program was customized
-  createdAt                 DateTime                    @default(now())
-  updatedAt                 DateTime                    @updatedAt
-  clientAssignments         ClientNutritionAssignment[]
-  trainer                   Registered                  @relation(fields: [trainerId], references: [id])
-  meals                     NutritionProgramMeal[]
-  weeks                     NutritionProgramWeek[]
-  customizedFor             TrainerClient?              @relation("CustomizedNutritionProgram", fields: [customizedForClientId], references: [id])
+  id                         Int                         @id @default(autoincrement())
+  trainerId                  Int
+  name                       String
+  description                String?
+  pdfUrl                     String?
+  isImported                 Boolean                     @default(false)
+  importedPdfUrl             String?
+  programDuration            Int?
+  durationUnit               String?                     @default("weeks")
+  repeatCount                Int?                        @default(1)
+  targetCalories             Float?
+  targetProtein              Float?
+  targetCarbs                Float?
+  targetFats                 Float?
+  proteinPercentage          Float?
+  carbsPercentage            Float?
+  fatsPercentage             Float?
+  usePercentages             Boolean                     @default(false)
+  isActive                   Boolean                     @default(true)
+  originalNutritionProgramId Int?
+  customizedForClientId      Int?
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  clientAssignments          ClientNutritionAssignment[]
+  customizedFor              TrainerClient?              @relation("CustomizedNutritionProgram", fields: [customizedForClientId], references: [id])
+  trainer                    Registered                  @relation(fields: [trainerId], references: [id])
+  meals                      NutritionProgramMeal[]
+  weeks                      NutritionProgramWeek[]
 
   @@index([trainerId])
   @@index([originalNutritionProgramId])
@@ -534,18 +515,16 @@ model Meal {
   trainerId         Int
   name              String
   description       String?
-  category          String                 // Breakfast, Lunch, Dinner, Snack, etc.
-  prepTime          Int?                   // in minutes
-  cookTime          Int?                   // in minutes
+  category          String
+  prepTime          Int?
+  cookTime          Int?
   servings          Int                    @default(1)
-  difficulty        String?                // Easy, Medium, Hard
-  instructions      String?                // Cooking instructions
+  difficulty        String?
+  instructions      String?
   imageUrl          String?
   isActive          Boolean                @default(true)
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
-  
-  // Calculated nutritional values (per serving)
   totalCalories     Float                  @default(0)
   totalProtein      Float                  @default(0)
   totalCarbs        Float                  @default(0)
@@ -553,8 +532,6 @@ model Meal {
   totalFiber        Float                  @default(0)
   totalSugar        Float                  @default(0)
   totalSodium       Float                  @default(0)
-  
-  // Relations
   trainer           Registered             @relation(fields: [trainerId], references: [id])
   mealIngredients   MealIngredient[]
   nutritionPrograms NutritionProgramMeal[]
@@ -565,16 +542,14 @@ model Meal {
 }
 
 model MealIngredient {
-  id           Int       @id @default(autoincrement())
+  id           Int        @id @default(autoincrement())
   mealId       Int
   ingredientId Int
-  quantity     Float     // amount of ingredient
-  unit         String    // unit of measurement (grams, cups, pieces, etc.)
-  notes        String?   // optional notes for this ingredient in this meal
-  
-  // Relations
-  meal         Meal      @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  quantity     Float
+  unit         String
+  notes        String?
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  meal         Meal       @relation(fields: [mealId], references: [id], onDelete: Cascade)
 
   @@unique([mealId, ingredientId])
   @@index([mealId])
@@ -582,64 +557,53 @@ model MealIngredient {
 }
 
 model NutritionProgramWeek {
-  id                Int                         @id @default(autoincrement())
+  id                 Int                    @id @default(autoincrement())
   nutritionProgramId Int
-  weekNumber        Int                         // Week number (1, 2, 3, etc.)
-  name              String?                     // Optional week name
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  
-  // Relations
-  nutritionProgram  NutritionProgram            @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
-  days              NutritionProgramDay[]
-  meals             NutritionProgramMeal[]
+  weekNumber         Int
+  name               String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  days               NutritionProgramDay[]
+  meals              NutritionProgramMeal[]
+  nutritionProgram   NutritionProgram       @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
 
   @@unique([nutritionProgramId, weekNumber])
   @@index([nutritionProgramId])
 }
 
 model NutritionProgramDay {
-  id                Int                         @id @default(autoincrement())
+  id                     Int                    @id @default(autoincrement())
   nutritionProgramWeekId Int
-  dayOfWeek        Int                         // 1-7 (Monday-Sunday)
-  name              String?                     // Optional day name
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @updatedAt
-  
-  // Relations
-  nutritionProgramWeek NutritionProgramWeek     @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
-  meals             NutritionProgramMeal[]
+  dayOfWeek              Int
+  name                   String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  nutritionProgramWeek   NutritionProgramWeek   @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
+  meals                  NutritionProgramMeal[]
 
   @@unique([nutritionProgramWeekId, dayOfWeek])
   @@index([nutritionProgramWeekId])
 }
 
 model NutritionProgramMeal {
-  id                Int             @id @default(autoincrement())
-  nutritionProgramId Int
-  nutritionProgramWeekId Int?       // Optional: specific week
-  nutritionProgramDayId Int?        // Optional: specific day
-  mealId            Int?            // Nullable for cheat meals
-  mealType          String          // Breakfast, Lunch, Dinner, Snack
-  order             Int?            // order within the day
-  
-  // Cheat meal settings
-  isCheatMeal       Boolean         @default(false)
-  cheatDescription  String?         // Description for cheat meal
-  cheatImageUrl     String?         // Image for cheat meal
-  
-  // Custom modifications (without affecting original meal)
-  customQuantity    Float?          // Custom quantity multiplier
-  customNotes       String?          // Custom notes for this meal
-  
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  
-  // Relations
-  nutritionProgram  NutritionProgram @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
-  nutritionProgramWeek NutritionProgramWeek? @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
-  nutritionProgramDay NutritionProgramDay? @relation(fields: [nutritionProgramDayId], references: [id], onDelete: Cascade)
-  meal              Meal?           @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  id                     Int                   @id @default(autoincrement())
+  nutritionProgramId     Int
+  nutritionProgramWeekId Int?
+  nutritionProgramDayId  Int?
+  mealId                 Int?
+  mealType               String
+  order                  Int?
+  isCheatMeal            Boolean               @default(false)
+  cheatDescription       String?
+  cheatImageUrl          String?
+  customQuantity         Float?
+  customNotes            String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  meal                   Meal?                 @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  nutritionProgramDay    NutritionProgramDay?  @relation(fields: [nutritionProgramDayId], references: [id], onDelete: Cascade)
+  nutritionProgram       NutritionProgram      @relation(fields: [nutritionProgramId], references: [id], onDelete: Cascade)
+  nutritionProgramWeek   NutritionProgramWeek? @relation(fields: [nutritionProgramWeekId], references: [id], onDelete: Cascade)
 
   @@index([nutritionProgramId])
   @@index([mealId])
@@ -661,47 +625,43 @@ model ProgramWeek {
 }
 
 model ProgramDay {
-  id        Int               @id @default(autoincrement())
-  weekId    Int
-  dayNumber Int
-  name      String?
-  dayType   String            @default("workout") // "workout" or "off"
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  week      ProgramWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)
-  exercises ProgramExercise[]
+  id              Int               @id @default(autoincrement())
+  weekId          Int
+  dayNumber       Int
+  name            String?
+  dayType         String            @default("workout")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  week            ProgramWeek       @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  exercises       ProgramExercise[]
   workoutSessions WorkoutSession[]
 
   @@index([weekId])
 }
 
 model ProgramExercise {
-  id         Int        @id @default(autoincrement())
-  dayId      Int
-  exerciseId Int
-  order      Int
-  // Per-set configuration stored as JSON
-  sets       Json?      // Array of { reps, rest, tempo, weight, rpe }
-  duration   Int?       // For time-only exercises
-  notes      String?
-  // New flexible fields for advanced programming
-  groupId    String?
-  groupType  String?    // none | superset | giant | triset | circuit
-  videoUrl   String?    // per-program exercise video override (YouTube/Vimeo/S3)
-  // Exercise modifiers
-  dropset    Boolean    @default(false)  // Last set is dropset
-  singleLeg  Boolean    @default(false) // Each leg gets specified reps
-  failure    Boolean    @default(false)  // Do as many reps as possible
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  day        ProgramDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  exercise   Exercise   @relation(fields: [exerciseId], references: [id])
+  id                  Int                  @id @default(autoincrement())
+  dayId               Int
+  exerciseId          Int
+  order               Int
+  sets                Json?
+  duration            Int?
+  notes               String?
+  groupId             String?
+  groupType           String?
+  videoUrl            String?
+  dropset             Boolean              @default(false)
+  singleLeg           Boolean              @default(false)
+  failure             Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   exerciseCompletions ExerciseCompletion[]
+  day                 ProgramDay           @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exercise            Exercise             @relation(fields: [exerciseId], references: [id])
 
   @@index([dayId])
   @@index([exerciseId])
 }
-
 
 model SupportRequest {
   id        Int        @id @default(autoincrement())
@@ -775,20 +735,20 @@ model ClientTeamAssignment {
 }
 
 model ClientProgramAssignment {
-  id             Int           @id @default(autoincrement())
-  trainerId      Int
-  clientId       Int
-  programId      Int
-  assignedAt     DateTime      @default(now())
-  startDate      DateTime
-  endDate        DateTime?
-  nextUpdateDate DateTime?
-  isActive       Boolean       @default(true)
-  status         String        @default("active")
-  notes          String?
-  client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  program        Program       @relation(fields: [programId], references: [id], onDelete: Cascade)
-  trainer        Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  id              Int              @id @default(autoincrement())
+  trainerId       Int
+  clientId        Int
+  programId       Int
+  assignedAt      DateTime         @default(now())
+  startDate       DateTime
+  endDate         DateTime?
+  nextUpdateDate  DateTime?
+  isActive        Boolean          @default(true)
+  status          String           @default("active")
+  notes           String?
+  client          TrainerClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  program         Program          @relation(fields: [programId], references: [id], onDelete: Cascade)
+  trainer         Registered       @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   workoutSessions WorkoutSession[]
 
   @@index([trainerId])
@@ -873,43 +833,39 @@ model ManuallyDeletedTask {
   @@index([trainerId, clientId, category, taskType])
 }
 
-// Authentication credentials for mobile clients (trainees)
 model ClientAuth {
-  id           Int            @id @default(autoincrement())
-  clientId     Int            @unique
-  email        String?        @unique
-  phone        String?        @unique
-  passwordHash String
-  requiresPasswordReset Boolean @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-
-  client       TrainerClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id                    Int           @id @default(autoincrement())
+  clientId              Int           @unique
+  email                 String?       @unique
+  phone                 String?       @unique
+  passwordHash          String
+  requiresPasswordReset Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  client                TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([email])
   @@index([phone])
 }
 
-// Workout session tracking
 model WorkoutSession {
-  id             Int           @id @default(autoincrement())
-  clientId       Int
-  assignmentId   Int
-  dayId          Int
-  startedAt      DateTime      @default(now())
-  pausedAt       DateTime?
-  resumedAt      DateTime?
-  completedAt    DateTime?
-  status         String        @default("active") // active, paused, completed
-  totalDuration  Int?          // total duration in seconds
-  notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  assignment     ClientProgramAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  day            ProgramDay    @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  id                  Int                     @id @default(autoincrement())
+  clientId            Int
+  assignmentId        Int
+  dayId               Int
+  startedAt           DateTime                @default(now())
+  pausedAt            DateTime?
+  resumedAt           DateTime?
+  completedAt         DateTime?
+  status              String                  @default("active")
+  totalDuration       Int?
+  notes               String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
   exerciseCompletions ExerciseCompletion[]
+  assignment          ClientProgramAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  client              TrainerClient           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  day                 ProgramDay              @relation(fields: [dayId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([assignmentId])
@@ -917,52 +873,50 @@ model WorkoutSession {
   @@index([status])
 }
 
-// Individual exercise completion tracking
 model ExerciseCompletion {
-  id             Int           @id @default(autoincrement())
-  sessionId      Int
-  exerciseId     Int
-  completedAt    DateTime      @default(now())
-  setsCompleted  Int           @default(0)
-  repsCompleted  Int?          // total reps across all sets
-  weightUsed     Float?         // average weight used
-  notes          String?
-  duration       Int?           // time spent on this exercise in seconds
-
-  session        WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exercise       ProgramExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  id            Int             @id @default(autoincrement())
+  sessionId     Int
+  exerciseId    Int
+  completedAt   DateTime        @default(now())
+  setsCompleted Int             @default(0)
+  repsCompleted Int?
+  weightUsed    Float?
+  notes         String?
+  duration      Int?
+  exercise      ProgramExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  session       WorkoutSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([exerciseId])
 }
 
 model Notification {
-  id          Int                     @id @default(autoincrement())
-  trainerId   Int
-  title       String
-  message     String
-  type        String                  @default("general") // general, workout, nutrition, program_update
-  sentAt      DateTime                @default(now())
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
-  trainer     Registered              @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  recipients  NotificationRecipient[]
+  id         Int                     @id @default(autoincrement())
+  trainerId  Int
+  title      String
+  message    String
+  type       String                  @default("general")
+  sentAt     DateTime                @default(now())
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+  trainer    Registered              @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  recipients NotificationRecipient[]
 
   @@index([trainerId])
   @@index([sentAt])
 }
 
 model NotificationRecipient {
-  id             Int          @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   notificationId Int
   clientId       Int
-  status         String       @default("sent") // sent, delivered, failed
+  status         String        @default("sent")
   deliveredAt    DateTime?
   readAt         DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   client         TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  notification   Notification  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
 
   @@index([notificationId])
   @@index([clientId])
@@ -973,7 +927,7 @@ model PushToken {
   id        Int           @id @default(autoincrement())
   clientId  Int           @unique
   token     String        @unique
-  platform  String        // ios, android
+  platform  String
   isActive  Boolean       @default(true)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -983,25 +937,22 @@ model PushToken {
   @@index([token])
 }
 
-// ===== CHAT / MESSAGING SYSTEM =====
-
 model Message {
-  id          Int           @id @default(autoincrement())
-  trainerId   Int
-  clientId    Int
-  senderType  String        // 'trainer' or 'client'
-  content     String
-  attachmentUrl String?     // URL to attached file
-  attachmentType String?    // 'image', 'pdf', 'video', etc.
-  attachmentName String?    // Original filename
-  isRead      Boolean       @default(false)
-  readAt      DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  
-  trainer     Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  client      TrainerClient @relation("ClientMessages", fields: [clientId], references: [id], onDelete: Cascade)
-  
+  id             Int           @id @default(autoincrement())
+  trainerId      Int
+  clientId       Int
+  senderType     String
+  content        String
+  attachmentUrl  String?
+  attachmentType String?
+  attachmentName String?
+  isRead         Boolean       @default(false)
+  readAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  client         TrainerClient @relation("ClientMessages", fields: [clientId], references: [id], onDelete: Cascade)
+  trainer        Registered    @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+
   @@index([trainerId])
   @@index([clientId])
   @@index([createdAt])
@@ -1009,22 +960,19 @@ model Message {
   @@index([trainerId, clientId])
 }
 
-// ===== WORKFLOW SYSTEM =====
-
 model Workflow {
-  id          Int                @id @default(autoincrement())
+  id          Int                 @id @default(autoincrement())
   trainerId   Int
   packageId   Int?
   name        String
   description String?
-  isActive    Boolean            @default(true)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  
-  trainer     Registered         @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  package     Package?          @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  steps       WorkflowStep[]
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  package     Package?            @relation(fields: [packageId], references: [id])
+  trainer     Registered          @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   executions  WorkflowExecution[]
+  steps       WorkflowStep[]
 
   @@index([trainerId])
   @@index([packageId])
@@ -1032,35 +980,33 @@ model Workflow {
 }
 
 model WorkflowStep {
-  id          Int                @id @default(autoincrement())
-  workflowId  Int
-  stepType    String             // 'form', 'wait', 'notification'
-  stepOrder   Int                // Order of execution (1, 2, 3...)
-  config      String             // JSON configuration for the step
-  createdAt   DateTime           @default(now())
-  
-  workflow    Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  executions  WorkflowExecution[] // Current executions at this step
+  id         Int                 @id @default(autoincrement())
+  workflowId Int
+  stepType   String
+  stepOrder  Int
+  config     String
+  createdAt  DateTime            @default(now())
+  executions WorkflowExecution[]
+  workflow   Workflow            @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   @@index([workflowId])
   @@index([stepOrder])
 }
 
 model WorkflowExecution {
-  id            Int           @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   workflowId    Int
   clientId      Int
   currentStepId Int?
-  status        String        // 'active', 'paused', 'completed', 'cancelled'
-  startedAt     DateTime      @default(now())
+  status        String
+  startedAt     DateTime       @default(now())
   completedAt   DateTime?
-  lastStepAt    DateTime?     // When last step was executed
-  data          String?       // JSON metadata for tracking repeats, etc.
-  
-  workflow      Workflow      @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  client        TrainerClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  currentStep   WorkflowStep? @relation(fields: [currentStepId], references: [id])
+  lastStepAt    DateTime?
+  data          String?
   assignedForms AssignedForm[]
+  client        TrainerClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  currentStep   WorkflowStep?  @relation(fields: [currentStepId], references: [id])
+  workflow      Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   @@index([workflowId])
   @@index([clientId])
@@ -1068,17 +1014,16 @@ model WorkflowExecution {
 }
 
 model AssignedForm {
-  id              Int               @id @default(autoincrement())
+  id                  Int                @id @default(autoincrement())
   workflowExecutionId Int?
-  formId           Int
-  clientId         Int
-  assignedAt       DateTime          @default(now())
-  completedAt      DateTime?
-  message          String?           // Message sent with the form
-  
-  workflowExecution WorkflowExecution? @relation(fields: [workflowExecutionId], references: [id], onDelete: SetNull)
-  form             CheckInForm       @relation(fields: [formId], references: [id], onDelete: Cascade)
-  client           TrainerClient     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  formId              Int
+  clientId            Int
+  assignedAt          DateTime           @default(now())
+  completedAt         DateTime?
+  message             String?
+  client              TrainerClient      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  form                CheckInForm        @relation(fields: [formId], references: [id], onDelete: Cascade)
+  workflowExecution   WorkflowExecution? @relation(fields: [workflowExecutionId], references: [id])
 
   @@index([formId])
   @@index([clientId])

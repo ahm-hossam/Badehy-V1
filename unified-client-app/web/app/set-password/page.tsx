@@ -33,6 +33,14 @@ export default function SetPasswordPage() {
         headers: { Authorization: `Bearer ${authToken}` }
       });
       
+      // Safe JSON parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('[SetPassword] Non-JSON response, skipping');
+        router.push('/home');
+        return;
+      }
+      
       const data = await response.json();
       
       if (response.ok) {
@@ -64,30 +72,69 @@ export default function SetPasswordPage() {
       setLoading(true);
       
       let res: Response;
-      if (isFirstLogin && token) {
-        res = await fetch(`${API}/mobile/auth/first-set-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, newPassword: next }),
-        });
-      } else {
-        const authToken = (globalThis as any).ACCESS_TOKEN || await TokenStorage.getAccessToken();
-        if (!authToken) {
-          setError('Not authenticated');
-          return;
+      try {
+        if (isFirstLogin && token) {
+          res = await fetch(`${API}/mobile/auth/first-set-password`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'skip_zrok_interstitial': 'true'
+            },
+            body: JSON.stringify({ token, newPassword: next }),
+          });
+        } else {
+          const authToken = (globalThis as any).ACCESS_TOKEN || await TokenStorage.getAccessToken();
+          if (!authToken) {
+            setError('Not authenticated');
+            setLoading(false);
+            return;
+          }
+          res = await fetch(`${API}/mobile/auth/change-password`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'skip_zrok_interstitial': 'true',
+              Authorization: `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ currentPassword: current, newPassword: next }),
+          });
         }
-        res = await fetch(`${API}/mobile/auth/change-password`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`
-          },
-          body: JSON.stringify({ currentPassword: current, newPassword: next }),
-        });
+      } catch (networkError: any) {
+        // Network error (connection refused, timeout, etc.)
+        console.error('Network error:', networkError);
+        console.error('API URL:', `${API}/mobile/auth/first-set-password`);
+        console.error('Error details:', networkError.message, networkError.stack);
+        
+        // More specific error message
+        let errorMsg = 'Connection failed. ';
+        if (networkError.message?.includes('Failed to fetch') || networkError.message?.includes('NetworkError')) {
+          errorMsg += 'Unable to reach the server. Please ensure the backend is running and try again.';
+        } else if (networkError.message?.includes('timeout')) {
+          errorMsg += 'Request timed out. Please try again.';
+        } else {
+          errorMsg += networkError.message || 'Please check your internet connection and try again.';
+        }
+        
+        setError(errorMsg);
+        setLoading(false);
+        return;
       }
       
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Failed');
+      // Check if response is ok before trying to parse JSON
+      let data: any = {};
+      try {
+        const text = await res.text();
+        if (text) {
+          data = JSON.parse(text);
+        }
+      } catch (parseError) {
+        // If response is not JSON, use status text or default error
+        throw new Error(res.statusText || `Server error (${res.status})`);
+      }
+      
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `Failed to set password (${res.status})`);
+      }
       
       if (data?.accessToken) {
         await TokenStorage.saveTokens(data.accessToken, data.refreshToken);
@@ -95,7 +142,8 @@ export default function SetPasswordPage() {
       
       checkFormCompletion();
     } catch (e: any) {
-      setError(e.message);
+      console.error('Password set error:', e);
+      setError(e.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

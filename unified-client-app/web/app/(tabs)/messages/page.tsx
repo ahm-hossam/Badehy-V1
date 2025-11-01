@@ -6,7 +6,24 @@ import { TokenStorage } from '@/lib/storage';
 import { initializeSocket, disconnectSocket, joinConversation, leaveConversation, getSocket } from '@/lib/socket';
 import type { Socket } from 'socket.io-client';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Check if we're in a WebView - WebView might need absolute URLs
+    const isWebView = !!(window as any).ReactNativeWebView;
+    if (isWebView) {
+      // In WebView, use the same origin as the page (localhost:3002)
+      // This will go through Next.js rewrites
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      return `${protocol}//${host}`;
+    }
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 interface Message {
   id: number;
@@ -57,10 +74,76 @@ export default function MessagesPage() {
         return;
       }
 
-      const res = await fetch(`${API}/mobile/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
+      let res: Response;
+      const apiUrl = getApiUrl();
+      const meUrl = `${apiUrl}/mobile/me`;
+      console.log('[Messages] Fetching client:', meUrl);
+      
+      try {
+        res = await fetch(meUrl, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          }
+        });
+      } catch (networkError: any) {
+        console.error('[Messages] Network error fetching client:', networkError);
+        throw new Error('Connection failed. Please check your internet connection and try again.');
+      }
+      
+      console.log('[Messages] Response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+      
+      // Check content type BEFORE reading body
+      const contentType = res.headers.get('content-type');
+      const text = await res.text();
+      
+      // Check if response is HTML (zrok interstitial or Next.js error page)
+      const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+      if (isHtml) {
+        console.error('[Messages] Received HTML instead of JSON:', text.substring(0, 300));
+        const isZrok = text.includes('zrok') || text.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Messages] Zrok interstitial detected - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      if (!res.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorJson = text ? JSON.parse(text) : {};
+            throw new Error(errorJson?.error || errorJson?.message || `Failed to load client information (${res.status})`);
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to load')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to load client information (${res.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Messages] Non-JSON error response:', text.substring(0, 200));
+          throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        }
+      }
+      
+      // Check content type for successful responses
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[Messages] Non-JSON success response:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+      
+      let data: any = {};
+      try {
+        if (text) {
+          data = JSON.parse(text);
+        }
+      } catch (parseError: any) {
+        console.error('[Messages] JSON parse error:', parseError, 'Text:', text.substring(0, 200));
+        throw new Error(`Failed to parse server response: ${parseError.message || parseError}`);
+      }
+      
       if (res.ok && data.client) {
         const clientData = {
           id: data.client.id,
@@ -87,16 +170,80 @@ export default function MessagesPage() {
         return;
       }
 
-      const res = await fetch(`${API}/api/messages?trainerId=${trainerId}&clientId=${client.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to fetch messages');
+      let res: Response;
+      const apiUrl = getApiUrl();
+      const messagesUrl = `${apiUrl}/api/messages?trainerId=${trainerId}&clientId=${client.id}`;
+      console.log('[Messages] Fetching messages:', messagesUrl);
+      
+      try {
+        res = await fetch(messagesUrl, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          }
+        });
+      } catch (networkError: any) {
+        console.error('[Messages] Network error fetching messages:', networkError);
+        throw new Error('Connection failed. Please check your internet connection and try again.');
       }
 
-      const data = await res.json();
+      console.log('[Messages] Messages response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+
+      // Check content type BEFORE reading body
+      const messagesContentType = res.headers.get('content-type');
+      const messagesText = await res.text();
+      
+      // Check if response is HTML (zrok interstitial or Next.js error page)
+      const isMessagesHtml = messagesText.trim().startsWith('<!DOCTYPE') || messagesText.trim().startsWith('<html');
+      if (isMessagesHtml) {
+        console.error('[Messages] Received HTML instead of JSON for messages:', messagesText.substring(0, 300));
+        const isZrok = messagesText.includes('zrok') || messagesText.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Messages] Zrok interstitial detected for messages - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+
+      if (!res.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (messagesContentType && messagesContentType.includes('application/json')) {
+          try {
+            const errorJson = messagesText ? JSON.parse(messagesText) : {};
+            throw new Error(errorJson?.error || errorJson?.message || `Failed to fetch messages (${res.status})`);
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to fetch')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to fetch messages (${res.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Messages] Non-JSON error response:', messagesText.substring(0, 200));
+          throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        }
+      }
+
+      // Check content type for successful responses
+      if (!messagesContentType || !messagesContentType.includes('application/json')) {
+        console.error('[Messages] Non-JSON success response:', messagesText.substring(0, 200));
+        // Empty response means no messages, which is valid
+        setMessages([]);
+        return;
+      }
+
+      let data: any = [];
+      try {
+        if (!messagesText || messagesText.trim() === '') {
+          // Empty response means no messages, which is valid
+          data = [];
+        } else {
+          data = JSON.parse(messagesText);
+        }
+      } catch (parseError: any) {
+        console.error('[Messages] JSON parse error for messages:', parseError, 'Text:', messagesText.substring(0, 200));
+        throw new Error(parseError.message || 'Failed to parse messages response');
+      }
       console.log('Fetched messages:', data.map((m: Message) => ({ id: m.id, senderType: m.senderType, isRead: m.isRead })));
       setMessages(data);
 
@@ -120,11 +267,13 @@ export default function MessagesPage() {
       let token = (globalThis as any).ACCESS_TOKEN || await TokenStorage.getAccessToken();
       if (!token) return;
 
-      await fetch(`${API}/api/messages/mark-all-read`, {
+      const apiUrl = getApiUrl();
+      await fetch(`${apiUrl}/api/messages/mark-all-read`, {
         method: 'PATCH',
         headers: { 
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
         },
         body: JSON.stringify({ trainerId, clientId, readBy: 'client' })
       });
@@ -162,30 +311,77 @@ export default function MessagesPage() {
         formData.append('trainerId', trainerId.toString());
         formData.append('clientId', client.id.toString());
 
-        const uploadRes = await fetch(`${API}/api/message-uploads`, {
+        const apiUrl = getApiUrl();
+        const uploadRes = await fetch(`${apiUrl}/api/message-uploads`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
           },
           body: formData
         });
 
+        console.log('[Messages] Upload response status:', uploadRes.status, 'Content-Type:', uploadRes.headers.get('content-type'));
+
+        // Check content type BEFORE reading body
+        const uploadContentType = uploadRes.headers.get('content-type');
+        const uploadText = await uploadRes.text();
+        
+        // Check if response is HTML (zrok interstitial or Next.js error page)
+        const isUploadHtml = uploadText.trim().startsWith('<!DOCTYPE') || uploadText.trim().startsWith('<html');
+        if (isUploadHtml) {
+          console.error('[Messages] Received HTML instead of JSON for upload:', uploadText.substring(0, 300));
+          const isZrok = uploadText.includes('zrok') || uploadText.includes('interstitial');
+          if (isZrok) {
+            console.warn('[Messages] Zrok interstitial detected for upload - request blocked by proxy');
+            throw new Error('Network proxy issue. Please wait a moment and try again.');
+          }
+          throw new Error('Server returned an error page. Please try again.');
+        }
+
         if (uploadRes.ok) {
-          const fileData = await uploadRes.json();
-          attachmentUrl = fileData.url;
-          attachmentType = fileData.type;
-          attachmentName = fileData.name;
+          // Safe JSON parsing
+          if (uploadContentType && uploadContentType.includes('application/json')) {
+            try {
+              const fileData = JSON.parse(uploadText);
+              attachmentUrl = fileData.url;
+              attachmentType = fileData.type;
+              attachmentName = fileData.name;
+            } catch (e: any) {
+              console.error('[Messages] Failed to parse upload response:', e, 'Text:', uploadText.substring(0, 200));
+              throw new Error('Failed to parse upload response');
+            }
+          } else {
+            console.error('[Messages] Non-JSON upload response:', uploadText.substring(0, 200));
+            throw new Error('Server returned non-JSON response');
+          }
         } else {
-          throw new Error('Failed to upload file');
+          // Try to parse error message if JSON
+          if (uploadContentType && uploadContentType.includes('application/json')) {
+            try {
+              const errorJson = uploadText ? JSON.parse(uploadText) : {};
+              throw new Error(errorJson?.error || errorJson?.message || 'Failed to upload file');
+            } catch (parseError: any) {
+              if (parseError.message && parseError.message.includes('Failed to upload')) {
+                throw parseError;
+              }
+            }
+          }
+          throw new Error(`Failed to upload file (${uploadRes.status})`);
         }
       }
 
       // Send message
-      const res = await fetch(`${API}/api/messages`, {
+      const apiUrl = getApiUrl();
+      const sendUrl = `${apiUrl}/api/messages`;
+      console.log('[Messages] Sending message:', sendUrl);
+      
+      const res = await fetch(sendUrl, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
         },
         body: JSON.stringify({
           trainerId,
@@ -198,13 +394,56 @@ export default function MessagesPage() {
         })
       });
       
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to send message');
+      console.log('[Messages] Send message response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+
+      // Check content type BEFORE reading body
+      const sendContentType = res.headers.get('content-type');
+      const sendText = await res.text();
+      
+      // Check if response is HTML (zrok interstitial or Next.js error page)
+      const isSendHtml = sendText.trim().startsWith('<!DOCTYPE') || sendText.trim().startsWith('<html');
+      if (isSendHtml) {
+        console.error('[Messages] Received HTML instead of JSON for send:', sendText.substring(0, 300));
+        const isZrok = sendText.includes('zrok') || sendText.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Messages] Zrok interstitial detected for send - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
       }
       
-      // Get the sent message data from response
-      const sentMessage = await res.json();
+      if (!res.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (sendContentType && sendContentType.includes('application/json')) {
+          try {
+            const errorJson = sendText ? JSON.parse(sendText) : {};
+            throw new Error(errorJson?.error || errorJson?.message || 'Failed to send message');
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to send')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to send message (${res.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Messages] Non-JSON error response for send:', sendText.substring(0, 200));
+          throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        }
+      }
+      
+      // Get the sent message data from response - safe JSON parsing
+      if (!sendContentType || !sendContentType.includes('application/json')) {
+        console.error('[Messages] Non-JSON success response for send:', sendText.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+      
+      let sentMessage: any;
+      try {
+        sentMessage = JSON.parse(sendText);
+      } catch (parseError: any) {
+        console.error('[Messages] JSON parse error for send:', parseError, 'Text:', sendText.substring(0, 200));
+        throw new Error('Failed to parse server response');
+      }
 
       // Add message immediately to UI
       setMessages(prev => {
@@ -369,17 +608,21 @@ export default function MessagesPage() {
                             className="w-48 h-48 rounded-lg object-cover mb-2 bg-slate-100"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
-                              if (!target.src.includes(API)) {
+                              const apiUrl = getApiUrl() || 'http://localhost:4000';
+                              if (!target.src.includes(apiUrl)) {
                                 const imagePath = message.attachmentUrl?.startsWith('/') 
                                   ? message.attachmentUrl 
                                   : `/${message.attachmentUrl || ''}`;
-                                target.src = `${API}${imagePath}`;
+                                target.src = `${apiUrl}${imagePath}`;
                               }
                             }}
                           />
                         ) : (
                           <a
-                            href={message.attachmentUrl?.startsWith('http') ? message.attachmentUrl : `${API}${message.attachmentUrl?.startsWith('/') ? message.attachmentUrl : `/${message.attachmentUrl || ''}`}`}
+                            href={(() => {
+                              const apiUrl = getApiUrl() || 'http://localhost:4000';
+                              return message.attachmentUrl?.startsWith('http') ? message.attachmentUrl : `${apiUrl}${message.attachmentUrl?.startsWith('/') ? message.attachmentUrl : `/${message.attachmentUrl || ''}`}`;
+                            })()}
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`flex items-center gap-2 p-2 rounded-lg mb-2 ${

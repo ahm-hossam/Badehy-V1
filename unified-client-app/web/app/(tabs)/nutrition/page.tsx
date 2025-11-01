@@ -4,7 +4,24 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MealCompletionStorage, TokenStorage } from '@/lib/storage';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Check if we're in a WebView - WebView might need absolute URLs
+    const isWebView = !!(window as any).ReactNativeWebView;
+    if (isWebView) {
+      // In WebView, use the same origin as the page (localhost:3002)
+      // This will go through Next.js rewrites
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      return `${protocol}//${host}`;
+    }
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 export default function NutritionPage() {
   const router = useRouter();
@@ -28,39 +45,173 @@ export default function NutritionPage() {
       }
 
       // Fetch client info
-      const meRes = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
-      const meJson = await meRes.json();
-      if (meRes.ok) {
-        setClient(meJson.client);
-        if (meJson.client?.id) {
-          const savedCompletions = await MealCompletionStorage.getMealCompletions(meJson.client.id);
-          setCompletedMeals(savedCompletions);
-          await MealCompletionStorage.cleanupOldCompletions(meJson.client.id);
+      let meRes: Response;
+      const apiUrl = getApiUrl();
+      const meUrl = `${apiUrl}/mobile/me`;
+      console.log('[Nutrition] Fetching:', meUrl);
+      
+      try {
+        meRes = await fetch(meUrl, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          } 
+        });
+      } catch (networkError: any) {
+        console.error('[Nutrition] Network error fetching client info:', networkError);
+        throw new Error('Connection failed. Please check your internet connection and try again.');
+      }
+      
+      console.log('[Nutrition] Response status:', meRes.status, 'Content-Type:', meRes.headers.get('content-type'));
+      
+      // Check content type BEFORE reading body
+      const contentType = meRes.headers.get('content-type');
+      const text = await meRes.text();
+      
+      // Check if response is HTML (zrok interstitial or Next.js error page)
+      const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+      if (isHtml) {
+        console.error('[Nutrition] Received HTML instead of JSON:', text.substring(0, 300));
+        const isZrok = text.includes('zrok') || text.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Nutrition] Zrok interstitial detected - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
         }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      if (!meRes.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorJson = text ? JSON.parse(text) : {};
+            throw new Error(errorJson?.error || errorJson?.message || `Failed to load client information (${meRes.status})`);
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to load')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to load client information (${meRes.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Nutrition] Non-JSON error response:', text.substring(0, 200));
+          throw new Error(`Server error: ${meRes.status} ${meRes.statusText}`);
+        }
+      }
+      
+      // Check content type for successful responses
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[Nutrition] Non-JSON success response:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+      
+      let meJson: any = {};
+      try {
+        if (!text || text.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        meJson = JSON.parse(text);
+      } catch (parseError: any) {
+        console.error('[Nutrition] JSON parse error:', parseError, 'Text:', text.substring(0, 200));
+        throw new Error(parseError.message || 'Failed to parse server response');
+      }
+      
+      setClient(meJson.client);
+      if (meJson.client?.id) {
+        const savedCompletions = await MealCompletionStorage.getMealCompletions(meJson.client.id);
+        setCompletedMeals(savedCompletions);
+        await MealCompletionStorage.cleanupOldCompletions(meJson.client.id);
       }
 
       // Fetch nutrition plan
-      const res = await fetch(`${API}/mobile/nutrition/active`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      const json = await res.json();
-      if (res.ok) {
-        setAssignment(json.assignment);
-        
-        // Auto-select today's day
-        if (json.assignment?.nutritionProgram?.weeks?.[0]?.days) {
-          const todayDayOfWeek = new Date().getDay();
-          const today = todayDayOfWeek === 0 ? 7 : todayDayOfWeek;
-          const todayDayIndex = json.assignment.nutritionProgram.weeks[0].days.findIndex((day: any) => day.dayOfWeek === today);
-          if (todayDayIndex !== -1) {
-            setSelectedDay(todayDayIndex);
-          }
+      let res: Response;
+      const nutritionUrl = `${apiUrl}/mobile/nutrition/active`;
+      console.log('[Nutrition] Fetching nutrition plan:', nutritionUrl);
+      
+      try {
+        res = await fetch(nutritionUrl, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          } 
+        });
+      } catch (networkError: any) {
+        console.error('[Nutrition] Network error:', networkError);
+        throw new Error('Connection failed. Please check your internet connection and try again.');
+      }
+      
+      console.log('[Nutrition] Nutrition response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+      
+      // Check content type BEFORE reading body
+      const nutritionContentType = res.headers.get('content-type');
+      const nutritionText = await res.text();
+      
+      // Check if response is HTML (zrok interstitial or Next.js error page)
+      const isNutritionHtml = nutritionText.trim().startsWith('<!DOCTYPE') || nutritionText.trim().startsWith('<html');
+      if (isNutritionHtml) {
+        console.error('[Nutrition] Received HTML instead of JSON for nutrition:', nutritionText.substring(0, 300));
+        const isZrok = nutritionText.includes('zrok') || nutritionText.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Nutrition] Zrok interstitial detected for nutrition - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
         }
-      } else {
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      if (!res.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (nutritionContentType && nutritionContentType.includes('application/json')) {
+          try {
+            const errorJson = nutritionText ? JSON.parse(nutritionText) : {};
+            throw new Error(errorJson?.error || errorJson?.message || `Failed to load nutrition plan (${res.status})`);
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to load')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to load nutrition plan (${res.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Nutrition] Non-JSON error response:', nutritionText.substring(0, 200));
+          throw new Error(`Server error: ${res.status} ${res.statusText}`);
+        }
+      }
+      
+      // Check content type for successful responses
+      if (!nutritionContentType || !nutritionContentType.includes('application/json')) {
+        console.error('[Nutrition] Non-JSON response:', nutritionText.substring(0, 200));
+        // Empty response is OK for nutrition (might mean no plan assigned)
         setAssignment(null);
+        return;
+      }
+      
+      let json: any = {};
+      try {
+        if (!nutritionText || nutritionText.trim() === '') {
+          // Empty response is OK for nutrition (might mean no plan assigned)
+          setAssignment(null);
+          return;
+        }
+        json = JSON.parse(nutritionText);
+      } catch (parseError: any) {
+        console.error('[Nutrition] JSON parse error for nutrition:', parseError, 'Text:', nutritionText.substring(0, 200));
+        throw new Error(parseError.message || 'Failed to parse server response');
+      }
+      
+      setAssignment(json.assignment);
+      
+      // Auto-select today's day
+      if (json.assignment?.nutritionProgram?.weeks?.[0]?.days) {
+        const todayDayOfWeek = new Date().getDay();
+        const today = todayDayOfWeek === 0 ? 7 : todayDayOfWeek;
+        const todayDayIndex = json.assignment.nutritionProgram.weeks[0].days.findIndex((day: any) => day.dayOfWeek === today);
+        if (todayDayIndex !== -1) {
+          setSelectedDay(todayDayIndex);
+        }
       }
     } catch (e: any) {
-      setErr(e.message);
+      console.error('Error fetching nutrition:', e);
+      setErr(e.message || 'Failed to load nutrition plan. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -164,19 +315,34 @@ export default function NutritionPage() {
   };
 
   const getMealImageUri = (meal: any) => {
-    if (meal.meal?.imageUrl) {
-      if (meal.meal.imageUrl.startsWith('http')) {
-        return meal.meal.imageUrl;
-      } else {
-        // Ensure the URL path starts with / if it doesn't
-        const imagePath = meal.meal.imageUrl.startsWith('/') ? meal.meal.imageUrl : `/${meal.meal.imageUrl}`;
-        // Use Next.js rewrite to proxy /uploads to backend
-        // This works because we have /uploads/:path* -> backend in next.config.ts
-        return imagePath;
-      }
+    if (!meal.meal?.imageUrl) {
+      return null;
     }
-    // Return null so we can handle with placeholder
-    return null;
+    
+    const imageUrl = meal.meal.imageUrl;
+    
+    // If it's already a full HTTP(S) URL, return as is
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return imageUrl;
+    }
+    
+    // Ensure the URL path starts with / if it doesn't
+    const imagePath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+    
+    // Check if we're in a WebView or using a proxy
+    const isWebView = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView;
+    
+    // In WebView, use Next.js API route to proxy images
+    // This ensures images go through the same proxy setup as API calls
+    if (isWebView) {
+      // Remove leading slash and use API route
+      const pathWithoutSlash = imagePath.substring(1); // Remove leading '/'
+      return `/api/images/${pathWithoutSlash}`;
+    }
+    
+    // In browser, use backend URL directly
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return `${backendUrl}${imagePath}`;
   };
 
   const calculateMealNutrition = (meal: any) => {
@@ -379,12 +545,17 @@ export default function NutritionPage() {
               {todaysMeals.length > 0 ? (
                 <div className="space-y-3">
                   {todaysMeals.map((meal: any, index: number) => {
-                    const nutrition = calculateMealNutrition(meal);
+                    let nutrition;
+                    try {
+                      nutrition = calculateMealNutrition(meal);
+                    } catch (e) {
+                      nutrition = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+                    }
                     const isCompleted = isMealCompleted(meal);
                     
                     return (
                       <div
-                        key={meal.id || index}
+                        key={meal.id || `meal-${index}`}
                         onClick={() => setSelectedMeal(meal)}
                         className={`bg-white rounded-xl p-3 border cursor-pointer transition-all ${
                           isCompleted
@@ -402,11 +573,13 @@ export default function NutritionPage() {
                                 className="w-20 h-20 rounded-lg object-cover bg-amber-50"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
-                                  if (!target.src.includes(API)) {
+                                  const apiUrl = getApiUrl() || 'http://localhost:4000';
+                                  if (!target.src.includes(apiUrl)) {
                                     const imagePath = meal.cheatImageUrl?.startsWith('/') 
                                       ? meal.cheatImageUrl 
                                       : `/${meal.cheatImageUrl || ''}`;
-                                    target.src = `${API}${imagePath}`;
+                                    const apiUrl = getApiUrl() || 'http://localhost:4000';
+                                    target.src = `${apiUrl}${imagePath}`;
                                   }
                                 }}
                               />
@@ -438,43 +611,73 @@ export default function NutritionPage() {
                           </div>
                         ) : (
                           <div className="flex gap-3">
-                            {getMealImageUri(meal) ? (
-                              <img
-                                src={getMealImageUri(meal)}
-                                alt={meal.meal?.name || 'Meal'}
-                                className="w-20 h-20 rounded-lg object-cover bg-slate-100"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  // Try direct backend URL as fallback
-                                  if (!target.src.includes(API)) {
-                                    const imagePath = meal.meal?.imageUrl?.startsWith('/') 
-                                      ? meal.meal.imageUrl 
-                                      : `/${meal.meal?.imageUrl || ''}`;
-                                    target.src = `${API}${imagePath}`;
-                                  } else {
-                                    // Already tried both, show placeholder
-                                    target.style.display = 'none';
-                                    const placeholder = target.parentElement?.querySelector('.meal-placeholder');
-                                    if (!placeholder && target.parentElement) {
-                                      const placeholderDiv = document.createElement('div');
-                                      placeholderDiv.className = 'meal-placeholder absolute inset-0 bg-slate-100 rounded-lg flex items-center justify-center';
-                                      placeholderDiv.innerHTML = '<svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
-                                      target.parentElement.style.position = 'relative';
-                                      target.parentElement.appendChild(placeholderDiv);
+                            {/* Image on the left */}
+                            <div className="flex-shrink-0">
+                              {getMealImageUri(meal) ? (
+                                <img
+                                  src={getMealImageUri(meal) || ''}
+                                  alt={meal.meal?.name || meal.mealType || 'Meal'}
+                                  className="w-20 h-20 rounded-lg object-cover bg-slate-100"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    
+                                    // Prevent infinite loop
+                                    if (target.dataset.retryAttempted === 'true') {
+                                      target.style.display = 'none';
+                                      if (target.parentElement && !target.parentElement.querySelector('.meal-placeholder')) {
+                                        const placeholderDiv = document.createElement('div');
+                                        placeholderDiv.className = 'meal-placeholder w-20 h-20 rounded-lg bg-slate-100 flex items-center justify-center';
+                                        placeholderDiv.innerHTML = '<svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                                        target.parentElement.appendChild(placeholderDiv);
+                                      }
+                                      return;
                                     }
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <div className="w-20 h-20 rounded-lg bg-slate-100 flex items-center justify-center">
-                                <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                            )}
+                                    
+                                    // Try direct backend URL (should already be set, but retry just in case)
+                                    if (meal.meal?.imageUrl) {
+                                      const isWebView = typeof window !== 'undefined' && !!(window as any).ReactNativeWebView;
+                                      let retryUrl: string;
+                                      
+                                      const imagePath = meal.meal.imageUrl.startsWith('/') 
+                                        ? meal.meal.imageUrl 
+                                        : `/${meal.meal.imageUrl}`;
+                                      
+                                      if (isWebView) {
+                                        // In WebView, use Next.js API route to proxy images
+                                        const pathWithoutSlash = imagePath.substring(1);
+                                        retryUrl = `/api/images/${pathWithoutSlash}`;
+                                      } else {
+                                        // In browser, use backend URL directly
+                                        const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+                                        retryUrl = `${backendUrl}${imagePath}`;
+                                      }
+                                      
+                                      target.dataset.retryAttempted = 'true';
+                                      target.src = retryUrl;
+                                    } else {
+                                      // No image URL available, show placeholder
+                                      target.style.display = 'none';
+                                      if (target.parentElement && !target.parentElement.querySelector('.meal-placeholder')) {
+                                        const placeholderDiv = document.createElement('div');
+                                        placeholderDiv.className = 'meal-placeholder w-20 h-20 rounded-lg bg-slate-100 flex items-center justify-center';
+                                        placeholderDiv.innerHTML = '<svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                                        target.parentElement.appendChild(placeholderDiv);
+                                      }
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-20 h-20 rounded-lg bg-slate-100 flex items-center justify-center">
+                                  <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                            {/* Content on the right */}
                             <div className="flex-1">
                               <h3 className={`text-base font-semibold ${isCompleted ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                                {meal.meal?.name || `${meal.mealType || 'Meal'}`}
+                                {meal.meal?.name || meal.mealType || `Meal ${index + 1}`}
                               </h3>
                               {meal.meal?.description && (
                                 <p className="text-sm text-slate-600 mb-1">{meal.meal.description}</p>
@@ -486,7 +689,7 @@ export default function NutritionPage() {
                                 <div className="text-xs text-slate-700 space-y-0.5 mb-2">
                                   {meal.meal.mealIngredients.slice(0, 3).map((mealIngredient: any, idx: number) => (
                                     <div key={idx}>
-                                      • {mealIngredient.ingredient.name} ({mealIngredient.quantity}{mealIngredient.ingredient.unitType})
+                                      • {mealIngredient.ingredient?.name || 'Ingredient'} ({mealIngredient.quantity || 0}{mealIngredient.ingredient?.unitType || ''})
                                     </div>
                                   ))}
                                   {meal.meal.mealIngredients.length > 3 && (
@@ -549,11 +752,12 @@ export default function NutritionPage() {
                         className="w-30 h-30 rounded-2xl object-cover bg-amber-50"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          if (!target.src.includes(API)) {
+                          const apiUrl = getApiUrl() || 'http://localhost:4000';
+                          if (!target.src.includes(apiUrl) && !target.src.startsWith('http')) {
                             const imagePath = selectedMeal.cheatImageUrl?.startsWith('/') 
                               ? selectedMeal.cheatImageUrl 
                               : `/${selectedMeal.cheatImageUrl || ''}`;
-                            target.src = `${API}${imagePath}`;
+                            target.src = `${apiUrl}${imagePath}`;
                           }
                         }}
                       />
@@ -588,11 +792,12 @@ export default function NutritionPage() {
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           // Try direct backend URL as fallback
-                          if (!target.src.includes(API)) {
+                          const apiUrl = getApiUrl() || 'http://localhost:4000';
+                          if (!target.src.includes(apiUrl) && !target.src.startsWith('http')) {
                             const imagePath = selectedMeal.meal?.imageUrl?.startsWith('/') 
                               ? selectedMeal.meal.imageUrl 
                               : `/${selectedMeal.meal?.imageUrl || ''}`;
-                            target.src = `${API}${imagePath}`;
+                            target.src = `${apiUrl}${imagePath}`;
                           } else {
                             // Already tried both, show placeholder
                             target.style.display = 'none';

@@ -55,20 +55,41 @@ const app = express();
 const httpServer = createServer(app);
 const PORT = Number(process.env.PORT) || 4000;
 
+app.use(cors({
+  origin(origin, cb) {
+    cb(null, true);
+  },
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["*"],
+  maxAge: 86400,
+}));
 // Initialize Socket.IO
 socketManager.initialize(httpServer);
 
-app.use(cors());
+// app.options("*", cors()); 
+
+// Add logging middleware
+// app.use((req, res, next) => {
+//   console.log(`${req.method} ${req.path}`, req.body);
+//   res.header(`Access-Control-Allow-Origin`, `*`);
+//   res.header(`Access-Control-Allow-Methods`, `GET,PUT,POST,DELETE,OPTIONS`);
+//   res.header(`Access-Control-Allow-Headers`, `Content-Type`);
+//   next();
+// });
+
+app.all('/*', function(req, res, next) {
+  console.log(`Test : ${req.method} ${req.path}`, req.body);
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "*");
+  next();
+});
+
 app.use(express.json());
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Add logging middleware
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`, req.body);
-  next();
-});
+
 
 app.use('/express-register', registerRoute);
 app.use('/api/clients', clientsRoute);

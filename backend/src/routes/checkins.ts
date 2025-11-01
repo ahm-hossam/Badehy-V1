@@ -29,6 +29,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     console.log('Check-ins POST: received form payload with', Array.isArray(questions) ? questions.length : 0, 'questions')
     // Create form with nested questions (without reliable condition references yet)
+    console.log("trainerId",trainerId);
     const form = await prisma.checkInForm.create({
       data: {
         trainerId: Number(trainerId),

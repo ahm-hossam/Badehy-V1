@@ -2,7 +2,15 @@
 
 import { TokenStorage } from './storage';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 // Initialize token from localStorage on module load
 if (typeof window !== 'undefined') {
@@ -19,13 +27,21 @@ export async function refreshAccessToken(): Promise<string | null> {
       return null;
     }
 
-    const res = await fetch(`${API}/mobile/auth/refresh`, {
+    const apiUrl = getApiUrl();
+    const res = await fetch(`${apiUrl}/mobile/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
 
     if (!res.ok) {
+      return null;
+    }
+
+    // Safe JSON parsing
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.error('[Auth] Token refresh returned non-JSON');
       return null;
     }
 
@@ -65,14 +81,16 @@ export async function apiRequest(
     throw new Error('No access token available');
   }
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    'skip_zrok_interstitial': 'true',
+    ...(options.headers as Record<string, string>),
   };
 
   headers['Authorization'] = `Bearer ${token}`;
 
-  let response = await fetch(`${API}${endpoint}`, {
+  const apiUrl = getApiUrl();
+  let response = await fetch(`${apiUrl}${endpoint}`, {
     ...options,
     headers,
   });
@@ -84,7 +102,7 @@ export async function apiRequest(
     if (newToken) {
       // Retry with new token
       headers['Authorization'] = `Bearer ${newToken}`;
-      response = await fetch(`${API}${endpoint}`, {
+      response = await fetch(`${apiUrl}${endpoint}`, {
         ...options,
         headers,
       });

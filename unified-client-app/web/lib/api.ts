@@ -7,9 +7,10 @@ export async function apiRequest(
 ): Promise<Response> {
   const token = await import('./storage').then(m => m.TokenStorage.getAccessToken());
   
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    'skip_zrok_interstitial': 'true',
+    ...(options.headers as Record<string, string>),
   };
 
   if (token) {

@@ -4,7 +4,24 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TokenStorage } from '@/lib/storage';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Check if we're in a WebView - WebView might need absolute URLs
+    const isWebView = !!(window as any).ReactNativeWebView;
+    if (isWebView) {
+      // In WebView, use the same origin as the page (localhost:3002)
+      // This will go through Next.js rewrites
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      return `${protocol}//${host}`;
+    }
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -21,13 +38,82 @@ export default function ProfilePage() {
           router.push('/login');
           return;
         }
-        const res = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || 'Failed');
+        let res: Response;
+        const apiUrl = getApiUrl();
+        const meUrl = `${apiUrl}/mobile/me`;
+        console.log('[Profile] Fetching:', meUrl);
+        
+        try {
+          res = await fetch(meUrl, { 
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'skip_zrok_interstitial': 'true'
+            } 
+          });
+        } catch (networkError: any) {
+          console.error('[Profile] Network error fetching profile:', networkError);
+          throw new Error('Connection failed. Please check your internet connection and try again.');
+        }
+        
+        console.log('[Profile] Response status:', res.status, 'Content-Type:', res.headers.get('content-type'));
+        
+        // Check content type BEFORE reading body
+        const contentType = res.headers.get('content-type');
+        const text = await res.text();
+        
+        // Check if response is HTML (zrok interstitial or Next.js error page)
+        const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+        if (isHtml) {
+          console.error('[Profile] Received HTML instead of JSON:', text.substring(0, 300));
+          const isZrok = text.includes('zrok') || text.includes('interstitial');
+          if (isZrok) {
+            console.warn('[Profile] Zrok interstitial detected - request blocked by proxy');
+            throw new Error('Network proxy issue. Please wait a moment and try again.');
+          }
+          throw new Error('Server returned an error page. Please try again.');
+        }
+        
+        if (!res.ok) {
+          // Check if it's actually JSON before trying to parse
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              const errorJson = text ? JSON.parse(text) : {};
+              throw new Error(errorJson?.error || errorJson?.message || `Failed to load profile (${res.status})`);
+            } catch (parseError: any) {
+              if (parseError.message && parseError.message.includes('Failed to load')) {
+                throw parseError;
+              }
+              throw new Error(`Failed to load profile (${res.status})`);
+            }
+          } else {
+            // HTML error page or non-JSON response
+            console.error('[Profile] Non-JSON error response:', text.substring(0, 200));
+            throw new Error(`Server error: ${res.status} ${res.statusText}`);
+          }
+        }
+        
+        // Check content type for successful responses
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error('[Profile] Non-JSON success response:', text.substring(0, 200));
+          throw new Error('Server returned non-JSON response');
+        }
+        
+        let data: any = {};
+        try {
+          if (!text || text.trim() === '') {
+            throw new Error('Empty response from server');
+          }
+          data = JSON.parse(text);
+        } catch (parseError: any) {
+          console.error('[Profile] JSON parse error:', parseError, 'Text:', text.substring(0, 200));
+          throw new Error(parseError.message || 'Failed to parse server response');
+        }
+        
         setClient(data.client);
         setSubscription(data.subscription);
       } catch (e: any) {
-        setErr(e.message);
+        console.error('Error fetching profile:', e);
+        setErr(e.message || 'Failed to load profile. Please try again.');
       }
     };
     run();

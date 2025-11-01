@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: badehy-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DATABASE_URL=${DATABASE_URL}
+      # Add other environment variables as needed
+      # - JWT_SECRET=${JWT_SECRET}
+      # - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    env_file:
+      - .env
+    volumes:
+      # Persist uploads directory
+      - ./uploads:/app/uploads
+    ports:
+      - "4000:4000"
+    # Option 1: Use host network (Linux only, fastest)
+    # Uncomment this for Linux servers - allows direct access to localhost PostgreSQL
+    # network_mode: "host"
+    # Option 2: Use bridge network with host.docker.internal (works on all platforms)
+    # Use this if Option 1 doesn't work - update DATABASE_URL to use host.docker.internal instead of localhost
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+

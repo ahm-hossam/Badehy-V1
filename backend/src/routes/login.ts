@@ -45,6 +45,7 @@ router.post('/', async (req, res) => {
     res.json({ user: responseUser });
   } else {
     // Main trainer login
+    console.log('user', user);
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
       return res.status(400).json({ error: 'Invalid email or password.' });

@@ -5,7 +5,15 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { TokenStorage } from '@/lib/storage';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 function MessagesBadge() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -19,24 +27,47 @@ function MessagesBadge() {
         const token = (globalThis as any).ACCESS_TOKEN || await TokenStorage.getAccessToken();
         if (!token) return;
 
-        const meRes = await fetch(`${API}/mobile/me`, {
+        const apiUrl = getApiUrl();
+        const meRes = await fetch(`${apiUrl}/mobile/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        const meData = await meRes.json();
-        if (!meRes.ok || !meData.client) return;
+        if (!meRes.ok) return;
+        
+        // Safe JSON parsing
+        const contentType = meRes.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.warn('[MessagesBadge] Received non-JSON response');
+          return;
+        }
+        
+        let meData: any;
+        try {
+          meData = await meRes.json();
+        } catch (e) {
+          console.warn('[MessagesBadge] Failed to parse JSON:', e);
+          return;
+        }
+        if (!meData.client) return;
 
         const trainerId = meData.client.trainerId;
         const clientId = meData.client.id;
 
         if (!trainerId || !clientId) return;
 
-        const res = await fetch(`${API}/api/messages/unread-count-client?trainerId=${trainerId}&clientId=${clientId}`, {
+        const res = await fetch(`${apiUrl}/api/messages/unread-count-client?trainerId=${trainerId}&clientId=${clientId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
         if (res.ok && !cancelled) {
-          const data = await res.json();
-          setUnreadCount(Number(data.unread || 0));
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              const data = await res.json();
+              setUnreadCount(Number(data.unread || 0));
+            } catch (e) {
+              console.warn('[MessagesBadge] Failed to parse JSON response');
+            }
+          }
         }
       } catch (e) {
         // Silent fail

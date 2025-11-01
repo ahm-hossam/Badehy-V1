@@ -36,6 +36,21 @@ export default function HomePage() {
       
       // Fetch client info and subscription - use apiRequest which handles token refresh
       const meRes = await apiRequest('/mobile/me', { method: 'GET' });
+      
+      if (!meRes.ok) {
+        const contentType = meRes.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error(`Server error: ${meRes.status} ${meRes.statusText}`);
+        }
+        const errorData = await meRes.json();
+        throw new Error(errorData?.error || errorData?.message || `Failed to load client info (${meRes.status})`);
+      }
+      
+      const contentType = meRes.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned non-JSON response');
+      }
+      
       const meJson = await meRes.json();
       
       if (meRes.ok) {
@@ -65,16 +80,30 @@ export default function HomePage() {
 
       // Fetch active workout program
       const programRes = await apiRequest('/mobile/programs/active', { method: 'GET' });
-      const programJson = await programRes.json();
       if (programRes.ok) {
-        setData(programJson.assignment || programJson);
+        const contentType = programRes.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const programJson = await programRes.json();
+            setData(programJson.assignment || programJson);
+          } catch (e) {
+            console.warn('[Home] Failed to parse workout program JSON');
+          }
+        }
       }
 
       // Fetch active nutrition program
       const nutritionRes = await apiRequest('/mobile/nutrition/active', { method: 'GET' });
-      const nutritionJson = await nutritionRes.json();
       if (nutritionRes.ok) {
-        setNutritionData(nutritionJson.assignment || nutritionJson);
+        const contentType = nutritionRes.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const nutritionJson = await nutritionRes.json();
+            setNutritionData(nutritionJson.assignment || nutritionJson);
+          } catch (e) {
+            console.warn('[Home] Failed to parse nutrition program JSON');
+          }
+        }
       }
 
       // Fetch assigned forms (skipping for now as per requirements)
@@ -274,7 +303,7 @@ export default function HomePage() {
             <img
               src={logoUrl}
               alt="Logo"
-              className="h-full w-auto object-contain"
+              className="h-8 w-auto object-contain"
             />
           </div>
           <div className="flex items-center gap-3">

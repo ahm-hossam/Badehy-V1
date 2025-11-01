@@ -5,7 +5,24 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TokenStorage } from '@/lib/storage';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Check if we're in a WebView - WebView might need absolute URLs
+    const isWebView = !!(window as any).ReactNativeWebView;
+    if (isWebView) {
+      // In WebView, use the same origin as the page (localhost:3002)
+      // This will go through Next.js rewrites
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      return `${protocol}//${host}`;
+    }
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 export default function WorkoutPage() {
   const router = useRouter();
@@ -26,33 +43,198 @@ export default function WorkoutPage() {
       }
 
       // Fetch client info and subscription status
-      const meRes = await fetch(`${API}/mobile/me`, { headers: { Authorization: `Bearer ${token}` } });
-      const meJson = await meRes.json();
-      if (meRes.ok) {
-        if (meJson?.subscription?.expired) {
-          router.push('/blocked');
-          return;
+      let meRes: Response;
+      const apiUrl = getApiUrl();
+      const meUrl = `${apiUrl}/mobile/me`;
+      console.log('[Workout] Fetching:', meUrl);
+      
+      try {
+        meRes = await fetch(meUrl, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          } 
+        });
+      } catch (networkError: any) {
+        console.error('[Workout] Network error:', networkError);
+        throw new Error('Connection failed. Please check your internet connection and try again.');
+      }
+      
+      console.log('[Workout] Response status:', meRes.status, 'Content-Type:', meRes.headers.get('content-type'));
+      
+      // Check content type BEFORE reading body
+      const contentType = meRes.headers.get('content-type');
+      const text = await meRes.text();
+      
+      // Check if response is HTML (Next.js error page or zrok interstitial)
+      const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+      if (isHtml) {
+        console.error('[Workout] Received HTML instead of JSON:', text.substring(0, 300));
+        // Check if it's a zrok interstitial
+        const isZrok = text.includes('zrok') || text.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Workout] Zrok interstitial detected - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
         }
-      } else {
-        throw new Error(meJson.error || 'Failed to fetch client info');
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      if (!meRes.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorJson = text ? JSON.parse(text) : {};
+            throw new Error(errorJson?.error || errorJson?.message || `Failed to fetch client info (${meRes.status})`);
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to fetch')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to fetch client info (${meRes.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Workout] Non-JSON error response:', text.substring(0, 200));
+          throw new Error(`Server error: ${meRes.status} ${meRes.statusText}`);
+        }
+      }
+      
+      // Check content type for successful responses
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[Workout] Non-JSON success response:', text.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+      
+      let meJson: any = {};
+      try {
+        if (!text || text.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        meJson = JSON.parse(text);
+      } catch (parseError: any) {
+        console.error('[Workout] JSON parse error:', parseError, 'Text:', text.substring(0, 200));
+        throw new Error(parseError.message || 'Failed to parse server response');
+      }
+      
+      if (meJson?.subscription?.expired) {
+        router.push('/blocked');
+        return;
       }
 
       // Fetch active program
-      const programRes = await fetch(`${API}/mobile/programs/active`, { headers: { Authorization: `Bearer ${token}` } });
-      const programJson = await programRes.json();
-      if (!programRes.ok) throw new Error(programJson.error || 'Failed to fetch active program');
+      let programRes: Response;
+      const programUrl = `${apiUrl}/mobile/programs/active`;
+      console.log('[Workout] Fetching program:', programUrl);
+      
+      try {
+        programRes = await fetch(programUrl, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          } 
+        });
+      } catch (networkError: any) {
+        console.error('[Workout] Network error fetching program:', networkError);
+        throw new Error('Connection failed. Please check your internet connection and try again.');
+      }
+      
+      console.log('[Workout] Program response status:', programRes.status, 'Content-Type:', programRes.headers.get('content-type'));
+      
+      // Check content type BEFORE reading body
+      const programContentType = programRes.headers.get('content-type');
+      const programText = await programRes.text();
+      
+      // Check if response is HTML (Next.js error page or zrok interstitial)
+      const isProgramHtml = programText.trim().startsWith('<!DOCTYPE') || programText.trim().startsWith('<html');
+      if (isProgramHtml) {
+        console.error('[Workout] Received HTML instead of JSON for program:', programText.substring(0, 300));
+        // Check if it's a zrok interstitial
+        const isZrok = programText.includes('zrok') || programText.includes('interstitial');
+        if (isZrok) {
+          console.warn('[Workout] Zrok interstitial detected for program - request may be blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      if (!programRes.ok) {
+        // Check if it's actually JSON before trying to parse
+        if (programContentType && programContentType.includes('application/json')) {
+          try {
+            const errorJson = programText ? JSON.parse(programText) : {};
+            throw new Error(errorJson?.error || errorJson?.message || `Failed to fetch active program (${programRes.status})`);
+          } catch (parseError: any) {
+            if (parseError.message && parseError.message.includes('Failed to fetch')) {
+              throw parseError;
+            }
+            throw new Error(`Failed to fetch active program (${programRes.status})`);
+          }
+        } else {
+          // HTML error page or non-JSON response
+          console.error('[Workout] Non-JSON error response:', programText.substring(0, 200));
+          throw new Error(`Server error: ${programRes.status} ${programRes.statusText}`);
+        }
+      }
+      
+      // Check content type for successful responses
+      if (!programContentType || !programContentType.includes('application/json')) {
+        console.error('[Workout] Non-JSON response:', programText.substring(0, 200));
+        // Empty response might mean no program assigned
+        setAssignment(null);
+        return;
+      }
+      
+      let programJson: any = {};
+      try {
+        if (!programText || programText.trim() === '') {
+          // Empty response might mean no program assigned
+          setAssignment(null);
+          return;
+        }
+        programJson = JSON.parse(programText);
+      } catch (parseError: any) {
+        console.error('[Workout] JSON parse error for program:', parseError, 'Text:', programText.substring(0, 200));
+        throw new Error(parseError.message || 'Failed to parse server response');
+      }
+      
       setAssignment(programJson.assignment);
 
       // Fetch active session
-      const sessionRes = await fetch(`${API}/mobile/sessions/active`, { headers: { Authorization: `Bearer ${token}` } });
-      const sessionJson = await sessionRes.json();
-      if (sessionRes.ok) {
-        setActiveSession(sessionJson.session);
+      let sessionRes: Response | undefined;
+      try {
+        const apiUrl = getApiUrl();
+        sessionRes = await fetch(`${apiUrl}/mobile/sessions/active`, { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'skip_zrok_interstitial': 'true'
+          } 
+        });
+      } catch (networkError: any) {
+        // Session fetch failure is not critical, continue without it
+        console.warn('Failed to fetch active session:', networkError);
+        sessionRes = undefined;
+      }
+      
+      if (sessionRes) {
+        // Check content type BEFORE reading body
+        const sessionContentType = sessionRes.headers.get('content-type');
+        if (sessionContentType && sessionContentType.includes('application/json') && sessionRes.ok) {
+          let sessionJson: any = {};
+          try {
+            const text = await sessionRes.text();
+            if (text) {
+              sessionJson = JSON.parse(text);
+              setActiveSession(sessionJson.session);
+            }
+          } catch (parseError) {
+            // Session parse error is not critical
+            console.warn('[Workout] Failed to parse session response:', parseError);
+          }
+        }
       }
 
     } catch (e: any) {
       console.error("Error fetching workout data:", e);
-      setError(e.message);
+      setError(e.message || 'Failed to load workout program. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -4,7 +4,27 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TokenStorage } from '@/lib/storage';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
+// Use relative paths to go through Next.js rewrites (works in both browser and WebView)
+// In browser/WebView, empty string means relative paths which go through Next.js rewrites
+// For SSR or direct backend access, use the full URL
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    // Check if we're in a WebView - WebView might need absolute URLs
+    const isWebView = !!(window as any).ReactNativeWebView;
+    if (isWebView) {
+      // In WebView, use the same origin as the page (localhost:3002)
+      // This will go through Next.js rewrites
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      return `${protocol}//${host}`;
+    }
+    return ''; // Use relative paths (goes through Next.js rewrites)
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+};
 
 export default function DayDetailPage() {
   const router = useRouter();
@@ -41,10 +61,43 @@ export default function DayDetailPage() {
       }
 
       // Fetch active program to get day data
-      const programRes = await fetch(`${API}/mobile/programs/active`, { 
-        headers: { Authorization: `Bearer ${token}` } 
+      const apiUrl = getApiUrl();
+      const programRes = await fetch(`${apiUrl}/mobile/programs/active`, { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
+        } 
       });
-      const programJson = await programRes.json();
+      
+      // Safe JSON parsing - read body first
+      const programText = await programRes.text();
+      
+      // Check if response is HTML (zrok interstitial or Next.js error page)
+      const isProgramHtml = programText.trim().startsWith('<!DOCTYPE') || programText.trim().startsWith('<html');
+      if (isProgramHtml) {
+        console.error('[DayDetail] Received HTML instead of JSON:', programText.substring(0, 300));
+        const isZrok = programText.includes('zrok') || programText.includes('interstitial');
+        if (isZrok) {
+          console.warn('[DayDetail] Zrok interstitial detected - request blocked by proxy');
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      // Check content type
+      const contentType = programRes.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[DayDetail] Non-JSON response (status 200):', programText.substring(0, 200));
+        throw new Error('Server returned non-JSON response');
+      }
+      
+      let programJson: any;
+      try {
+        programJson = JSON.parse(programText);
+      } catch (parseError: any) {
+        console.error('[DayDetail] JSON parse error:', parseError, 'Text:', programText.substring(0, 200));
+        throw new Error('Failed to parse server response');
+      }
       if (!programRes.ok) throw new Error(programJson.error || 'Failed to fetch program');
 
       // Find the specific day
@@ -56,12 +109,31 @@ export default function DayDetailPage() {
       setDayData(day);
 
       // Fetch active session
-      const sessionRes = await fetch(`${API}/mobile/sessions/active`, { 
-        headers: { Authorization: `Bearer ${token}` } 
+      const apiUrl2 = getApiUrl();
+      const sessionRes = await fetch(`${apiUrl2}/mobile/sessions/active`, { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
+        } 
       });
-      const sessionJson = await sessionRes.json();
+      
       if (sessionRes.ok) {
-        setActiveSession(sessionJson.session);
+        // Safe JSON parsing
+        const sessionContentType = sessionRes.headers.get('content-type');
+        if (sessionContentType && sessionContentType.includes('application/json')) {
+          try {
+            const sessionText = await sessionRes.text();
+            // Check for HTML
+            if (!sessionText.trim().startsWith('<!DOCTYPE') && !sessionText.trim().startsWith('<html')) {
+              const sessionJson = JSON.parse(sessionText);
+              setActiveSession(sessionJson.session);
+            } else {
+              console.warn('[DayDetail] Session response is HTML, skipping');
+            }
+          } catch (e) {
+            console.warn('[DayDetail] Failed to parse session JSON:', e);
+          }
+        }
       }
 
     } catch (e: any) {
@@ -111,15 +183,42 @@ export default function DayDetailPage() {
       let token = (globalThis as any).ACCESS_TOKEN || await TokenStorage.getAccessToken();
       if (!token) throw new Error('Not authenticated');
 
-      const res = await fetch(`${API}/mobile/sessions/start`, {
+      const apiUrl3 = getApiUrl();
+      const res = await fetch(`${apiUrl3}/mobile/sessions/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
         },
         body: JSON.stringify({ assignmentId: Number(assignmentId), dayId: Number(dayId) }),
       });
-      const json = await res.json();
+      
+      // Safe JSON parsing - read body first
+      const text = await res.text();
+      
+      // Check if response is HTML
+      const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+      if (isHtml) {
+        const isZrok = text.includes('zrok') || text.includes('interstitial');
+        if (isZrok) {
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+      
+      let json: any;
+      try {
+        json = JSON.parse(text);
+      } catch (parseError: any) {
+        throw new Error('Failed to parse server response');
+      }
       
       if (!res.ok) throw new Error(json.error || 'Failed to start workout');
       setActiveSession(json.session);
@@ -134,15 +233,42 @@ export default function DayDetailPage() {
       if (!token) throw new Error('Not authenticated');
 
       const action = activeSession.status === 'active' ? 'pause' : 'resume';
-      const res = await fetch(`${API}/mobile/sessions/${activeSession.id}/${action}`, {
+      const apiUrl4 = getApiUrl();
+      const res = await fetch(`${apiUrl4}/mobile/sessions/${activeSession.id}/${action}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
         },
       });
-
-      const json = await res.json();
+      
+      // Safe JSON parsing - read body first
+      const text = await res.text();
+      
+      // Check if response is HTML
+      const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+      if (isHtml) {
+        const isZrok = text.includes('zrok') || text.includes('interstitial');
+        if (isZrok) {
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+      
+      let json: any;
+      try {
+        json = JSON.parse(text);
+      } catch (parseError: any) {
+        throw new Error('Failed to parse server response');
+      }
+      
       if (!res.ok) throw new Error(json.error || `Failed to ${action} workout`);
       setActiveSession(json.session);
     } catch (e: any) {
@@ -155,14 +281,41 @@ export default function DayDetailPage() {
       let token = (globalThis as any).ACCESS_TOKEN || await TokenStorage.getAccessToken();
       if (!token) throw new Error('Not authenticated');
 
-      const res = await fetch(`${API}/mobile/sessions/${activeSession.id}/complete`, {
+      const apiUrl5 = getApiUrl();
+      const res = await fetch(`${apiUrl5}/mobile/sessions/${activeSession.id}/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'skip_zrok_interstitial': 'true'
         },
       });
-      const json = await res.json();
+      
+      // Safe JSON parsing - read body first
+      const text = await res.text();
+      
+      // Check if response is HTML
+      const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+      if (isHtml) {
+        const isZrok = text.includes('zrok') || text.includes('interstitial');
+        if (isZrok) {
+          throw new Error('Network proxy issue. Please wait a moment and try again.');
+        }
+        throw new Error('Server returned an error page. Please try again.');
+      }
+      
+      // Check content type
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+      
+      let json: any;
+      try {
+        json = JSON.parse(text);
+      } catch (parseError: any) {
+        throw new Error('Failed to parse server response');
+      }
       if (!res.ok) throw new Error(json.error || 'Failed to complete workout');
       setActiveSession(null);
       router.push('/workout');
@@ -263,8 +416,9 @@ export default function DayDetailPage() {
     if (!videoUrl) return null;
     if (videoUrl.startsWith('http')) return videoUrl;
     // If relative path, prepend API URL
+    const apiUrl6 = getApiUrl() || 'http://localhost:4000';
     const cleanPath = videoUrl.startsWith('/') ? videoUrl : `/${videoUrl}`;
-    return `${API}${cleanPath}`;
+    return `${apiUrl6}${cleanPath}`;
   };
 
   if (loading) {
@@ -332,7 +486,7 @@ export default function DayDetailPage() {
         e.groupId === exercise.groupId && e.groupType === exercise.groupType
       );
       
-      groupExercises.forEach(e => processedIds.add(e.id));
+      groupExercises.forEach((e: any) => processedIds.add(e.id));
       groupedExercises.push({
         type: 'group',
         groupType: exercise.groupType,
